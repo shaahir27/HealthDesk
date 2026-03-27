@@ -1,0 +1,84 @@
+{% extends "index.html" %}
+
+{% block content %}
+
+<div class="card shadow p-4 mx-auto" style="max-width: 750px;">
+    
+    <h3 class="text-center mb-4" style="color:#2E86C1;">
+        Patient Registration
+    </h3>
+
+    <form action="/add_patient" method="POST">
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label class="form-label">Patient Name <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" name="name" required>
+            </div>
+
+            <div class="col-md-6 mb-3">
+                <label class="form-label">Age<span class="text-danger">*</span></label>
+                <input type="number" class="form-control" name="age" required>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label class="form-label">Gender<span class="text-danger">*</span></label>
+                <select class="form-select" name="gender" required>
+                    <option value="">Select</option>
+                    <option>Male</option>
+                    <option>Female</option>
+                    <option>Other</option>
+                </select>
+            </div>
+
+            <div class="col-md-6 mb-3">
+                <label class="form-label">Phone Number<span class="text-danger">*</span></label>
+                <input type="tel" class="form-control" name="phone" required>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Address<span class="text-danger">*</span></label>
+            <textarea class="form-control" name="address" rows="3"></textarea>
+        </div>
+
+
+        <div class="mb-4">
+            <label class="form-label">Symptoms / Complaints<span class="text-danger">*</span></label>
+            <textarea class="form-control" name="symptoms" rows="2" required></textarea>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label class="form-label">Visit Type<span class="text-danger">*</span></label>
+                <select class="form-select" name="visit_type" required>
+                    <option value="">Select</option>
+                    <option>New</option>
+                    <option>Follow-up</option>
+                    <option>Emergency</option>
+                </select>
+            </div>
+
+            <div class="col-md-6 mb-4">
+                <label class="form-label">Priority</label>
+                <select class="form-select" name="priority">
+                    <option value="">Select</option>
+                    <option>Normal</option>
+                    <option>Urgent</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="d-grid">
+            <button type="submit" class="btn btn-primary btn-lg">
+                Register Patient
+            </button>
+        </div>
+
+    </form>
+
+</div>
+
+{% endblock %}
