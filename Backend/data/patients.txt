@@ -1,13 +1,2 @@
-1|Shaahir|12|Male|7904515049A3 24 Lakeside Phase 1, Surapet Main Road|A3 24 Lakeside Phase 1, Surapet Main Road|ddcj|New|Normal
-2|Shaahir|12|Male|7904515049A3 24 Lakeside Phase 1, Surapet Main Road|A3 24 Lakeside Phase 1, Surapet Main Road|ddcj|New|Normal
-3|Shaahir|18|Male|7904515049A3 24 Lakeside Phase 1, Surapet Main Road|A3 24 Lakeside Phase 1, Surapet Main Road|fever, headache|New|Normal
-4|Shaahir|18|Male|7904515049A3 24 Lakeside Phase 1, Surapet Main Road|A3 24 Lakeside Phase 1, Surapet Main Road|fever, headache|New|Normal
-5|Shaahir|18|Male|7904515049A3 24 Lakeside Phase 1, Surapet Main Road|A3 24 Lakeside Phase 1, Surapet Main Road|fever, headache|New|Normal
-6|Shaahir|18|Male|7904515049A3 24 Lakeside Phase 1, Surapet Main Road|A3 24 Lakeside Phase 1, Surapet Main Road|fever, headache|New|Normal
-7|Shaahir|18|Male|7904515049A3 24 Lakeside Phase 1, Surapet Main Road|A3 24 Lakeside Phase 1, Surapet Main Road|fever, headache|New|Normal
-8|Shaahir|18|Male|7904515049A3 24 Lakeside Phase 1, Surapet Main Road|A3 24 Lakeside Phase 1, Surapet Main Road|fever, headache|New|Normal
-9|Shaahir|18|Male|7904515049A3 24 Lakeside Phase 1, Surapet Main Road|A3 24 Lakeside Phase 1, Surapet Main Road|fever, headache|New|Normal
-10|Shaahir|18|Male|7904515049A3 24 Lakeside Phase 1, Surapet Main Road|A3 24 Lakeside Phase 1, Surapet Main Road|fever, headache|New|Normal
-11|Shaahir|18|Male|7904515049A3 24 Lakeside Phase 1, Surapet Main Road|A3 24 Lakeside Phase 1, Surapet Main Road|fever, headache|New|Normal
-12|Shaahir|18|Male|7904515049A3 24 Lakeside Phase 1, Surapet Main Road|A3 24 Lakeside Phase 1, Surapet Main Road|Fever, headache|New|Normal
-13|Shaahir|18|Male|7904515049A3 24 Lakeside Phase 1, Surapet Main Road|A3 24 Lakeside Phase 1, Surapet Main Road|Fever, Headache|New|Normal
+1|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever|Emergency|Urgent|General
+2|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever|Emergency|Urgent|General

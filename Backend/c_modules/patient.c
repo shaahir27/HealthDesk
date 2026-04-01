@@ -1,5 +1,24 @@
 #include "common.h"
 
+int generate_id(FILE *fp){
+
+    // Reading and Writing data in file
+
+    int count = 0;
+    char line[1024];
+
+    fp = fopen("Backend/data/patients.txt", "r");
+
+    if(fp != NULL){
+        while(fgets(line, sizeof(line), fp)){
+                count++;
+            }
+        fclose(fp);
+    }
+
+    return count + 1;
+}
+
 int main(int argc, char *argv[]){
 
     if(argc < 2){
@@ -9,7 +28,7 @@ int main(int argc, char *argv[]){
 
     struct Patient p;
 
-    char data[300];
+    char data[750];
     strcpy(data, argv[1]);
 
     char *token;
@@ -39,28 +58,18 @@ int main(int argc, char *argv[]){
     token = strtok(NULL, "|");
     strcpy(p.priority, token);
 
-    // Reading and Writing data in file
+    token =strtok(NULL, "|");
+    strcpy(p.department, token);
 
-    FILE* fp;
-    int count = 0;
-    char line[1024];
+    FILE *fp;
 
-    fp = fopen("Backend/data/patients.txt", "r");
-
-    if(fp != NULL){
-        while(fgets(line, sizeof(line), fp)){
-                count++;
-            }
-        fclose(fp);
-    }
-
-    p.id = count + 1;
+    p.id = generate_id(fp);
 
     fp = fopen("Backend/data/patients.txt", "a");
 
-    fprintf(fp, "%d|%s|%d|%s|%s|%s|%s|%s|%s\n",
+    fprintf(fp, "%d|%s|%d|%s|%s|%s|%s|%s|%s|%s\n",
             p.id, p.name, p.age, p.gender, p.phone,
-            p.address, p.symptoms, p.visit_type, p.priority);
+            p.address, p.symptoms, p.visit_type, p.priority, p.department);
 
     fclose(fp);
     

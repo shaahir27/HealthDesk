@@ -3,82 +3,108 @@
 {% block content %}
 
 <div class="card shadow p-4 mx-auto" style="max-width: 750px;">
-    
-    <h3 class="text-center mb-4" style="color:#2E86C1;">
-        Patient Registration
-    </h3>
 
-    <form action="/add_patient" method="POST">
+<h3 class="text-center mb-4" style="color:#2E86C1;">
+    Patient Registration
+</h3>
 
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Patient Name <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" name="name" required>
-            </div>
+<form action="/add_patient" method="POST">
 
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Age<span class="text-danger">*</span></label>
-                <input type="number" class="form-control" name="age" required>
-            </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Patient Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" name="name" required>
         </div>
 
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Gender<span class="text-danger">*</span></label>
-                <select class="form-select" name="gender" required>
-                    <option value="">Select</option>
-                    <option>Male</option>
-                    <option>Female</option>
-                    <option>Other</option>
-                </select>
-            </div>
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Age <span class="text-danger">*</span></label>
+            <input type="number" class="form-control" name="age" min="0" required>
+        </div>
+    </div>
 
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Phone Number<span class="text-danger">*</span></label>
-                <input type="tel" class="form-control" name="phone" required>
-            </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Gender <span class="text-danger">*</span></label>
+            <select class="form-select" name="gender" required>
+                <option value="">Select</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+            </select>
         </div>
 
-        <div class="mb-3">
-            <label class="form-label">Address<span class="text-danger">*</span></label>
-            <textarea class="form-control" name="address" rows="3"></textarea>
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Phone Number <span class="text-danger">*</span></label>
+            <input type="tel" class="form-control" name="phone" pattern="[0-9]{10}" maxlength="10" required>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Address <span class="text-danger">*</span></label>
+        <textarea class="form-control" name="address" rows="3" required></textarea>
+    </div>
+
+    <div class="mb-4">
+        <label class="form-label">Symptoms / Complaints <span class="text-danger">*</span></label>
+        <textarea class="form-control" name="symptoms" rows="2" required></textarea>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Visit Type <span class="text-danger">*</span></label>
+            <select class="form-select" name="visit_type" required>
+                <option value="">Select</option>
+                <option value="New">New</option>
+                <option value="Follow-up">Follow-up</option>
+                <option value="Emergency">Emergency</option>
+            </select>
         </div>
 
-
-        <div class="mb-4">
-            <label class="form-label">Symptoms / Complaints<span class="text-danger">*</span></label>
-            <textarea class="form-control" name="symptoms" rows="2" required></textarea>
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Priority <span class="text-danger">*</span></label>
+            <select class="form-select" name="priority" required>
+                <option value="">Select</option>
+                <option value="Normal">Normal</option>
+                <option value="Urgent">Urgent</option>
+            </select>
         </div>
+    </div>
 
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Visit Type<span class="text-danger">*</span></label>
-                <select class="form-select" name="visit_type" required>
-                    <option value="">Select</option>
-                    <option>New</option>
-                    <option>Follow-up</option>
-                    <option>Emergency</option>
-                </select>
-            </div>
-
-            <div class="col-md-6 mb-4">
-                <label class="form-label">Priority</label>
-                <select class="form-select" name="priority">
-                    <option value="">Select</option>
-                    <option>Normal</option>
-                    <option>Urgent</option>
-                </select>
-            </div>
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <label class="form-label">Department <span class="text-danger">*</span></label>
+            <select class="form-select" name="department" required>
+                <option value="">Select Department</option>
+                <option value="General">General Medicine</option>
+                <option value="Cardiology">Cardiology</option>
+                <option value="Orthopaedics">Orthopaedics</option>
+                <option value="ENT">ENT</option>
+                <option value="Neurology">Neurology</option>
+                <option value="Dermatology">Dermatology</option>
+                <option value="Pediatrics">Pediatrics</option>
+                <option value="Other">Other</option>
+            </select>
         </div>
+    </div>
 
-        <div class="d-grid">
-            <button type="submit" class="btn btn-primary btn-lg">
-                Register Patient
-            </button>
-        </div>
+    <div class="d-grid">
+        <button type="submit" class="btn btn-primary btn-lg">
+            Register Patient
+        </button>
+    </div>
 
-    </form>
+</form>
+
 
 </div>
+
+<script>
+document.querySelector('[name="visit_type"]').addEventListener('change', function() {
+    let priority = document.querySelector('[name="priority"]');
+    if (this.value === "Emergency") {
+        priority.value = "Urgent";
+    }
+});
+</script>
 
 {% endblock %}

@@ -12,10 +12,11 @@ struct Patient {
     int id;
     char name[30];
     int age;
-    char gender[10];
-    char phone[10];
-    char address[100];
-    char symptoms[50];
+    char gender[20];
+    char phone[11];
+    char address[200];
+    char symptoms[200];
     char visit_type[20];
     char priority[20];
+    char department[30];
 };

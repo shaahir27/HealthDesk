@@ -10,7 +10,9 @@ app = Flask(__name__,
             template_folder = TMPL_DIR,
             static_folder=STATIC_DIR)
 
-
+@app.route("/")
+def dashboard():
+    return render_template("dashboard.html")
 
 @app.route("/patient")
 def patient():
@@ -27,10 +29,11 @@ def add_patient():
     symptoms = request.form["symptoms"]
     visit_type = request.form["visit_type"]
     priority = request.form["priority"]
+    department = request.form["department"]
 
     exe_path = os.path.join(BACKEND_DIR, "c_modules", "patient.exe")
 
-    data_string = f"{name}|{age}|{gender}|{phone}|{address}|{symptoms}|{visit_type}|{priority}"
+    data_string = f"{name}|{age}|{gender}|{phone}|{address}|{symptoms}|{visit_type}|{priority}|{department}"
     
     patient_output = subprocess.run(
         [exe_path, data_string],
@@ -42,7 +45,7 @@ def add_patient():
     id = data[0]
     view_type = data[1]
     priority = data[2]
-    return render_template("add_patient.html", patient_id=id, visit_type=visit_type, priority=priority)
+    return render_template("add_patient.html", patient_id=id, visit_type=visit_type, department=department, priority=priority)
 
 @app.route("/test")
 def test():
