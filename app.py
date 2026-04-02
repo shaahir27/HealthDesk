@@ -47,16 +47,5 @@ def add_patient():
     priority = data[2]
     return render_template("add_patient.html", patient_id=id, visit_type=visit_type, department=department, priority=priority)
 
-@app.route("/test")
-def test():
-    exe_path = os.path.join("test.exe")
-    result = subprocess.run(
-        [exe_path, "hello"],
-        capture_output=True,
-        text=True
-    )
-
-    return result.stdout
-
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

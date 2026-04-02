@@ -3,3 +3,4 @@
 3|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever, Headache|Follow-up|Normal|General
 4|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever, Headache|Follow-up|Normal|General
 5|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever, Headache|Follow-up|Normal|General
+6|Shaahir|14|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever, Headache|Emergency|Urgent|Cardiology
