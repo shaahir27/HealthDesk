@@ -2,92 +2,167 @@
 
 {% block content %}
 
-<div class="container mt-4"><!-- HEADER -->
+<style>
+/* 🔥 Premium Enhancements */
+
+.premium-card {
+    border: none;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.05);
+    transition: 0.3s ease;
+}
+
+.premium-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.08);
+}
+
+.token-display {
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.dot-waiting { background: #f1c40f; }
+.dot-completed { background: #27ae60; }
+
+.btn-premium {
+    background: linear-gradient(135deg, #2E86C1, #1f618d);
+    border: none;
+    transition: 0.3s ease;
+}
+
+.btn-premium:hover {
+    transform: scale(1.02);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+}
+
+.table tbody tr:hover {
+    background-color: #f8fbff;
+    transition: 0.2s;
+}
+.progress-bar {
+    transition: width 0.8s ease-in-out;
+}
+
+</style>
+
+<div class="container mt-4">
+
+<!-- HEADER -->
 <div class="mb-4">
-    <h5 class="fw-semibold" style="color:#2E86C1;">Queue Management</h5>
-    <small class="text-muted">Real-time patient flow</small>
+    <h4 class="fw-bold" style="color:#2E86C1;">Queue Control Panel</h4>
+    <small class="text-muted">Real-time patient management</small>
 </div>
 
-<!-- SUMMARY -->
-<div class="row g-3 mb-4">
-
-    <div class="col-md-6">
-        <div class="card p-3 text-center">
-            <small class="text-muted">Waiting</small>
-            <h5 class="fw-semibold text-warning mb-0">{{ waiting_count }}</h5>
-        </div>
-    </div>
-
-    <div class="col-md-6">
-        <div class="card p-3 text-center">
-            <small class="text-muted">Completed</small>
-            <h5 class="fw-semibold text-success mb-0">{{ completed_count }}</h5>
-        </div>
-    </div>
-
-</div>
-
-<!-- TOP SECTION -->
+<!-- TOP GRID -->
 <div class="row g-4 mb-4">
 
-    <!-- NEXT PATIENT -->
-    <div class="col-md-7">
+    <!-- NOW SERVING -->
+    <div class="col-md-6">
+        <div class="premium-card p-4 h-100">
 
-        <div class="card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="text-muted mb-0">Now Serving</h6>
 
-            <small class="text-muted mb-2">Next Patient</small>
-
-            {% if next_patient %}
-
-            <h5 class="fw-semibold mb-2">
-                Token {{ next_patient.token }}
-            </h5>
-
-            <div class="text-muted mb-1">
-                Patient ID: {{ next_patient.patient_id }}
-            </div>
-
-            <div class="text-muted mb-2">
-                Doctor ID: {{ next_patient.doctor_id }}
-            </div>
-
-            <div class="mb-3">
-                {% if next_patient.priority == "Urgent" %}
-                    <span class="badge bg-danger">Urgent</span>
-                {% else %}
-                    <span class="badge bg-secondary">Normal</span>
+                {% if next_patient %}
+                    <span class="badge 
+                        {% if next_patient.priority == "Urgent" %}bg-danger{% else %}bg-secondary{% endif %}">
+                        {{ next_patient.priority }}
+                    </span>
                 {% endif %}
             </div>
 
+            {% if next_patient %}
+
+            <div class="token-display mb-2">
+                {{ next_patient.token }}
+            </div>
+
+            <div class="text-muted mb-1">
+                Patient ID: <strong>{{ next_patient.patient_id }}</strong>
+            </div>
+
+            <div class="text-muted mb-3">
+                Doctor:
+                <strong>
+                    {{ "Not Assigned" if next_patient.doctor_id == -1 else "Dr " ~ next_patient.doctor_id }}
+                </strong>
+            </div>
+
+            <form action="/serve" method="POST">
+                <button class="btn btn-premium text-white w-100 py-2 fw-semibold">
+                    Serve Patient →
+                </button>
+            </form>
+
             {% else %}
-
-            <div class="text-muted">No patients waiting</div>
-
+            <div class="text-muted">No active patients</div>
             {% endif %}
 
         </div>
-
     </div>
 
-    <!-- ACTION -->
-    <div class="col-md-5 d-flex align-items-end">
+    <!-- STATS PANEL -->
+    <div class="col-md-6">
+        <div class="premium-card p-4 h-100">
 
-        <form action="/serve" method="POST" class="w-100">
-            <button class="btn btn-primary w-100">
-                Serve Next Patient →
-            </button>
-        </form>
+            <h6 class="text-muted mb-3">Queue Overview</h6>
 
+            <div class="d-flex justify-content-between mb-3">
+                <div>
+                    <small class="text-muted">Waiting</small><br>
+                    <span class="fw-bold text-warning fs-4">{{ waiting_count }}</span>
+                </div>
+
+                <div>
+                    <small class="text-muted">Completed</small><br>
+                    <span class="fw-bold text-success fs-4">{{ completed_count }}</span>
+                </div>
+            </div>
+
+            {% set total = waiting_count + completed_count %}
+
+            <div class="progress" style="height: 10px; border-radius: 10px; overflow: hidden;">
+
+                <div id="waitingBar" 
+                    class="progress-bar bg-warning progress-bar-striped progress-bar-animated"
+                    style="width: {{ (waiting_count / total * 100) if total > 0 else 0 }}%">
+                </div>
+
+                <div id="completedBar" 
+                    class="progress-bar bg-success progress-bar-striped progress-bar-animated"
+                    style="width: {{ (completed_count / total * 100) if total > 0 else 0 }}%">
+                </div>
+
+            </div>
+
+        </div>
     </div>
 
 </div>
 
 <!-- TABLE -->
-<div class="card p-3">
+<div class="premium-card p-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="text-muted mb-0">Live Queue</h6>
+        <small class="text-muted">{{ queue|length }} active</small>
+    </div>
 
     <div class="table-responsive">
 
-        <table class="table align-middle mb-0">
+        <table class="table align-middle">
 
             <thead class="table-light">
                 <tr>
@@ -103,33 +178,29 @@
 
                 {% for q in queue %}
 
-                <tr class="{% if q.status == 'Waiting' and loop.first %}table-warning{% endif %}">
+                <tr>
 
                     <td class="fw-semibold">{{ q.token }}</td>
 
                     <td>{{ q.patient_id }}</td>
 
-                    <td>{% if q.doctor_id == -1 %}
-                            Not Assigned
-                        {% else %}
-                            {{ q.doctor_id }}
-                        {% endif %}
+                    <td>
+                        {{ "Not Assigned" if q.doctor_id == -1 else "Dr " ~ q.doctor_id }}
                     </td>
 
                     <td>
-                        {% if q.priority == "Urgent" %}
-                            <span class="text-danger">Urgent</span>
-                        {% else %}
-                            <span class="text-secondary">Normal</span>
-                        {% endif %}
+                        <span class="badge 
+                            {% if q.priority == "Urgent" %}bg-danger{% else %}bg-secondary{% endif %}">
+                            {{ q.priority }}
+                        </span>
                     </td>
 
                     <td>
-                        {% if q.status == "Waiting" %}
-                            <span class="text-warning">Waiting</span>
-                        {% else %}
-                            <span class="text-success">Completed</span>
-                        {% endif %}
+                        <span class="status-dot 
+                            {% if q.status == "Waiting" %}dot-waiting{% else %}dot-completed{% endif %}">
+                        </span>
+
+                        {{ q.status }}
                     </td>
 
                 </tr>
@@ -144,4 +215,12 @@
 
 </div>
 
-</div>{% endblock %}
+</div>
+
+<script>
+    setInterval(() => {
+        window.location.reload();
+    }, 5000);
+</script>
+
+{% endblock %}

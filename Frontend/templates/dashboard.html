@@ -2,29 +2,93 @@
 
 {% block content %}
 
-<div class="container mt-3"><!-- HERO -->
+<style>
+/* 🔥 HERO */
+.hero-section {
+    background: linear-gradient(135deg, #2E86C1, #1B4F72);
+    border-radius: 16px;
+    color: white;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+}
+
+/* 🔥 BUTTONS */
+.btn-hero {
+    background: white;
+    color: #2E86C1;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: 0.3s;
+}
+
+.btn-hero:hover {
+    transform: translateY(-2px);
+}
+
+.btn-hero-outline {
+    border: 1px solid rgba(255,255,255,0.6);
+    color: white;
+    border-radius: 8px;
+    transition: 0.3s;
+}
+
+.btn-hero-outline:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+/* 🔥 CARDS */
+.premium-card {
+    border-radius: 14px;
+    border: none;
+    background: rgba(255,255,255,0.9);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.05);
+    transition: 0.3s;
+}
+
+.premium-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.08);
+}
+
+/* 🔥 NEXT PATIENT */
+.token-highlight {
+    font-size: 36px;
+    font-weight: 700;
+    color: #2E86C1;
+}
+
+/* 🔥 STATUS DOT */
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.green { background: #2ecc71; }
+.red { background: #e74c3c; }
+.gray { background: #7f8c8d; }
+
+</style>
+
+<div class="container mt-3">
+
+<!-- HERO -->
 <div class="hero-section p-4 mb-4">
 
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
 
         <div>
-            <h4 class="mb-1 text-white fw-semibold">Dashboard</h4>
+            <h4 class="mb-1 fw-semibold">Dashboard</h4>
             <small class="text-light">Monitor and manage daily operations</small>
         </div>
 
         <div class="d-flex gap-2 flex-wrap">
 
-            <a href="/patient" class="btn btn-hero">
-                Register Patient
-            </a>
-
-            <a href="/queue" class="btn btn-hero-outline">
-                Open Queue
-            </a>
-
-            <a href="/billing" class="btn btn-hero-outline">
-                Billing
-            </a>
+            <a href="/patient" class="btn btn-hero">Register Patient</a>
+            <a href="/queue" class="btn btn-hero-outline">Queue</a>
+            <a href="/billing" class="btn btn-hero-outline">Billing</a>
+            <a href="/doctors" class="btn btn-hero-outline">Doctors</a>
 
         </div>
 
@@ -32,114 +96,110 @@
 
 </div>
 
-<!-- STATUS BAR -->
+<!-- STATUS -->
 <div class="row g-3 mb-4">
 
     <div class="col-md-3">
-        <div class="card p-3 text-center">
+        <div class="premium-card p-3 text-center">
             <small class="text-muted">Total Patients</small>
-            <h5 class="fw-semibold mb-0">{{ total_patients }}</h5>
+            <h5 class="fw-bold">{{ total_patients }}</h5>
         </div>
     </div>
 
     <div class="col-md-3">
-        <div class="card p-3 text-center">
+        <div class="premium-card p-3 text-center">
             <small class="text-muted">Waiting</small>
-            <h5 class="fw-semibold text-warning mb-0">{{ waiting_count }}</h5>
+            <h5 class="fw-bold text-warning">{{ waiting_count }}</h5>
         </div>
     </div>
 
     <div class="col-md-3">
-        <div class="card p-3 text-center">
+        <div class="premium-card p-3 text-center">
             <small class="text-muted">Completed</small>
-            <h5 class="fw-semibold text-success mb-0">{{ completed_count }}</h5>
+            <h5 class="fw-bold text-success">{{ completed_count }}</h5>
         </div>
     </div>
 
     <div class="col-md-3">
-        <div class="card p-3 text-center">
+        <div class="premium-card p-3 text-center">
             <small class="text-muted">Available Doctors</small>
-            <h5 class="fw-semibold mb-0">{{ available_doctors }}</h5>
+            <h5 class="fw-bold">{{ available_doctors }}</h5>
         </div>
     </div>
 
 </div>
 
-<!-- MAIN SECTION -->
+<!-- MAIN -->
 <div class="row g-4">
 
-    <!-- LEFT: NEXT PATIENT -->
+    <!-- NEXT PATIENT -->
     <div class="col-md-7">
 
-        <div class="card p-4 h-100">
+        <div class="premium-card p-4 h-100">
 
-            <div class="mb-3">
-                <small class="text-muted">Next Patient</small>
-            </div>
+            <small class="text-muted">Now Serving</small>
 
             {% if next_patient %}
 
-            <h5 class="fw-semibold mb-2">
+            <div class="token-highlight mb-2">
                 Token {{ next_patient.token }}
-            </h5>
-
-            <div class="text-muted mb-1">
-                Patient ID: {{ next_patient.patient_id }}
             </div>
 
-            <div class="text-muted mb-2">
-                Doctor ID: {{ next_patient.doctor_id }}
+            <div class="text-muted mb-1">
+                Patient ID: <strong>{{ next_patient.patient_id }}</strong>
+            </div>
+
+            <div class="text-muted mb-3">
+                Doctor:
+                <strong>
+                    {{ "Not Assigned" if next_patient.doctor_id == -1 else "Dr " ~ next_patient.doctor_id }}
+                </strong>
             </div>
 
             <div class="mb-3">
-                {% if next_patient.priority == "Urgent" %}
-                    <span class="badge bg-danger">Urgent</span>
-                {% else %}
-                    <span class="badge bg-secondary">Normal</span>
-                {% endif %}
+                <span class="badge 
+                    {% if next_patient.priority == "Urgent" %}bg-danger{% else %}bg-secondary{% endif %}">
+                    {{ next_patient.priority }}
+                </span>
             </div>
 
             <form action="/serve" method="POST">
-                <button class="btn btn-primary w-100">
+                <button class="btn btn-primary w-100 py-2 fw-semibold">
                     Serve Patient →
                 </button>
             </form>
 
             {% else %}
-
             <div class="text-muted">No patients waiting</div>
-
             {% endif %}
 
         </div>
 
     </div>
 
-    <!-- RIGHT: DOCTOR STATUS -->
+    <!-- DOCTORS -->
     <div class="col-md-5">
 
-        <div class="card p-4 h-100">
+        <div class="premium-card p-4 h-100">
 
-            <div class="mb-3">
-                <small class="text-muted">Doctor Availability</small>
-            </div>
+            <small class="text-muted mb-3 d-block">Doctor Availability</small>
 
             {% for d in doctors %}
 
             <div class="d-flex justify-content-between align-items-center mb-3">
 
                 <div>
-                    <div class="fw-semibold">{{ d.name }}</div>
+                    <div class="fw-semibold">Dr {{ d.name }}</div>
                     <small class="text-muted">{{ d.specialization }}</small>
                 </div>
 
                 <div>
                     {% if d.daily_status == "Off" %}
-                        <span class="badge bg-secondary">Off</span>
+                        <span class="status-dot gray"></span> Off
                     {% elif d.current_status == "Busy" %}
-                        <span class="badge bg-danger">Busy</span>
+                        <span class="status-dot red"></span> Busy
                     {% else %}
-                        <span class="badge bg-success">Available</span>
+                        <span class="status-dot green"></span> Available
                     {% endif %}
                 </div>
 
@@ -153,4 +213,6 @@
 
 </div>
 
-</div>{% endblock %}
+</div>
+
+{% endblock %}

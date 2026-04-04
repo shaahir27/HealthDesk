@@ -66,7 +66,7 @@ void viewDoctors() {
 
 void updateDailyStatus(int doctor_id, char *status) {
     FILE *fp = fopen(DOCTOR_FILE, "r");
-    FILE *temp = fopen("../data/temp.txt", "w");
+    FILE *temp = fopen("Backend/data/temp.txt", "w");
 
     char line[MAX_LINE];
 
@@ -112,12 +112,12 @@ void updateDailyStatus(int doctor_id, char *status) {
     fclose(temp);
 
     remove(DOCTOR_FILE);
-    rename("../data/temp.txt", DOCTOR_FILE);
+    rename("Backend/data/temp.txt", DOCTOR_FILE);
 }
 
 void updateCurrentStatus(int doctor_id, char *status) {
     FILE *fp = fopen(DOCTOR_FILE, "r");
-    FILE *temp = fopen("../data/temp.txt", "w");
+    FILE *temp = fopen("Backend/data/temp.txt", "w");
 
     char line[MAX_LINE];
 
@@ -163,7 +163,7 @@ void updateCurrentStatus(int doctor_id, char *status) {
     fclose(temp);
 
     remove(DOCTOR_FILE);
-    rename("../data/temp.txt", DOCTOR_FILE);
+    rename("Backend/data/temp.txt", DOCTOR_FILE);
 }
 
 int findAvailableDoctor(char *department) {

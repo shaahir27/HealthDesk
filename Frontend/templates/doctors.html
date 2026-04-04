@@ -1,0 +1,176 @@
+{% extends "index.html" %}
+
+{% block content %}
+
+<style>
+/* 🔥 CARD STYLE */
+.premium-card {
+    border-radius: 16px;
+    background: rgba(255,255,255,0.9);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.05);
+    transition: 0.3s;
+}
+
+.premium-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.08);
+}
+
+/* 🔥 STATUS DOTS */
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.green { background: #2ecc71; }
+.red { background: #e74c3c; }
+.gray { background: #7f8c8d; }
+
+/* 🔥 BUTTON */
+.btn-smooth {
+    transition: 0.25s ease;
+}
+
+.btn-smooth:hover {
+    transform: translateY(-1px);
+}
+</style>
+
+<div class="container mt-4">
+
+<!-- HEADER -->
+<div class="mb-4">
+    <h4 class="fw-bold" style="color:#2E86C1;">Doctor Management</h4>
+    <small class="text-muted">Manage doctors and availability</small>
+</div>
+
+<!-- ADD DOCTOR -->
+<div class="premium-card p-4 mb-4">
+
+    <h6 class="fw-semibold mb-3">Add Doctor</h6>
+
+    <form action="/add_doctor" method="POST">
+
+        <div class="row g-3">
+
+            <div class="col-md-4">
+                <input type="text" name="name" class="form-control" placeholder="Doctor Name" required>
+            </div>
+
+            <div class="col-md-4">
+                <select name="department" class="form-select" required>
+                    <option value="">Department</option>
+                    <option>General</option>
+                    <option>Cardiology</option>
+                    <option>Orthopaedics</option>
+                    <option>ENT</option>
+                    <option>Neurology</option>
+                    <option>Dermatology</option>
+                    <option>Pediatrics</option>
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <input type="number" name="experience" class="form-control" placeholder="Years" required>
+            </div>
+
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100 btn-smooth">
+                    Add
+                </button>
+            </div>
+
+        </div>
+
+    </form>
+
+</div>
+
+<!-- DOCTOR TABLE -->
+<div class="premium-card p-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="text-muted mb-0">Doctor List</h6>
+        <small class="text-muted">{{ doctors|length }} doctors</small>
+    </div>
+
+    <div class="table-responsive">
+
+        <table class="table align-middle">
+
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Doctor</th>
+                    <th>Department</th>
+                    <th>Experience</th>
+                    <th>Daily</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for d in doctors %}
+
+                <tr>
+
+                    <td class="fw-semibold">{{ d.id }}</td>
+
+                    <td>
+                        <strong>Dr {{ d.name }}</strong>
+                    </td>
+
+                    <td>{{ d.department }}</td>
+
+                    <td>{{ d.experience }} yrs</td>
+
+                    <!-- DAILY STATUS -->
+                    <td>
+                        {% if d.daily_status == "Available" %}
+                            <span class="status-dot green"></span> Available
+                        {% else %}
+                            <span class="status-dot gray"></span> Off
+                        {% endif %}
+                    </td>
+
+                    <!-- CURRENT STATUS -->
+                    <td>
+                        {% if d.current_status == "Free" %}
+                            <span class="status-dot green"></span> Free
+                        {% else %}
+                            <span class="status-dot red"></span> Busy
+                        {% endif %}
+                    </td>
+
+                    <!-- ACTION -->
+                    <td>
+                        <form action="/toggle_doctor" method="POST">
+                            <input type="hidden" name="doctor_id" value="{{ d.id }}">
+                            <input type="hidden" name="status"
+                                   value="{% if d.daily_status == 'Available' %}Off{% else %}Available{% endif %}">
+                            <button class="btn btn-sm btn-outline-primary btn-smooth">
+                                Toggle
+                            </button>
+                        </form>
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+</div>
+
+{% endblock %}

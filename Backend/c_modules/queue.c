@@ -80,6 +80,9 @@ int findDoctor(char *department) {
         token = strtok(NULL, "\n");
         strcpy(d.current_status, token);
 
+        d.specialization[strcspn(d.specialization, "\n")] = '\0';
+        department[strcspn(department, "\n")] = '\0';
+
         if (strcmp(d.specialization, department) == 0 &&
             strcmp(d.daily_status, "Available") == 0 &&
             strcmp(d.current_status, "Free") == 0) {
@@ -95,7 +98,7 @@ int findDoctor(char *department) {
 void updateDoctorBusy(int doctor_id) {
 
     FILE *fp = fopen(DOCTOR_FILE, "r");
-    FILE *temp = fopen("../data/temp.txt", "w");
+    FILE *temp = fopen("Backend/data/temp.txt", "w");
 
     char line[MAX_LINE];
 
@@ -141,7 +144,7 @@ void updateDoctorBusy(int doctor_id) {
     fclose(temp);
 
     remove(DOCTOR_FILE);
-    rename("../data/temp.txt", DOCTOR_FILE);
+    rename("Backend/data/temp.txt", DOCTOR_FILE);
 }
 
 void addToQueue(struct QueueNode q) {
@@ -177,12 +180,10 @@ int main(int argc, char *argv[]) {
 
     int doctor_id = findDoctor(department);
 
-    if(doctor_id == 0) {
-        doctor_id = -1;
-    }
-
     if (doctor_id != 0) {
         updateDoctorBusy(doctor_id);
+    } else {
+        doctor_id = -1;
     }
 
     int token = generateToken();

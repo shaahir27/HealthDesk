@@ -49,12 +49,60 @@ def process_queue(queue):
 
     return queue, next_patient, len(waiting), len(completed)
 
+def count_patients():
+    with open("Backend/data/patients.txt", "r") as f:
+        return len(f.readlines())
+    
+def count_available_doctors():
+    count = 0
+    try:
+        with open("Backend/data/doctors.txt", "r") as f:
+            for line in f:
+                data =line.strip().split("|")
+                if data[4] == "Available" and data[5] == "Free":
+                    count += 1
+    except:
+        pass
+    return count
+
+
+def get_doctors():
+    doctors = []
+    try:
+        with open("Backend/data/doctors.txt", "r") as f:
+            for line in f:
+                data = line.strip().split("|")
+                doctors.append({
+                    "id": int(data[0]),
+                    "name": data[1],
+                    "department": data[2],
+                    "experience": int(data[3]),
+                    "daily_status": data[4],
+                    "current_status": data[5]
+                })
+    except:
+        pass
+    return doctors
+
+
 # dashboard
 @app.route("/")
 def dashboard():
     queue = read_queue()
     queue, next_patient, waiting_count, completed_count = process_queue(queue)
-    return render_template("dashboard.html", queue=queue, next_patient=next_patient, waiting_count=waiting_count, completed_count=completed_count)
+
+    total_patients = count_patients()
+    available_doctors = count_available_doctors()
+    doctors = get_doctors()
+
+    return render_template("dashboard.html", 
+                           queue=queue,
+                           next_patient=next_patient,
+                           waiting_count=waiting_count, 
+                           completed_count=completed_count,
+                           total_patients=total_patients,
+                           available_doctors=available_doctors,
+                           doctors=doctors)
 
 #patient
 @app.route("/patient")
@@ -93,6 +141,12 @@ def add_patient():
 
     queue_exe_path = os.path.join(BACKEND_DIR, "c_modules", "queue.exe")
 
+    subprocess.run(
+        [queue_exe_path, id, department, priority],
+        capture_output=True,
+        text=True
+    )
+
     return render_template("add_patient.html", patient_id=id, visit_type=visit_type, department=department, priority=priority)
 
 @app.route("/queue")
@@ -119,6 +173,69 @@ def serve():
     serve_output = serve_output.stdout.strip()
 
     return redirect("/queue")
+
+@app.route("/doctors")
+def doctors_page():
+
+    exe_path = os.path.join(BACKEND_DIR, "c_modules", "doctor.exe")
+
+    result = subprocess.run(
+        [exe_path, "view"],
+        capture_output=True,
+        text=True
+    )
+
+    doctors = []
+
+    for line in result.stdout.strip().split("\n"):
+        if line:
+            data = line.split("|")
+            doctors.append({
+                "id": int(data[0]),
+                "name": data[1],
+                "department": data[2],
+                "experience": int(data[3]),
+                "daily_status": data[4],
+                "current_status": data[5]
+            })
+
+    return render_template("doctors.html", doctors=doctors)
+
+
+@app.route("/add_doctor", methods=["POST"])
+def add_doctor():
+
+    name = request.form["name"]
+    department = request.form["department"]
+    experience = request.form["experience"]
+
+    data_string = f"{name}|{department}|{experience}"
+
+    exe_path = os.path.join(BACKEND_DIR, "c_modules", "doctor.exe")
+
+    result = subprocess.run(
+        [exe_path, data_string],
+        capture_output=True,
+        text=True
+    )
+
+    print("STDOUT:", result.stdout)
+    print("STDERR:", result.stderr)
+
+    return redirect("/doctors")
+
+
+@app.route("/toggle_doctor", methods=["POST"])
+def toggle_doctor():
+
+    doctor_id = request.form["doctor_id"]
+    status = request.form["status"]
+
+    exe_path = os.path.join(BACKEND_DIR, "c_modules", "doctor.exe")
+
+    subprocess.run([exe_path, "daily", doctor_id, status])
+
+    return redirect("/doctors")
 
 
 if __name__ == "__main__":

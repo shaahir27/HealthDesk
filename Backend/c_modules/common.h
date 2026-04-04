@@ -18,12 +18,11 @@
 #define MAX_LINE 500
 
 // File paths
-#define PATIENT_FILE "../data/patients.txt"
-#define DOCTOR_FILE "../data/doctors.txt"
-#define QUEUE_FILE "../data/queue.txt"
-#define DIAGNOSIS_FILE "../data/diagnosis.txt"
-#define BILLING_FILE "../data/billing.txt"
-
+#define DOCTOR_FILE "Backend/data/doctors.txt"
+#define PATIENT_FILE "Backend/data/patients.txt"
+#define QUEUE_FILE "Backend/data/queue.txt"
+#define DIAGNOSIS_FILE "Backend/data/diagnosis.txt"
+#define BILLING_FILE "Backend/data/billing.txt"
 // STRUCT DECLARATIONS
 
 struct Patient;

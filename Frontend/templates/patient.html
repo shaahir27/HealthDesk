@@ -2,114 +2,164 @@
 
 {% block content %}
 
-<div class="card p-4 mx-auto" style="max-width: 750px;"><!-- HEADER -->
-<div class="mb-4">
-    <h4 class="fw-semibold" style="color:#2E86C1;">Patient Registration</h4>
-    <small class="text-muted">Enter patient details to create a new record</small>
+<style>
+.form-card {
+    border-radius: 16px;
+    background: rgba(255,255,255,0.9);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+    transition: 0.3s;
+}
+
+.form-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.08);
+}
+
+.section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #6c757d;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.form-control, .form-select {
+    border-radius: 8px;
+    transition: 0.2s;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #2E86C1;
+    box-shadow: 0 0 0 2px rgba(46,134,193,0.15);
+}
+
+.btn-submit {
+    background: linear-gradient(135deg, #2E86C1, #1f618d);
+    border: none;
+    transition: 0.3s;
+}
+
+.btn-submit:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+}
+</style>
+
+<div class="container mt-4">
+
+<div class="form-card p-4 mx-auto" style="max-width: 750px;">
+
+<!-- HEADER -->
+<div class="mb-4 text-center">
+    <h4 class="fw-bold" style="color:#2E86C1;">Patient Registration</h4>
+    <small class="text-muted">Create a new patient record</small>
 </div>
 
 <form action="/add_patient" method="POST">
 
-    <!-- BASIC DETAILS -->
-    <div class="row g-3 mb-2">
+<!-- BASIC DETAILS -->
+<div class="section-title">Basic Information</div>
 
-        <div class="col-md-6">
-            <label class="form-label">Patient Name <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" name="name" placeholder="Enter full name" required>
-        </div>
+<div class="row g-3 mb-3">
 
-        <div class="col-md-6">
-            <label class="form-label">Age <span class="text-danger">*</span></label>
-            <input type="number" class="form-control" name="age" min="0" placeholder="Years" required>
-        </div>
-
+    <div class="col-md-6">
+        <input type="text" class="form-control" name="name" placeholder="Patient Name *" required>
     </div>
 
-    <div class="row g-3 mb-2">
-
-        <div class="col-md-6">
-            <label class="form-label">Gender <span class="text-danger">*</span></label>
-            <select class="form-select" name="gender" required>
-                <option value="">Select</option>
-                <option>Male</option>
-                <option>Female</option>
-                <option>Other</option>
-            </select>
-        </div>
-
-        <div class="col-md-6">
-            <label class="form-label">Phone Number <span class="text-danger">*</span></label>
-            <input type="tel" class="form-control" name="phone" placeholder="10-digit number" pattern="[0-9]{10}" maxlength="10" required>
-        </div>
-
+    <div class="col-md-6">
+        <input type="number" class="form-control" name="age" min="0" placeholder="Age *" required>
     </div>
 
-    <!-- ADDRESS -->
-    <div class="mb-3">
-        <label class="form-label">Address <span class="text-danger">*</span></label>
-        <textarea class="form-control" name="address" rows="2" placeholder="Enter address" required></textarea>
-    </div>
-
-    <!-- SYMPTOMS -->
-    <div class="mb-3">
-        <label class="form-label">Symptoms / Complaints <span class="text-danger">*</span></label>
-        <textarea class="form-control" name="symptoms" rows="2" placeholder="Describe symptoms" required></textarea>
-    </div>
-
-    <!-- VISIT DETAILS -->
-    <div class="row g-3 mb-3">
-
-        <div class="col-md-6">
-            <label class="form-label">Visit Type <span class="text-danger">*</span></label>
-            <select class="form-select" name="visit_type" required>
-                <option value="">Select</option>
-                <option>New</option>
-                <option>Follow-up</option>
-                <option>Emergency</option>
-            </select>
-        </div>
-
-        <div class="col-md-6">
-            <label class="form-label">Priority <span class="text-danger">*</span></label>
-            <select class="form-select" name="priority" required>
-                <option value="">Select</option>
-                <option>Normal</option>
-                <option>Urgent</option>
-            </select>
-        </div>
-
-    </div>
-
-    <!-- DEPARTMENT -->
-    <div class="mb-4">
-        <label class="form-label">Department <span class="text-danger">*</span></label>
-        <select class="form-select" name="department" required>
-            <option value="">Select Department</option>
-            <option value="General">General Medicine</option>
-            <option value="Cardiology">Cardiology</option>
-            <option value="Orthopaedics">Orthopaedics</option>
-            <option value="ENT">ENT</option>
-            <option value="Neurology">Neurology</option>
-            <option value="Dermatology">Dermatology</option>
-            <option value="Pediatrics">Pediatrics</option>
-            <option value="Other">Other</option>
+    <div class="col-md-6">
+        <select class="form-select" name="gender" required>
+            <option value="">Gender *</option>
+            <option>Male</option>
+            <option>Female</option>
+            <option>Other</option>
         </select>
     </div>
 
-    <!-- SUBMIT -->
-    <div class="d-grid">
-        <button type="submit" class="btn btn-primary btn-lg">
-            Register Patient →
-        </button>
+    <div class="col-md-6">
+        <input type="tel" class="form-control" name="phone" placeholder="Phone Number *" pattern="[0-9]{10}" required>
     </div>
+
+</div>
+
+<!-- ADDRESS -->
+<div class="section-title">Address</div>
+
+<div class="mb-3">
+    <textarea class="form-control" name="address" rows="2" placeholder="Enter address *" required></textarea>
+</div>
+
+<!-- SYMPTOMS -->
+<div class="section-title">Symptoms</div>
+
+<div class="mb-3">
+    <textarea class="form-control" name="symptoms" rows="2" placeholder="Describe symptoms *" required></textarea>
+</div>
+
+<!-- VISIT -->
+<div class="section-title">Visit Details</div>
+
+<div class="row g-3 mb-3">
+
+    <div class="col-md-6">
+        <select class="form-select" name="visit_type" required>
+            <option value="">Visit Type *</option>
+            <option>New</option>
+            <option>Follow-up</option>
+            <option>Emergency</option>
+        </select>
+    </div>
+
+    <div class="col-md-6">
+        <select class="form-select" name="priority" required>
+            <option value="">Priority *</option>
+            <option>Normal</option>
+            <option>Urgent</option>
+        </select>
+    </div>
+
+</div>
+
+<!-- DEPARTMENT -->
+<div class="section-title">Department</div>
+
+<div class="mb-4">
+    <select class="form-select" name="department" required>
+        <option value="">Select Department *</option>
+        <option value="General">General Medicine</option>
+        <option value="Cardiology">Cardiology</option>
+        <option value="Orthopaedics">Orthopaedics</option>
+        <option value="ENT">ENT</option>
+        <option value="Neurology">Neurology</option>
+        <option value="Dermatology">Dermatology</option>
+        <option value="Pediatrics">Pediatrics</option>
+        <option value="Other">Other</option>
+    </select>
+</div>
+
+<!-- SUBMIT -->
+<button type="submit" class="btn btn-submit w-100 py-2 fw-semibold text-white">
+    Register Patient →
+</button>
 
 </form>
 
-</div><!-- SCRIPT --><script>
+</div>
+
+</div>
+
+<!-- SCRIPT -->
+<script>
 document.querySelector('[name="visit_type"]').addEventListener('change', function() {
     let priority = document.querySelector('[name="priority"]');
     if (this.value === "Emergency") {
         priority.value = "Urgent";
     }
 });
-</script>{% endblock %}
+</script>
+
+{% endblock %}

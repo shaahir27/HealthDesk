@@ -79,7 +79,7 @@ void updateQueueFile(struct QueueNode *arr, int n) {
 void freeDoctor(int doctor_id) {
 
     FILE *fp = fopen(DOCTOR_FILE, "r");
-    FILE *temp = fopen("../data/temp.txt", "w");
+    FILE *temp = fopen("Backend/data/temp.txt", "w");
 
     char line[MAX_LINE];
 
@@ -125,14 +125,15 @@ void freeDoctor(int doctor_id) {
     fclose(temp);
 
     remove(DOCTOR_FILE);
-    rename("../data/temp.txt", DOCTOR_FILE);
+    rename("Backend/data/temp.txt", DOCTOR_FILE);
 }
 
 int serveNextPatient() {
 
     int n = countQueue();
-    struct QueueNode *arr = loadQueue(n);
+    if (n == 0) return 0;
 
+    struct QueueNode *arr = loadQueue(n);
     if (!arr) return 0;
 
     sortQueue(arr, n);
@@ -157,7 +158,7 @@ int serveNextPatient() {
 
     updateQueueFile(arr, n);
 
-    if (doctor_id != 0) {
+    if (doctor_id != -1) { 
         freeDoctor(doctor_id);
     }
 
@@ -171,7 +172,7 @@ int main() {
     int doctor_id = serveNextPatient();
 
     if (doctor_id == 0) {
-        printf("NoPatient");
+        printf("No Patient");
     } else {
         printf("Served|DoctorFreed");
     }
