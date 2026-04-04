@@ -1,9 +1,11 @@
 #include "common.h"
 
 int generateToken() {
-    FILE *fp = fopen(QUEUE_FILE, "r");
+    FILE *fp;
     int count = 0;
     char line[MAX_LINE];
+
+    fp = fopen(QUEUE_FILE, "r");
 
     if (fp != NULL) {
         while (fgets(line, sizeof(line), fp)) count++;
