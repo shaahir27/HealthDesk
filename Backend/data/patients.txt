@@ -1,6 +1,5 @@
 1|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever|Emergency|Urgent|General
-2|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever|Emergency|Urgent|General
-3|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever, Headache|Follow-up|Normal|General
-4|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever, Headache|Follow-up|Normal|General
-5|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever, Headache|Follow-up|Normal|General
-6|Shaahir|14|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever, Headache|Emergency|Urgent|Cardiology
+2|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever, Headache|Emergency|Urgent|General
+3|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever, Headache|Emergency|Urgent|General
+4|Jamal|23|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Vomit, Running Nose|New|Normal|ENT
+5|Ibrahim|45|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Knee Pain|Follow-up|Normal|Orthopaedics

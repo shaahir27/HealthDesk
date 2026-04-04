@@ -54,11 +54,12 @@ struct Doctor {
     char name[MAX_NAME];
     char specialization[MAX_NAME];
     int experience;
-    char status[MAX_SMALL];   // Available / Not Available
+    char daily_status[MAX_SMALL];   // Available / Off
+    char current_status[MAX_SMALL]; // Free / Busy
 };
 
 // Queue
-struct Queue {
+struct QueueNode {
     int token;
     int patient_id;
     int doctor_id;

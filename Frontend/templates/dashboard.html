@@ -1,3 +1,156 @@
-{ % extends "index.html" % }
+{% extends "index.html" %}
 
-{ }
+{% block content %}
+
+<div class="container mt-3"><!-- HERO -->
+<div class="hero-section p-4 mb-4">
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+
+        <div>
+            <h4 class="mb-1 text-white fw-semibold">Dashboard</h4>
+            <small class="text-light">Monitor and manage daily operations</small>
+        </div>
+
+        <div class="d-flex gap-2 flex-wrap">
+
+            <a href="/patient" class="btn btn-hero">
+                Register Patient
+            </a>
+
+            <a href="/queue" class="btn btn-hero-outline">
+                Open Queue
+            </a>
+
+            <a href="/billing" class="btn btn-hero-outline">
+                Billing
+            </a>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- STATUS BAR -->
+<div class="row g-3 mb-4">
+
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <small class="text-muted">Total Patients</small>
+            <h5 class="fw-semibold mb-0">{{ total_patients }}</h5>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <small class="text-muted">Waiting</small>
+            <h5 class="fw-semibold text-warning mb-0">{{ waiting_count }}</h5>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <small class="text-muted">Completed</small>
+            <h5 class="fw-semibold text-success mb-0">{{ completed_count }}</h5>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <small class="text-muted">Available Doctors</small>
+            <h5 class="fw-semibold mb-0">{{ available_doctors }}</h5>
+        </div>
+    </div>
+
+</div>
+
+<!-- MAIN SECTION -->
+<div class="row g-4">
+
+    <!-- LEFT: NEXT PATIENT -->
+    <div class="col-md-7">
+
+        <div class="card p-4 h-100">
+
+            <div class="mb-3">
+                <small class="text-muted">Next Patient</small>
+            </div>
+
+            {% if next_patient %}
+
+            <h5 class="fw-semibold mb-2">
+                Token {{ next_patient.token }}
+            </h5>
+
+            <div class="text-muted mb-1">
+                Patient ID: {{ next_patient.patient_id }}
+            </div>
+
+            <div class="text-muted mb-2">
+                Doctor ID: {{ next_patient.doctor_id }}
+            </div>
+
+            <div class="mb-3">
+                {% if next_patient.priority == "Urgent" %}
+                    <span class="badge bg-danger">Urgent</span>
+                {% else %}
+                    <span class="badge bg-secondary">Normal</span>
+                {% endif %}
+            </div>
+
+            <form action="/serve" method="POST">
+                <button class="btn btn-primary w-100">
+                    Serve Patient →
+                </button>
+            </form>
+
+            {% else %}
+
+            <div class="text-muted">No patients waiting</div>
+
+            {% endif %}
+
+        </div>
+
+    </div>
+
+    <!-- RIGHT: DOCTOR STATUS -->
+    <div class="col-md-5">
+
+        <div class="card p-4 h-100">
+
+            <div class="mb-3">
+                <small class="text-muted">Doctor Availability</small>
+            </div>
+
+            {% for d in doctors %}
+
+            <div class="d-flex justify-content-between align-items-center mb-3">
+
+                <div>
+                    <div class="fw-semibold">{{ d.name }}</div>
+                    <small class="text-muted">{{ d.specialization }}</small>
+                </div>
+
+                <div>
+                    {% if d.daily_status == "Off" %}
+                        <span class="badge bg-secondary">Off</span>
+                    {% elif d.current_status == "Busy" %}
+                        <span class="badge bg-danger">Busy</span>
+                    {% else %}
+                        <span class="badge bg-success">Available</span>
+                    {% endif %}
+                </div>
+
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+</div>
+
+</div>{% endblock %}

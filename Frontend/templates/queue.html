@@ -1,0 +1,147 @@
+{% extends "index.html" %}
+
+{% block content %}
+
+<div class="container mt-4"><!-- HEADER -->
+<div class="mb-4">
+    <h5 class="fw-semibold" style="color:#2E86C1;">Queue Management</h5>
+    <small class="text-muted">Real-time patient flow</small>
+</div>
+
+<!-- SUMMARY -->
+<div class="row g-3 mb-4">
+
+    <div class="col-md-6">
+        <div class="card p-3 text-center">
+            <small class="text-muted">Waiting</small>
+            <h5 class="fw-semibold text-warning mb-0">{{ waiting_count }}</h5>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card p-3 text-center">
+            <small class="text-muted">Completed</small>
+            <h5 class="fw-semibold text-success mb-0">{{ completed_count }}</h5>
+        </div>
+    </div>
+
+</div>
+
+<!-- TOP SECTION -->
+<div class="row g-4 mb-4">
+
+    <!-- NEXT PATIENT -->
+    <div class="col-md-7">
+
+        <div class="card p-4 h-100">
+
+            <small class="text-muted mb-2">Next Patient</small>
+
+            {% if next_patient %}
+
+            <h5 class="fw-semibold mb-2">
+                Token {{ next_patient.token }}
+            </h5>
+
+            <div class="text-muted mb-1">
+                Patient ID: {{ next_patient.patient_id }}
+            </div>
+
+            <div class="text-muted mb-2">
+                Doctor ID: {{ next_patient.doctor_id }}
+            </div>
+
+            <div class="mb-3">
+                {% if next_patient.priority == "Urgent" %}
+                    <span class="badge bg-danger">Urgent</span>
+                {% else %}
+                    <span class="badge bg-secondary">Normal</span>
+                {% endif %}
+            </div>
+
+            {% else %}
+
+            <div class="text-muted">No patients waiting</div>
+
+            {% endif %}
+
+        </div>
+
+    </div>
+
+    <!-- ACTION -->
+    <div class="col-md-5 d-flex align-items-end">
+
+        <form action="/serve" method="POST" class="w-100">
+            <button class="btn btn-primary w-100">
+                Serve Next Patient →
+            </button>
+        </form>
+
+    </div>
+
+</div>
+
+<!-- TABLE -->
+<div class="card p-3">
+
+    <div class="table-responsive">
+
+        <table class="table align-middle mb-0">
+
+            <thead class="table-light">
+                <tr>
+                    <th>Token</th>
+                    <th>Patient</th>
+                    <th>Doctor</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for q in queue %}
+
+                <tr class="{% if q.status == 'Waiting' and loop.first %}table-warning{% endif %}">
+
+                    <td class="fw-semibold">{{ q.token }}</td>
+
+                    <td>{{ q.patient_id }}</td>
+
+                    <td>{% if q.doctor_id == -1 %}
+                            Not Assigned
+                        {% else %}
+                            {{ q.doctor_id }}
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if q.priority == "Urgent" %}
+                            <span class="text-danger">Urgent</span>
+                        {% else %}
+                            <span class="text-secondary">Normal</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if q.status == "Waiting" %}
+                            <span class="text-warning">Waiting</span>
+                        {% else %}
+                            <span class="text-success">Completed</span>
+                        {% endif %}
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+</div>{% endblock %}
