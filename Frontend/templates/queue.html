@@ -3,7 +3,6 @@
 {% block content %}
 
 <style>
-/* 🔥 Premium Enhancements */
 
 .premium-card {
     border: none;
@@ -132,17 +131,19 @@
             </div>
 
             {% set total = waiting_count + completed_count %}
+            {% set waiting_pct = ((waiting_count / total * 100) | int) if total > 0 else 0 %}
+            {% set completed_pct = ((completed_count / total * 100) | int) if total > 0 else 0 %}
 
             <div class="progress" style="height: 10px; border-radius: 10px; overflow: hidden;">
 
                 <div id="waitingBar" 
                     class="progress-bar bg-warning progress-bar-striped progress-bar-animated"
-                    style="width: {{ (waiting_count / total * 100) if total > 0 else 0 }}%">
+                    style="width: {{ waiting_pct }}%">
                 </div>
 
                 <div id="completedBar" 
                     class="progress-bar bg-success progress-bar-striped progress-bar-animated"
-                    style="width: {{ (completed_count / total * 100) if total > 0 else 0 }}%">
+                    style="width: {{ completed_pct }}%">
                 </div>
 
             </div>
@@ -199,7 +200,6 @@
                         <span class="status-dot 
                             {% if q.status == "Waiting" %}dot-waiting{% else %}dot-completed{% endif %}">
                         </span>
-
                         {{ q.status }}
                     </td>
 

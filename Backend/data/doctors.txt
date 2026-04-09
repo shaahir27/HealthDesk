@@ -1,2 +1,2 @@
-1|John|General|20|Available|Busy
-2|Jamal|Cardiology|23|Available|Busy
+1|John|General|20|Available|Free
+2|Jamal|Cardiology|23|Available|Free

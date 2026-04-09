@@ -1,83 +1,108 @@
 #include "common.h"
 
-int countQueue() {
-    FILE *fp = fopen(QUEUE_FILE, "r");
-    int count = 0;
-    char line[MAX_LINE];
+struct Queue {
+    struct QueueNode* front;
+    struct QueueNode* rear;
+};
 
-    if (fp) {
-        while (fgets(line, sizeof(line), fp)) count++;
-        fclose(fp);
-    }
-
-    return count;
+void initQueue(struct Queue* q) {
+    q->front = q->rear = NULL;
 }
 
-struct QueueNode* loadQueue(int n) {
+void enqueue(struct Queue* q, struct QueueNode data) {
+    struct QueueNode* newNode = malloc(sizeof(struct QueueNode));
+    *newNode = data;
+    newNode->next = NULL;
+
+    if (q->rear == NULL) {
+        q->front = q->rear = newNode;
+        return;
+    }
+
+    q->rear->next = newNode;
+    q->rear = newNode;
+}
+
+struct QueueNode* dequeue(struct Queue* q) {
+    if (q->front == NULL) return NULL;
+
+    struct QueueNode* temp = q->front;
+    q->front = q->front->next;
+
+    if (q->front == NULL) q->rear = NULL;
+
+    temp->next = NULL;
+    return temp;
+}
+
+void loadQueue(struct Queue* urgentQ, struct Queue* normalQ) {
     FILE *fp = fopen(QUEUE_FILE, "r");
-    if (!fp) return NULL;
+    if (!fp) return;
 
-    struct QueueNode *arr = malloc(n * sizeof(struct QueueNode));
     char line[MAX_LINE];
-    int i = 0;
 
-    while (fgets(line, sizeof(line), fp) && i < n) {
+    while (fgets(line, sizeof(line), fp)) {
+
+        struct QueueNode temp;
 
         char *token = strtok(line, "|");
-        arr[i].token = atoi(token);
+        temp.token = atoi(token);
 
         token = strtok(NULL, "|");
-        arr[i].patient_id = atoi(token);
+        temp.patient_id = atoi(token);
 
         token = strtok(NULL, "|");
-        arr[i].doctor_id = atoi(token);
+        temp.doctor_id = atoi(token);
 
         token = strtok(NULL, "|");
-        strcpy(arr[i].priority, token);
+        strcpy(temp.priority, token);
 
         token = strtok(NULL, "\n");
-        strcpy(arr[i].status, token);
+        strcpy(temp.status, token);
 
-        i++;
+        temp.next = NULL;
+
+        if (strcmp(temp.priority, "Urgent") == 0) {
+            enqueue(urgentQ, temp);
+        } else {
+            enqueue(normalQ, temp);
+        }
     }
 
     fclose(fp);
-    return arr;
 }
 
-void sortQueue(struct QueueNode *arr, int n) {
-    for (int i = 0; i < n - 1; i++) {
-        for (int j = 0; j < n - i - 1; j++) {
-            if (strcmp(arr[j].priority, "Normal") == 0 &&
-                strcmp(arr[j+1].priority, "Urgent") == 0) {
-
-                struct QueueNode temp = arr[j];
-                arr[j] = arr[j+1];
-                arr[j+1] = temp;
-            }
-        }
-    }
-}
-
-void updateQueueFile(struct QueueNode *arr, int n) {
-
+void updateQueueFile(struct Queue* urgentQ, struct Queue* normalQ) {
     FILE *fp = fopen(QUEUE_FILE, "w");
 
-    for (int i = 0; i < n; i++) {
+    struct QueueNode* temp = urgentQ->front;
+    while (temp != NULL) {
         fprintf(fp, "%d|%d|%d|%s|%s\n",
-            arr[i].token,
-            arr[i].patient_id,
-            arr[i].doctor_id,
-            arr[i].priority,
-            arr[i].status
+            temp->token,
+            temp->patient_id,
+            temp->doctor_id,
+            temp->priority,
+            temp->status
         );
+        temp = temp->next;
+    }
+
+    temp = normalQ->front;
+    while (temp != NULL) {
+        fprintf(fp, "%d|%d|%d|%s|%s\n",
+            temp->token,
+            temp->patient_id,
+            temp->doctor_id,
+            temp->priority,
+            temp->status
+        );
+        temp = temp->next;
     }
 
     fclose(fp);
 }
 
 void freeDoctor(int doctor_id) {
-
     FILE *fp = fopen(DOCTOR_FILE, "r");
     FILE *temp = fopen("Backend/data/temp.txt", "w");
 
@@ -130,41 +155,52 @@ void freeDoctor(int doctor_id) {
 
 int serveNextPatient() {
 
-    int n = countQueue();
-    if (n == 0) return 0;
+    struct Queue urgentQ, normalQ;
+    initQueue(&urgentQ);
+    initQueue(&normalQ);
 
-    struct QueueNode *arr = loadQueue(n);
-    if (!arr) return 0;
+    loadQueue(&urgentQ, &normalQ);
 
-    sortQueue(arr, n);
+    struct QueueNode* temp = NULL;
 
-    int index = -1;
-
-    for (int i = 0; i < n; i++) {
-        if (strcmp(arr[i].status, "Waiting") == 0) {
-            index = i;
-            break;
-        }
-    }
-
-    if (index == -1) {
-        free(arr);
+    if (urgentQ.front != NULL) {
+        temp = dequeue(&urgentQ);
+    } else if (normalQ.front != NULL) {
+        temp = dequeue(&normalQ);
+    } else {
         return 0;
     }
 
-    int doctor_id = arr[index].doctor_id;
+    while (temp != NULL) {
 
-    strcpy(arr[index].status, "Completed");
+        if (strcmp(temp->status, "Waiting") == 0) {
 
-    updateQueueFile(arr, n);
+            int doctor_id = temp->doctor_id;
 
-    if (doctor_id != -1) { 
-        freeDoctor(doctor_id);
+            strcpy(temp->status, "Completed");
+
+            updateQueueFile(&urgentQ, &normalQ);
+
+            if (doctor_id != -1) {
+                freeDoctor(doctor_id);
+            }
+
+            free(temp);
+            return doctor_id;
+        }
+
+        free(temp);
+
+        if (urgentQ.front != NULL) {
+            temp = dequeue(&urgentQ);
+        } else if (normalQ.front != NULL) {
+            temp = dequeue(&normalQ);
+        } else {
+            return 0;
+        }
     }
 
-    free(arr);
-
-    return doctor_id;
+    return 0;
 }
 
 int main() {

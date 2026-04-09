@@ -64,6 +64,7 @@ struct QueueNode {
     int doctor_id;
     char priority[MAX_SMALL];
     char status[MAX_SMALL];   // Waiting / Completed
+    struct QueueNode* next;
 };
 
 // Diagnosis
