@@ -1,82 +1,160 @@
-{% extends "index.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HealthDesk - Billing</title>
 
-{% block content %}
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Satisfy&family=MonteCarlo&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
 
-<!-- PAGE TITLE -->
-<div class="mb-4">
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #f4f6f8;
+            font-family: 'Poppins', sans-serif;
+            color: #2C3E50;
+        }
+
+        .navbar {
+            background: linear-gradient(90deg, #2E86C1, #1B4F72);
+        }
+
+        .brand-health {
+            font-family: 'Satisfy', cursive;
+            font-size: 26px;
+            color: white;
+        }
+
+        .brand-desk {
+            font-family: 'MonteCarlo', cursive;
+            font-size: 30px;
+            margin-left: 4px;
+            background: linear-gradient(45deg, #ffffff, #D6EAF8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .container-card {
+            margin-top: 40px;
+            max-width: 1150px;
+        }
+
+        .card {
+            border-radius: 14px;
+            border: none;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+        }
+
+        .btn-primary {
+            background-color: #2E86C1;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background-color: #1f618d;
+        }
+
+        .text-success { color: #28B463 !important; }
+        .text-danger { color: #E74C3C !important; }
+        .text-warning { color: #F4D03F !important; }
+    </style>
+</head>
+
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar navbar-expand-lg navbar-dark shadow">
+    <div class="container">
+        <a class="navbar-brand d-flex align-items-center" href="#">
+            <span class="brand-health">Health</span>
+            <span class="brand-desk">Desk</span>
+        </a>
+
+        <button class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#nav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="nav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item"><a class="nav-link text-white" href="#">Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link text-white" href="#">Patients</a></li>
+                <li class="nav-item"><a class="nav-link text-white" href="#">Doctors</a></li>
+                <li class="nav-item"><a class="nav-link text-white" href="#">Queue</a></li>
+                <li class="nav-item"><a class="nav-link text-white" href="#">Diagnosis</a></li>
+                <li class="nav-item"><a class="nav-link text-white active" href="#">Billing</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<div class="container container-card">
+
     <h2 class="fw-semibold">Billing Management</h2>
     <p class="text-muted">Generate and manage patient bills</p>
-</div>
 
-<!-- BILL FORM -->
-<div class="card p-4 mb-4">
-    <h5 class="mb-3">Create New Bill</h5>
+    <!-- FORM -->
+    <div class="card p-4 mb-4">
+        <h5>Create New Bill</h5>
 
-    <form>
         <div class="row">
-
             <div class="col-md-4 mb-3">
-                <label class="form-label">Patient Name</label>
+                <label>Patient Name</label>
                 <input type="text" class="form-control" placeholder="Enter patient name">
             </div>
 
             <div class="col-md-4 mb-3">
-                <label class="form-label">Doctor</label>
+                <label>Doctor</label>
                 <input type="text" class="form-control" placeholder="Doctor name">
             </div>
 
             <div class="col-md-4 mb-3">
-                <label class="form-label">Date</label>
+                <label>Date</label>
                 <input type="date" class="form-control">
             </div>
-
         </div>
 
         <div class="row">
-
-            <div class="col-md-4 mb-3">
-                <label class="form-label">Consultation Fee (₹)</label>
-                <input type="number" class="form-control" id="consultation" value="0">
+            <div class="col-md-3 mb-3">
+                <label>Consultation (₹)</label>
+                <input type="number" id="consultation" class="form-control" value="0">
             </div>
 
-            <div class="col-md-4 mb-3">
-                <label class="form-label">Medicine Charges (₹)</label>
-                <input type="number" class="form-control" id="medicine" value="0">
+            <div class="col-md-3 mb-3">
+                <label>Medicines (₹)</label>
+                <input type="number" id="medicine" class="form-control" value="0">
             </div>
 
-            <div class="col-md-4 mb-3">
-                <label class="form-label">Lab Charges (₹)</label>
-                <input type="number" class="form-control" id="lab" value="0">
+            <div class="col-md-3 mb-3">
+                <label>Lab (₹)</label>
+                <input type="number" id="lab" class="form-control" value="0">
             </div>
 
+            <div class="col-md-3 mb-3">
+                <label>Other (₹)</label>
+                <input type="number" id="other" class="form-control" value="0">
+            </div>
         </div>
 
         <div class="row">
-
             <div class="col-md-4 mb-3">
-                <label class="form-label">Other Charges (₹)</label>
-                <input type="number" class="form-control" id="other" value="0">
+                <label>Total (₹)</label>
+                <input type="text" id="total" class="form-control" readonly>
             </div>
-
-            <div class="col-md-4 mb-3">
-                <label class="form-label">Total Amount (₹)</label>
-                <input type="text" class="form-control" id="total" readonly>
-            </div>
-
         </div>
 
-        <button type="button" class="btn btn-primary" onclick="calculateTotal()">Calculate Total</button>
-        <button type="submit" class="btn btn-success">Generate Bill</button>
+        <button class="btn btn-primary" onclick="calculateTotal()">Calculate Total</button>
+        <button class="btn btn-success">Generate Bill</button>
+    </div>
 
-    </form>
-</div>
+    <!-- TABLE -->
+    <div class="card p-4">
+        <h5>Recent Bills</h5>
 
-<!-- BILL TABLE -->
-<div class="card p-4">
-    <h5 class="mb-3">Recent Bills</h5>
-
-    <div class="table-responsive">
-        <table class="table align-middle">
+        <table class="table">
             <thead class="table-light">
                 <tr>
                     <th>#</th>
@@ -118,20 +196,22 @@
             </tbody>
         </table>
     </div>
+
 </div>
 
 <!-- SCRIPT -->
 <script>
 function calculateTotal() {
-    let consultation = parseFloat(document.getElementById('consultation').value) || 0;
-    let medicine = parseFloat(document.getElementById('medicine').value) || 0;
-    let lab = parseFloat(document.getElementById('lab').value) || 0;
-    let other = parseFloat(document.getElementById('other').value) || 0;
+    let c = parseFloat(document.getElementById('consultation').value) || 0;
+    let m = parseFloat(document.getElementById('medicine').value) || 0;
+    let l = parseFloat(document.getElementById('lab').value) || 0;
+    let o = parseFloat(document.getElementById('other').value) || 0;
 
-    let total = consultation + medicine + lab + other;
-
-    document.getElementById('total').value = total;
+    document.getElementById('total').value = c + m + l + o;
 }
 </script>
 
-{% endblock %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>
