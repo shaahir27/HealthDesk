@@ -236,7 +236,87 @@ def toggle_doctor():
     subprocess.run([exe_path, "daily", doctor_id, status])
 
     return redirect("/doctors")
+@app.route("/diagnosis")
+def diagnosis_page():
+    return render_template("diagnosis.html")
 
+
+@app.route("/diagnosis_history", methods=["POST"])
+def diagnosis_history():
+
+    patient_id = request.form["patient_id"]
+
+    exe_path = os.path.join(BACKEND_DIR, "c_modules", "diagnosis.exe")
+
+    result = subprocess.run(
+        [exe_path, "history", patient_id],
+        capture_output=True,
+        text=True
+    )
+
+    output = result.stdout.strip().split("\n")
+
+    patient = None
+    diagnosis = []
+    error_message = None
+
+    for line in output:
+        data = line.split("|")
+
+        if data[0] == "PatientNotFound":
+            error_message = "Patient ID not found."
+
+        elif data[0] == "PATIENT":
+            patient = {
+                "id": data[1],
+                "name": data[2],
+                "age": data[3],
+                "gender": data[4],
+                "phone": data[5],
+                "address": data[6],
+                "symptoms": data[7],
+                "visit_type": data[8],
+                "priority": data[9],
+                "department": data[10]
+            }
+
+        elif data[0] == "DIAGNOSIS":
+            diagnosis.append({
+                "record_id": data[1],
+                "doctor_id": data[3],
+                "date": data[4],
+                "diagnosis": data[5],
+                "prescription": data[6]
+            })
+
+    return render_template(
+        "diagnosis.html",
+        patient=patient,
+        diagnosis=diagnosis,
+        error_message=error_message
+    )
+
+
+@app.route("/add_diagnosis", methods=["POST"])
+def add_diagnosis():
+
+    patient_id = request.form["patient_id"]
+    doctor_id = request.form["doctor_id"]
+    date = request.form["date"]
+    diagnosis_text = request.form["diagnosis"]
+    prescription = request.form["prescription"]
+
+    data_string = f"{patient_id}|{doctor_id}|{date}|{diagnosis_text}|{prescription}"
+
+    exe_path = os.path.join(BACKEND_DIR, "c_modules", "diagnosis.exe")
+
+    subprocess.run(
+        [exe_path, data_string],
+        capture_output=True,
+        text=True
+    )
+
+    return redirect("/diagnosis")
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
