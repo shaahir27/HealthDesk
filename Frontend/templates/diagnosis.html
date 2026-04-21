@@ -2,132 +2,130 @@
 
 {% block content %}
 
-<div class="container mt-4">
+<style>
+    .dgx-shell { display:grid; gap:20px; }
+    .dgx-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:20px; }
+    .dgx-card { background:#fff; border:1px solid #dee7ef; border-radius:22px; box-shadow:0 16px 36px rgba(20,40,66,0.06); }
+    .dgx-body { padding:20px; }
+    .dgx-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px; }
+    .dgx-title { margin:0 0 4px; font-size:1.02rem; font-weight:700; color:#1f3750; }
+    .dgx-sub { margin:0; color:#728598; font-size:0.88rem; }
+</style>
 
-    <!-- TITLE -->
-    <div class="mb-4">
-        <h4 class="fw-bold" style="color:#2E86C1;">Diagnosis Module</h4>
-        <small class="text-muted">View patient history and add diagnosis</small>
+<div class="hd-page-header">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <a href="/doctor" class="hd-btn hd-btn-outline hd-btn-sm"><i class="bi bi-arrow-left"></i> Dashboard</a>
+        <div>
+            <h4 class="mb-0"><i class="bi bi-clipboard2-pulse-fill me-2"></i>Diagnosis</h4>
+            <small>Search history, review patient context, and record the current consultation</small>
+        </div>
     </div>
+</div>
 
-    <!-- SEARCH -->
-    <div class="card p-4 mb-4">
-        <h6 class="fw-semibold mb-3">Search Patient History</h6>
+{% if error_message %}
+<div class="hd-alert danger"><i class="bi bi-x-circle-fill me-1"></i> {{ error_message }}</div>
+{% endif %}
 
-        <form action="/diagnosis_history" method="POST">
-            <div class="row g-3">
-                <div class="col-md-10">
-                    <input type="number" name="patient_id" class="form-control" placeholder="Enter Patient ID" required>
-                </div>
-                <div class="col-md-2">
-                    <button class="btn btn-primary w-100">Search</button>
+<div class="dgx-shell">
+    <div class="dgx-card">
+        <div class="dgx-body">
+            <div class="dgx-head">
+                <div>
+                    <h5 class="dgx-title"><i class="bi bi-search me-1"></i> Find Patient History</h5>
+                    <p class="dgx-sub">Search by patient ID to load history and continue the diagnosis workflow.</p>
                 </div>
             </div>
-        </form>
+            <form action="/diagnosis_history" method="POST">
+                <div class="row g-3 align-items-end">
+                    <div class="col-12 col-md-9">
+                        <label class="form-label">Patient ID</label>
+                        <input type="number" name="patient_id" class="form-control" placeholder="Enter patient ID" required>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <button class="hd-btn hd-btn-primary hd-btn-block"><i class="bi bi-search"></i> Search</button>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
 
-    <!-- ❌ ERROR MESSAGE -->
-    {% if error_message %}
-    <div class="alert alert-danger mb-4">
-        {{ error_message }}
-    </div>
-    {% endif %}
-
-    <!-- PATIENT DETAILS -->
     {% if patient %}
-    <div class="card p-4 mb-4">
-        <h6 class="fw-semibold mb-3">Patient Details</h6>
-
-        <div class="row g-3">
-            <div class="col-md-4"><strong>ID:</strong> {{ patient.id }}</div>
-            <div class="col-md-4"><strong>Name:</strong> {{ patient.name }}</div>
-            <div class="col-md-4"><strong>Age:</strong> {{ patient.age }}</div>
-
-            <div class="col-md-4"><strong>Gender:</strong> {{ patient.gender }}</div>
-            <div class="col-md-4"><strong>Phone:</strong> {{ patient.phone }}</div>
-            <div class="col-md-4"><strong>Department:</strong> {{ patient.department }}</div>
-
-            <div class="col-md-6"><strong>Visit Type:</strong> {{ patient.visit_type }}</div>
-            <div class="col-md-6"><strong>Priority:</strong> {{ patient.priority }}</div>
-
-            <div class="col-md-12"><strong>Address:</strong> {{ patient.address }}</div>
-            <div class="col-md-12"><strong>Symptoms:</strong> {{ patient.symptoms }}</div>
-        </div>
-    </div>
-
-    <!-- DIAGNOSIS HISTORY -->
-    <div class="card p-4 mb-4">
-        <h6 class="fw-semibold mb-3">Diagnosis History</h6>
-
-        {% if diagnosis %}
-        <div class="table-responsive">
-            <table class="table align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Record ID</th>
-                        <th>Doctor ID</th>
-                        <th>Date</th>
-                        <th>Diagnosis</th>
-                        <th>Prescription</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for d in diagnosis %}
-                    <tr>
-                        <td>{{ d.record_id }}</td>
-                        <td>{{ d.doctor_id }}</td>
-                        <td>{{ d.date }}</td>
-                        <td>{{ d.diagnosis }}</td>
-                        <td>{{ d.prescription }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <p class="text-muted">No previous diagnosis records found.</p>
-        {% endif %}
-    </div>
-
-    <!-- ADD DIAGNOSIS -->
-    <div class="card p-4 mb-4">
-        <h6 class="fw-semibold mb-3">Add New Diagnosis</h6>
-
-        <form action="/add_diagnosis" method="POST">
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label">Patient ID</label>
-                    <input type="number" name="patient_id" class="form-control" value="{{ patient.id }}" readonly required>
+    <div class="dgx-grid">
+        <div class="dgx-card">
+            <div class="dgx-body">
+                <div class="dgx-head">
+                    <div>
+                        <h5 class="dgx-title"><i class="bi bi-person-fill me-1"></i> Patient Overview</h5>
+                        <p class="dgx-sub">Current patient context for this consultation.</p>
+                    </div>
                 </div>
-
-                <div class="col-md-4">
-                    <label class="form-label">Doctor ID</label>
-                    <input type="number" name="doctor_id" class="form-control" required>
-                </div>
-
-                <div class="col-md-4">
-                    <label class="form-label">Date</label>
-                    <input type="text" name="date" class="form-control" placeholder="DD-MM-YYYY" required>
-                </div>
-
-                <div class="col-md-12">
-                    <label class="form-label">Diagnosis</label>
-                    <textarea name="diagnosis" class="form-control" rows="3" required></textarea>
-                </div>
-
-                <div class="col-md-12">
-                    <label class="form-label">Prescription</label>
-                    <textarea name="prescription" class="form-control" rows="3" required></textarea>
-                </div>
-
-                <div class="col-md-12">
-                    <button class="btn btn-primary">Save Diagnosis</button>
+                <div class="row g-3">
+                    <div class="col-6 col-md-4"><small class="text-muted d-block">ID</small><strong>{{ patient.id }}</strong></div>
+                    <div class="col-6 col-md-4"><small class="text-muted d-block">Name</small><strong>{{ patient.name }}</strong></div>
+                    <div class="col-6 col-md-4"><small class="text-muted d-block">Phone</small>{{ patient.phone }}</div>
+                    <div class="col-6 col-md-4"><small class="text-muted d-block">Age / Gender</small>{{ patient.age }} / {{ patient.gender }}</div>
+                    <div class="col-6 col-md-4"><small class="text-muted d-block">Department</small><span class="hd-badge booked">{{ patient.department }}</span></div>
+                    <div class="col-6 col-md-4"><small class="text-muted d-block">Priority</small><span class="hd-badge {% if patient.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ patient.priority }}</span></div>
+                    <div class="col-12"><small class="text-muted d-block">Symptoms</small>{{ patient.symptoms }}</div>
                 </div>
             </div>
-        </form>
+        </div>
+
+        <div class="dgx-card">
+            <div class="dgx-body">
+                <div class="dgx-head">
+                    <div>
+                        <h5 class="dgx-title"><i class="bi bi-plus-circle me-1"></i> Add Diagnosis</h5>
+                        <p class="dgx-sub">Record the consultation and continue billing flow automatically.</p>
+                    </div>
+                </div>
+                <form action="/add_diagnosis" method="POST">
+                    <div class="row g-3">
+                        <div class="col-6"><label class="form-label">Patient ID</label><input type="number" name="patient_id" class="form-control" value="{{ patient.id }}" readonly required></div>
+                        <div class="col-6"><label class="form-label">Doctor ID</label><input type="number" name="doctor_id" class="form-control" value="{{ current_doctor_id }}" readonly required></div>
+                        <div class="col-12"><label class="form-label">Date</label><input type="date" name="date" class="form-control" value="{{ today }}" required></div>
+                        <div class="col-12"><label class="form-label">Diagnosis</label><textarea name="diagnosis" class="form-control" rows="4" placeholder="Enter diagnosis details" required></textarea></div>
+                        <div class="col-12"><label class="form-label">Prescription</label><textarea name="prescription" class="form-control" rows="4" placeholder="Enter prescription" required></textarea></div>
+                        <div class="col-12"><button class="hd-btn hd-btn-success"><i class="bi bi-check2-circle"></i> Save Diagnosis</button></div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="dgx-card">
+        <div class="dgx-body">
+            <div class="dgx-head">
+                <div>
+                    <h5 class="dgx-title"><i class="bi bi-clock-history me-1"></i> Diagnosis History</h5>
+                    <p class="dgx-sub">Past records for quick medical context during the consultation.</p>
+                </div>
+            </div>
+            {% if diagnosis %}
+            <div class="table-responsive">
+                <table class="hd-table">
+                    <thead>
+                        <tr><th>Record</th><th>Doctor</th><th>Date</th><th>Diagnosis</th><th>Prescription</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for d in diagnosis %}
+                        <tr>
+                            <td>#{{ d.record_id }}</td>
+                            <td>Dr {{ d.doctor_id }}</td>
+                            <td>{{ d.date }}</td>
+                            <td>{{ d.diagnosis }}</td>
+                            <td>{{ d.prescription }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-muted">No previous diagnosis records found.</div>
+            {% endif %}
+        </div>
     </div>
     {% endif %}
-
 </div>
 
 {% endblock %}

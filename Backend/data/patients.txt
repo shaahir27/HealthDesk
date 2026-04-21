@@ -1,2 +1,21 @@
-1|Shaahir|56|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Heart Attack|Emergency|Urgent|Cardiology
-2|Sadiq|43|Male|8787763421|A3 24 Lakeside Phase 1, Surapet Main Road|Knee Pain|Follow-up|Normal|General
+1|Ramesh|45|Male|9876543210|Chennai|Chest pain|New|Urgent|Cardiology
+2|Lakshmi|30|Female|9123456780|Madurai|Fever|New|Normal|General
+3|Arjun|22|Male|9988776655|Coimbatore|Fracture|Emergency|Urgent|Orthopaedics
+4|Divya|27|Female|9871234567|Trichy|Ear pain|New|Normal|ENT
+5|Karthik|50|Male|9090909090|Salem|Headache|Follow-up|Normal|Neurology
+6|Sneha|18|Female|8888888888|Erode|Skin allergy|New|Normal|Dermatology
+7|Rahul|10|Male|7777777777|Vellore|Fever|New|Normal|Pediatrics
+8|Vikram|60|Male|9999999999|Chennai|Heart issue|Emergency|Urgent|Cardiology
+9|Anitha|35|Female|9012345678|Tirunelveli|Cough|Follow-up|Normal|General
+10|Sanjay|40|Male|9345678901|Chennai|Back pain|New|Normal|Orthopaedics
+11|Meera|28|Female|9456789012|Madurai|Migraine|New|Urgent|Neurology
+12|Ravi|55|Male|9567890123|Trichy|Skin rash|New|Normal|Dermatology
+13|Priya|33|Female|9678901234|Salem|Ear infection|Emergency|Urgent|ENT
+14|Kiran|12|Male|9789012345|Erode|Cold|New|Normal|Pediatrics
+15|Manoj|48|Male|9890123456|Vellore|Chest discomfort|Follow-up|Urgent|Cardiology
+16|Deepika|25|Female|9901234567|Chennai|Fever|New|Normal|General
+17|Surya|38|Male|9011122233|Madurai|Joint pain|New|Normal|Orthopaedics
+18|Nisha|29|Female|9122233344|Trichy|Allergy|Follow-up|Normal|Dermatology
+19|Ajay|42|Male|9233344455|Salem|Head injury|Emergency|Urgent|Neurology
+20|Pooja|20|Female|9344455566|Erode|Throat pain|New|Normal|ENT21|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever|Follow-up|Normal|General
+21|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever|New|Normal|General

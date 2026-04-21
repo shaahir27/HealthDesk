@@ -1,0 +1,142 @@
+{
+  "doctor_fees": {
+    "General": 500,
+    "Cardiology": 900,
+    "Orthopaedics": 850,
+    "ENT": 650,
+    "Neurology": 1000,
+    "Dermatology": 700,
+    "Pediatrics": 600
+  },
+  "treatments": [
+    {
+      "code": "followup_consult",
+      "name": "Follow-up Consultation",
+      "price": 300,
+      "category": "Consultation",
+      "departments": ["General", "Cardiology", "Orthopaedics", "ENT", "Neurology", "Dermatology", "Pediatrics"]
+    },
+    {
+      "code": "iv_fluids",
+      "name": "IV Fluids / Day Care",
+      "price": 1200,
+      "category": "General Care",
+      "departments": ["General", "Pediatrics"]
+    },
+    {
+      "code": "wound_dressing",
+      "name": "Wound Dressing",
+      "price": 450,
+      "category": "Procedure",
+      "departments": ["General", "Orthopaedics", "ENT"]
+    },
+    {
+      "code": "fracture_support",
+      "name": "Fracture Support / Splinting",
+      "price": 1800,
+      "category": "Orthopaedic Care",
+      "departments": ["Orthopaedics"]
+    },
+    {
+      "code": "ecg_review",
+      "name": "ECG Review",
+      "price": 600,
+      "category": "Cardiac Care",
+      "departments": ["Cardiology", "General"]
+    },
+    {
+      "code": "cardiac_support",
+      "name": "Cardiac Procedure Support",
+      "price": 1500,
+      "category": "Cardiac Care",
+      "departments": ["Cardiology"]
+    },
+    {
+      "code": "ear_cleaning",
+      "name": "Ear Cleaning",
+      "price": 500,
+      "category": "ENT Care",
+      "departments": ["ENT"]
+    },
+    {
+      "code": "nebulization",
+      "name": "Nebulization",
+      "price": 350,
+      "category": "Respiratory Care",
+      "departments": ["ENT", "Pediatrics", "General"]
+    },
+    {
+      "code": "skin_procedure",
+      "name": "Skin Procedure / Dressing",
+      "price": 750,
+      "category": "Dermatology Care",
+      "departments": ["Dermatology"]
+    },
+    {
+      "code": "neuro_observation",
+      "name": "Neurology Observation",
+      "price": 1400,
+      "category": "Neurology Care",
+      "departments": ["Neurology"]
+    },
+    {
+      "code": "vaccination",
+      "name": "Vaccination / Injection",
+      "price": 400,
+      "category": "Preventive Care",
+      "departments": ["Pediatrics", "General"]
+    }
+  ],
+  "lab_tests": [
+    {
+      "code": "cbc",
+      "name": "Complete Blood Count",
+      "price": 250
+    },
+    {
+      "code": "blood_sugar",
+      "name": "Blood Sugar",
+      "price": 180
+    },
+    {
+      "code": "lipid_profile",
+      "name": "Lipid Profile",
+      "price": 600
+    },
+    {
+      "code": "thyroid_profile",
+      "name": "Thyroid Profile",
+      "price": 700
+    },
+    {
+      "code": "xray",
+      "name": "X-Ray",
+      "price": 800
+    },
+    {
+      "code": "ecg",
+      "name": "ECG",
+      "price": 500
+    },
+    {
+      "code": "echo",
+      "name": "ECHO",
+      "price": 1800
+    },
+    {
+      "code": "mri",
+      "name": "MRI Scan",
+      "price": 4500
+    },
+    {
+      "code": "ct_scan",
+      "name": "CT Scan",
+      "price": 3500
+    },
+    {
+      "code": "urine_analysis",
+      "name": "Urine Analysis",
+      "price": 200
+    }
+  ]
+}

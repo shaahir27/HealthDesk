@@ -1,207 +1,134 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="HealthDesk — Clinical Management System for hospital reception, appointments, queue and billing.">
     <title>HealthDesk</title>
 
-<!-- Fonts -->
-<link href="https://fonts.googleapis.com/css2?family=Satisfy&family=MonteCarlo&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Satisfy&family=MonteCarlo&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-<!-- Bootstrap -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
-<style>
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 
-    body {
-        background-color: #f4f6f8;
-        font-family: 'Poppins', sans-serif;
-        color: #2C3E50;
-    }
-
-    /* NAVBAR */
-    .navbar {
-        background: linear-gradient(90deg, #2E86C1, #1B4F72) !important;
-    }
-
-    /* BRAND LOGO */
-    .brand-logo {
-        display: flex;
-        align-items: center;
-        text-decoration: none;
-    }
-
-    .brand-health {
-        font-family: 'Satisfy', cursive;
-        font-size: 26px;
-        color: white;
-        letter-spacing: 1px;
-    }
-
-    .brand-desk {
-        font-family: 'MonteCarlo', cursive;
-        font-size: 30px;
-        margin-left: 4px;
-
-        background: linear-gradient(45deg, #ffffff, #D6EAF8);
-        -webkit-background-clip: text;
-        background-clip: text;
-        -webkit-text-fill-color: transparent;
-
-        text-shadow: 0 2px 6px rgba(0,0,0,0.25);
-    }
-
-    /* NAV LINKS */
-    .nav-link {
-        color: rgba(255,255,255,0.9) !important;
-        margin-right: 10px;
-        font-weight: 500;
-    }
-
-    .nav-link:hover {
-        color: white !important;
-        text-decoration: underline;
-    }
-
-    /* CONTAINER */
-    .container-card {
-        margin-top: 40px;
-        max-width: 1150px;
-    }
-
-    /* CARDS */
-    .card {
-        border-radius: 14px;
-        border: none;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.06);
-    }
-
-    /* BUTTONS */
-    .btn-primary {
-        background-color: #2E86C1;
-        border: none;
-    }
-
-    .btn-primary:hover {
-        background-color: #1f618d;
-    }
-
-    /* STATUS COLORS */
-    .text-success {
-        color: #28B463 !important;
-    }
-
-    .text-danger {
-        color: #E74C3C !important;
-    }
-
-    .text-warning {
-        color: #F4D03F !important;
-    }
-
-        /* HERO SECTION */
-    .hero-section {
-        background: linear-gradient(135deg, #2E86C1, #1B4F72);
-        border-radius: 14px;
-        box-shadow: 0 8px 25px rgba(0,0,0,0.08);
-    }
-
-    /* HERO BUTTON (PRIMARY) */
-    .btn-hero {
-        background: #ffffff;
-        color: #2E86C1;
-        border-radius: 8px;
-        padding: 8px 16px;
-        font-weight: 500;
-
-        transition: all 0.25s ease;
-    }
-
-    .btn-hero:hover {
-        background: #f1f1f1;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 14px rgba(0,0,0,0.15);
-    }
-
-    /* HERO BUTTON (OUTLINE) */
-    .btn-hero-outline {
-        background: transparent;
-        color: white;
-        border: 1px solid rgba(255,255,255,0.6);
-        border-radius: 8px;
-        padding: 8px 16px;
-
-        transition: all 0.25s ease;
-    }
-
-    .btn-hero-outline:hover {
-        background: rgba(255,255,255,0.15);
-        transform: translateY(-2px);
-        border-color: white;
-    }
-
-</style>
-
-
+    <!-- HealthDesk Design System -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
 </head>
 
 <body>
 
-<!-- Navbar -->
-<nav class="navbar navbar-expand-lg navbar-dark shadow">
-    <div class="container">
-
-        <!-- UPDATED BRAND -->
-        <a class="navbar-brand brand-logo" href="/">
-            <span class="brand-health">Health</span>
-            <span class="brand-desk">Desk</span>
-        </a>
-
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto">
-
-                <li class="nav-item">
-                    <a class="nav-link" href="/">Dashboard</a>
-                </li>
-
-                <li class="nav-item">
-                    <a class="nav-link" href="/patient">Patients</a>
-                </li>
-
-                <li class="nav-item">
-                    <a class="nav-link" href="/doctors">Doctors</a>
-                </li>
-
-                <li class="nav-item">
-                    <a class="nav-link" href="/queue">Queue</a>
-                </li>
-
-                <li class="nav-item">
-                    <a class="nav-link" href="/diagnosis">Diagnosis</a>
-                </li>
-
-                <li class="nav-item">
-                    <a class="nav-link" href="/billing">Billing</a>
-                </li>
-
-            </ul>
-        </div>
+<!-- ═══ MOBILE TOPBAR ═══ -->
+<div class="hd-topbar">
+    <button class="hd-hamburger" id="sidebarToggle" aria-label="Toggle menu">
+        <i class="bi bi-list"></i>
+    </button>
+    <a href="/" style="text-decoration:none;">
+        <span class="brand-health">Health</span><span class="brand-desk">Desk</span>
+    </a>
+    <div class="ms-auto d-flex align-items-center gap-2">
+        {% if is_logged_in %}
+        <small style="opacity:0.8">{{ current_user }}</small>
+        {% endif %}
     </div>
-</nav>
-
-<!-- MAIN CONTENT -->
-<div class="container container-card">
-    {% block content %}
-    
-    {% endblock %}
 </div>
 
+<!-- ═══ SIDEBAR OVERLAY (mobile) ═══ -->
+<div class="hd-overlay" id="sidebarOverlay"></div>
+
+<!-- ═══ LAYOUT ═══ -->
+<div class="hd-layout">
+
+    <!-- ═══ SIDEBAR ═══ -->
+    {% if is_logged_in %}
+    <aside class="hd-sidebar" id="sidebar">
+        <div class="hd-sidebar-brand">
+            <a href="/" style="text-decoration:none;">
+                <span class="brand-health">Health</span><span class="brand-desk">Desk</span>
+            </a>
+        </div>
+
+        <nav class="hd-sidebar-nav">
+
+            {% if current_role == "Receptionist" %}
+            <div class="hd-nav-section">Main</div>
+            <a class="hd-nav-link {% if request.path == '/receptionist_dashboard' or request.path == '/' %}active{% endif %}" href="/receptionist_dashboard">
+                <i class="bi bi-grid-1x2-fill"></i> Dashboard
+            </a>
+            <a class="hd-nav-link {% if request.path == '/reception' %}active{% endif %}" href="/reception">
+                <i class="bi bi-person-plus-fill"></i> Reception
+            </a>
+
+            <div class="hd-nav-section">Operations</div>
+            <a class="hd-nav-link {% if request.path == '/appointments' %}active{% endif %}" href="/appointments">
+                <i class="bi bi-calendar2-check-fill"></i> Appointments
+            </a>
+            <a class="hd-nav-link {% if request.path == '/queue' %}active{% endif %}" href="/queue">
+                <i class="bi bi-people-fill"></i> Queue
+            </a>
+            <a class="hd-nav-link {% if request.path == '/doctors' %}active{% endif %}" href="/doctors">
+                <i class="bi bi-heart-pulse-fill"></i> Doctors
+            </a>
+            <a class="hd-nav-link {% if request.path == '/billing' %}active{% endif %}" href="/billing">
+                <i class="bi bi-receipt"></i> Billing
+            </a>
+            {% endif %}
+
+            {% if current_role == "Doctor" %}
+            <div class="hd-nav-section">Main</div>
+            <a class="hd-nav-link {% if request.path == '/doctor' %}active{% endif %}" href="/doctor">
+                <i class="bi bi-grid-1x2-fill"></i> Dashboard
+            </a>
+            <a class="hd-nav-link {% if '/diagnosis' in request.path %}active{% endif %}" href="/diagnosis">
+                <i class="bi bi-clipboard2-pulse-fill"></i> Diagnosis
+            </a>
+            {% endif %}
+
+        </nav>
+
+        <div class="hd-sidebar-footer">
+            <div class="hd-user-info">Signed in as</div>
+            <div class="hd-user-name">{{ current_user }}</div>
+            <div class="hd-user-info mt-1" style="text-transform:capitalize;">{{ current_role }}</div>
+            <form action="/logout" method="POST" class="mt-2">
+                <button type="submit" class="hd-btn hd-btn-outline hd-btn-sm" style="color:rgba(255,255,255,0.7);border-color:rgba(255,255,255,0.25);width:100%;justify-content:center;">
+                    <i class="bi bi-box-arrow-left"></i> Logout
+                </button>
+            </form>
+        </div>
+    </aside>
+    {% endif %}
+
+    <!-- ═══ MAIN CONTENT ═══ -->
+    <main class="hd-main {% if not is_logged_in %}ms-0{% endif %}">
+        {% block content %}{% endblock %}
+    </main>
+
+</div>
+
+<!-- Bootstrap JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Sidebar toggle -->
+<script>
+(function() {
+    const toggle = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (!toggle || !sidebar) return;
+
+    function openSidebar() { sidebar.classList.add('open'); overlay.classList.add('show'); }
+    function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('show'); }
+
+    toggle.addEventListener('click', function() {
+        sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+    });
+    if (overlay) overlay.addEventListener('click', closeSidebar);
+})();
+</script>
 
 </body>
 </html>

@@ -15,17 +15,22 @@ int generateToken() {
     return count + 1;
 }
 
-int getPatientDetails(int patient_id, char *department, char *priority) {
+int getPatientPriority(int patient_id, char *priority) {
     FILE *fp = fopen(PATIENT_FILE, "r");
     char line[MAX_LINE];
 
-    if (!fp) return 0;
+    if (fp == NULL) return 0;
 
     while (fgets(line, sizeof(line), fp)) {
-        char *token = strtok(line, "|");
-        if (!token) continue;
+        char buffer[MAX_LINE];
+        char *token;
+        int id;
 
-        int id = atoi(token);
+        strcpy(buffer, line);
+
+        token = strtok(buffer, "|");
+        if (token == NULL) continue;
+        id = atoi(token);
 
         if (id == patient_id) {
             strtok(NULL, "|");
@@ -37,11 +42,12 @@ int getPatientDetails(int patient_id, char *department, char *priority) {
             strtok(NULL, "|");
 
             token = strtok(NULL, "|");
+            if (token == NULL) {
+                fclose(fp);
+                return 0;
+            }
+
             strcpy(priority, token);
-
-            token = strtok(NULL, "\n");
-            strcpy(department, token);
-
             fclose(fp);
             return 1;
         }
@@ -51,37 +57,110 @@ int getPatientDetails(int patient_id, char *department, char *priority) {
     return 0;
 }
 
-int findDoctor(char *department) {
+int getPatientDepartment(int patient_id, char *department) {
+    FILE *fp = fopen(PATIENT_FILE, "r");
+    char line[MAX_LINE];
+
+    if (fp == NULL) return 0;
+
+    while (fgets(line, sizeof(line), fp)) {
+        struct Patient p;
+        char buffer[MAX_LINE];
+        char *token;
+
+        strcpy(buffer, line);
+        token = strtok(buffer, "|");
+        if (token == NULL) continue;
+        p.id = atoi(token);
+
+        token = strtok(NULL, "|");
+        if (token == NULL) continue;
+        strcpy(p.name, token);
+
+        token = strtok(NULL, "|");
+        if (token == NULL) continue;
+        p.age = atoi(token);
+
+        token = strtok(NULL, "|");
+        if (token == NULL) continue;
+        strcpy(p.gender, token);
+
+        token = strtok(NULL, "|");
+        if (token == NULL) continue;
+        strcpy(p.phone, token);
+
+        token = strtok(NULL, "|");
+        if (token == NULL) continue;
+        strcpy(p.address, token);
+
+        token = strtok(NULL, "|");
+        if (token == NULL) continue;
+        strcpy(p.symptoms, token);
+
+        token = strtok(NULL, "|");
+        if (token == NULL) continue;
+        strcpy(p.visit_type, token);
+
+        token = strtok(NULL, "|");
+        if (token == NULL) continue;
+        strcpy(p.priority, token);
+
+        token = strtok(NULL, "\n");
+        if (token == NULL) continue;
+        strcpy(p.department, token);
+
+        if (p.id == patient_id) {
+            strcpy(department, p.department);
+            fclose(fp);
+            return 1;
+        }
+    }
+
+    fclose(fp);
+    return 0;
+}
+
+int parseDoctorLine(char *line, struct Doctor *d) {
+    char buffer[MAX_LINE];
+    char *token;
+
+    strcpy(buffer, line);
+    token = strtok(buffer, "|");
+    if (token == NULL) return 0;
+    d->id = atoi(token);
+
+    token = strtok(NULL, "|");
+    if (token == NULL) return 0;
+    strcpy(d->name, token);
+
+    token = strtok(NULL, "|");
+    if (token == NULL) return 0;
+    strcpy(d->specialization, token);
+
+    token = strtok(NULL, "|");
+    if (token == NULL) return 0;
+    d->experience = atoi(token);
+
+    token = strtok(NULL, "|");
+    if (token == NULL) return 0;
+    strcpy(d->daily_status, token);
+
+    token = strtok(NULL, "\n");
+    if (token == NULL) return 0;
+    strcpy(d->current_status, token);
+
+    return 1;
+}
+
+int findAvailableDoctor(char *department) {
     FILE *fp = fopen(DOCTOR_FILE, "r");
     char line[MAX_LINE];
 
-    if (!fp) return 0;
+    if (fp == NULL) return -1;
 
     while (fgets(line, sizeof(line), fp)) {
-
         struct Doctor d;
-        char *token = strtok(line, "|");
-
-        if (!token) continue;
-        d.id = atoi(token);
-
-        token = strtok(NULL, "|");
-        strcpy(d.name, token);
-
-        token = strtok(NULL, "|");
-        strcpy(d.specialization, token);
-
-        token = strtok(NULL, "|");
-        d.experience = atoi(token);
-
-        token = strtok(NULL, "|");
-        strcpy(d.daily_status, token);
-
-        token = strtok(NULL, "\n");
-        strcpy(d.current_status, token);
-
-        d.specialization[strcspn(d.specialization, "\n")] = '\0';
-        department[strcspn(department, "\n")] = '\0';
+        if (!parseDoctorLine(line, &d)) continue;
 
         if (strcmp(d.specialization, department) == 0 &&
             strcmp(d.daily_status, "Available") == 0 &&
@@ -92,63 +171,33 @@ int findDoctor(char *department) {
     }
 
     fclose(fp);
-    return 0;
+    return -1;
 }
 
-void updateDoctorBusy(int doctor_id) {
+int enqueue(struct QueueNode q) {
+    FILE *fp = fopen(QUEUE_FILE, "a");
+    FILE *check;
+    long size;
+    int last_char;
 
-    FILE *fp = fopen(DOCTOR_FILE, "r");
-    FILE *temp = fopen("Backend/data/temp.txt", "w");
-
-    char line[MAX_LINE];
-
-    while (fgets(line, sizeof(line), fp)) {
-
-        struct Doctor d;
-        char buffer[MAX_LINE];
-        strcpy(buffer, line);
-
-        char *token = strtok(buffer, "|");
-        d.id = atoi(token);
-
-        token = strtok(NULL, "|");
-        strcpy(d.name, token);
-
-        token = strtok(NULL, "|");
-        strcpy(d.specialization, token);
-
-        token = strtok(NULL, "|");
-        d.experience = atoi(token);
-
-        token = strtok(NULL, "|");
-        strcpy(d.daily_status, token);
-
-        token = strtok(NULL, "\n");
-        strcpy(d.current_status, token);
-
-        if (d.id == doctor_id) {
-            strcpy(d.current_status, "Busy");
-        }
-
-        fprintf(temp, "%d|%s|%s|%d|%s|%s\n",
-            d.id,
-            d.name,
-            d.specialization,
-            d.experience,
-            d.daily_status,
-            d.current_status
-        );
+    if (fp == NULL) {
+        printf("Error|CannotOpenQueue");
+        return 0;
     }
 
-    fclose(fp);
-    fclose(temp);
-
-    remove(DOCTOR_FILE);
-    rename("Backend/data/temp.txt", DOCTOR_FILE);
-}
-
-void addToQueue(struct QueueNode q) {
-    FILE *fp = fopen(QUEUE_FILE, "a");
+    check = fopen(QUEUE_FILE, "rb");
+    if (check != NULL) {
+        fseek(check, 0, SEEK_END);
+        size = ftell(check);
+        if (size > 0) {
+            fseek(check, -1, SEEK_END);
+            last_char = fgetc(check);
+            if (last_char != '\n') {
+                fprintf(fp, "\n");
+            }
+        }
+        fclose(check);
+    }
 
     fprintf(fp, "%d|%d|%d|%s|%s\n",
         q.token,
@@ -159,45 +208,47 @@ void addToQueue(struct QueueNode q) {
     );
 
     fclose(fp);
+    return 1;
 }
 
 int main(int argc, char *argv[]) {
+    int patient_id;
+    int token;
+    int doctor_id = -1;
+    char priority[MAX_SMALL];
+    char department[MAX_NAME];
+    struct QueueNode q;
 
     if (argc < 2) {
         printf("Invalid Input");
         return 1;
     }
 
-    int patient_id = atoi(argv[1]);
+    patient_id = atoi(argv[1]);
 
-    char department[MAX_NAME];
-    char priority[MAX_SMALL];
-
-    if (!getPatientDetails(patient_id, department, priority)) {
+    if (argc >= 4) {
+        strcpy(priority, argv[3]);
+    } else if (!getPatientPriority(patient_id, priority)) {
         printf("Error|PatientNotFound");
         return 1;
     }
 
-    int doctor_id = findDoctor(department);
-
-    if (doctor_id != 0) {
-        updateDoctorBusy(doctor_id);
-    } else {
-        doctor_id = -1;
+    token = generateToken();
+    if (getPatientDepartment(patient_id, department)) {
+        doctor_id = findAvailableDoctor(department);
     }
 
-    int token = generateToken();
-
-    struct QueueNode q;
     q.token = token;
     q.patient_id = patient_id;
     q.doctor_id = doctor_id;
     strcpy(q.priority, priority);
     strcpy(q.status, "Waiting");
+    q.next = NULL;
 
-    addToQueue(q);
+    if (!enqueue(q)) {
+        return 1;
+    }
 
     printf("%d|%d|%s", token, doctor_id, priority);
-
     return 0;
 }

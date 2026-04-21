@@ -1,2 +1,10 @@
-1|John|General|20|Available|Free
-2|Jamal|Cardiology|23|Available|Free
+1|Dr. Arun Kumar|General|10|Available|Busy
+2|Dr. Meena Ravi|Cardiology|8|Available|Busy
+3|Dr. Suresh Babu|Orthopaedics|12|Available|Free
+4|Dr. Kavya Nair|ENT|6|Off|Free
+5|Dr. Rajesh Iyer|Neurology|15|Available|Busy
+6|Dr. Priya Sharma|Dermatology|7|Available|Free
+7|Dr. Anil Joseph|Pediatrics|9|Available|Free
+8|Dr. Nisha Verma|General|5|Available|Busy
+9|Dr. Vikram Singh|Cardiology|11|Off|Free
+10|Dr. Deepa Menon|Dermatology|6|Available|Free

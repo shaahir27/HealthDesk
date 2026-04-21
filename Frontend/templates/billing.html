@@ -1,217 +1,948 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HealthDesk - Billing</title>
+{% extends "index.html" %}
 
-    <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Satisfy&family=MonteCarlo&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+{% block content %}
 
-    <!-- Bootstrap -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+    .billx-page {
+        --billx-ink: #17324a;
+        --billx-muted: #667b8f;
+        --billx-line: #d7e2eb;
+        --billx-cloud: #f4f8fb;
+        --billx-paper: #ffffff;
+        --billx-accent: #0d8a86;
+        --billx-accent-soft: #e6f7f5;
+        --billx-warm: #f7efe3;
+        --billx-warm-strong: #e7d1ab;
+        --billx-shadow: 0 22px 48px rgba(20, 48, 72, 0.08);
+        color: var(--billx-ink);
+    }
 
-    <style>
-        body {
-            background-color: #f4f6f8;
-            font-family: 'Poppins', sans-serif;
-            color: #2C3E50;
+    .billx-alert {
+        margin-bottom: 18px;
+    }
+
+    .billx-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 20px;
+        align-items: start;
+    }
+
+    .billx-card {
+        background: var(--billx-paper);
+        border: 1px solid var(--billx-line);
+        border-radius: 24px;
+        box-shadow: var(--billx-shadow);
+    }
+
+    .billx-main-card {
+        overflow: hidden;
+    }
+
+    .billx-main-head {
+        display: grid;
+        gap: 16px;
+        padding: 24px 24px 0;
+    }
+
+    .billx-main-head h2,
+    .billx-side-head h3 {
+        margin: 0 0 4px;
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--billx-ink);
+    }
+
+    .billx-main-head p,
+    .billx-side-head p {
+        margin: 0;
+        color: var(--billx-muted);
+        font-size: 0.9rem;
+    }
+
+    .billx-head-strip {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .billx-head-chip {
+        padding: 14px 16px;
+        border-radius: 18px;
+        background: var(--billx-cloud);
+        border: 1px solid #e2ebf2;
+    }
+
+    .billx-head-chip small {
+        display: block;
+        color: var(--billx-muted);
+        margin-bottom: 5px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-size: 0.72rem;
+    }
+
+    .billx-head-chip strong {
+        color: var(--billx-ink);
+        font-size: 0.94rem;
+    }
+
+    .billx-form {
+        padding: 22px 24px 24px;
+    }
+
+    .billx-stage {
+        margin-bottom: 18px;
+        padding: 18px;
+        border-radius: 20px;
+        background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+        border: 1px solid #e7eef4;
+    }
+
+    .billx-stage-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+    .billx-stage-head h3 {
+        margin: 0 0 4px;
+        font-size: 0.98rem;
+        font-weight: 700;
+    }
+
+    .billx-stage-head p {
+        margin: 0;
+        color: var(--billx-muted);
+        font-size: 0.84rem;
+    }
+
+    .billx-patient-strip {
+        display: grid;
+        grid-template-columns: minmax(240px, 0.95fr) minmax(0, 1.2fr);
+        gap: 14px;
+        align-items: stretch;
+    }
+
+    .billx-context {
+        border-radius: 18px;
+        padding: 16px;
+        background: linear-gradient(135deg, #edf8f7 0%, #f7fbfd 100%);
+        border: 1px solid #d8ece9;
+    }
+
+    .billx-context-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .billx-context-label {
+        display: block;
+        color: var(--billx-muted);
+        font-size: 0.74rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 4px;
+    }
+
+    .billx-context-title {
+        font-size: 1.02rem;
+        font-weight: 700;
+        color: var(--billx-ink);
+    }
+
+    .billx-note {
+        display: none;
+        margin-top: 10px;
+        padding: 11px 12px;
+        border-radius: 14px;
+        font-size: 0.84rem;
+    }
+
+    .billx-note.warn {
+        background: #fff7e8;
+        border: 1px solid #f1ddb1;
+        color: #8c6400;
+    }
+
+    .billx-note.info {
+        background: #eff7fc;
+        border: 1px solid #d7e7f2;
+        color: #2d5a7e;
+    }
+
+    .billx-facts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .billx-fact {
+        padding: 14px;
+        border-radius: 16px;
+        background: var(--billx-cloud);
+        border: 1px solid #e3edf4;
+    }
+
+    .billx-fact small {
+        display: block;
+        color: var(--billx-muted);
+        margin-bottom: 5px;
+    }
+
+    .billx-fact strong {
+        display: block;
+        font-size: 0.96rem;
+    }
+
+    .billx-settings {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 14px;
+    }
+
+    .billx-composer {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 18px;
+    }
+
+    .billx-builder-shell {
+        padding: 16px;
+        border-radius: 18px;
+        background: #f8fbfd;
+        border: 1px solid #e4edf3;
+    }
+
+    .billx-builder-head {
+        display: grid;
+        grid-template-columns: minmax(160px, 0.7fr) minmax(0, 1.35fr) 110px 48px;
+        gap: 10px;
+        color: var(--billx-muted);
+        font-size: 0.73rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        padding: 0 0 8px;
+    }
+
+    .billx-builder-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .billx-builder-row {
+        display: grid;
+        grid-template-columns: minmax(160px, 0.7fr) minmax(0, 1.35fr) 110px 48px;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .billx-price-pill {
+        min-height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 14px;
+        background: #f0f8f7;
+        color: var(--billx-accent);
+        font-weight: 700;
+        border: 1px solid #d4ebe8;
+    }
+
+    .billx-addon-grid {
+        display: grid;
+        gap: 14px;
+    }
+
+    .billx-addon-card {
+        padding: 16px;
+        border-radius: 18px;
+        background: #f8fbfd;
+        border: 1px solid #e4edf3;
+    }
+
+    .billx-chip-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+        gap: 10px;
+    }
+
+    .billx-chip {
+        cursor: pointer;
+    }
+
+    .billx-chip input {
+        display: none;
+    }
+
+    .billx-chip span {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 13px 14px;
+        border-radius: 16px;
+        border: 1px solid #dbe6ee;
+        background: #fcfdff;
+        transition: all 0.2s ease;
+        min-height: 92px;
+    }
+
+    .billx-chip strong {
+        font-size: 0.9rem;
+        color: var(--billx-ink);
+    }
+
+    .billx-chip small {
+        color: var(--billx-muted);
+    }
+
+    .billx-chip input:checked + span {
+        border-color: var(--billx-accent);
+        background: var(--billx-accent-soft);
+        box-shadow: 0 0 0 3px rgba(13, 138, 134, 0.08);
+    }
+
+    .billx-meds {
+        display: grid;
+        grid-template-columns: 180px minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    .billx-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 22px;
+    }
+
+    .billx-side-stack {
+        display: grid;
+        gap: 20px;
+        position: static;
+    }
+
+    .billx-side-card {
+        padding: 20px;
+    }
+
+    .billx-side-head {
+        margin-bottom: 16px;
+    }
+
+    .billx-total-stack {
+        display: grid;
+        gap: 10px;
+    }
+
+    .billx-total-line,
+    .billx-total-grand {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding: 13px 14px;
+        border-radius: 16px;
+        border: 1px solid #e2ebf2;
+        background: #fbfdff;
+    }
+
+    .billx-total-line small,
+    .billx-total-grand small {
+        color: var(--billx-muted);
+    }
+
+    .billx-total-grand {
+        background: linear-gradient(135deg, #17324a 0%, #225276 100%);
+        color: white;
+        border: none;
+        padding: 16px;
+        margin-top: 4px;
+    }
+
+    .billx-total-grand small {
+        color: rgba(255,255,255,0.72);
+    }
+
+    .billx-total-grand strong {
+        font-size: 1.55rem;
+    }
+
+    .billx-preview {
+        margin: 0;
+        padding: 16px;
+        border-radius: 18px;
+        background: #f7fafc;
+        border: 1px solid #e0e8ef;
+        white-space: pre-wrap;
+        font-size: 0.84rem;
+        line-height: 1.58;
+    }
+
+    .billx-history {
+        display: grid;
+        gap: 12px;
+    }
+
+    .billx-history-item {
+        padding: 15px;
+        border-radius: 18px;
+        border: 1px solid #e0e8ef;
+        background: #fcfdff;
+    }
+
+    .billx-history-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: flex-start;
+        margin-bottom: 10px;
+    }
+
+    .billx-history-top strong {
+        display: block;
+        color: var(--billx-ink);
+    }
+
+    .billx-history-top small {
+        color: var(--billx-muted);
+    }
+
+    .billx-history-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+    }
+
+    .billx-empty {
+        padding: 22px 16px;
+        border-radius: 18px;
+        background: #fbfdff;
+        color: var(--billx-muted);
+        text-align: center;
+        border: 1px dashed #d7e2eb;
+    }
+
+    @media (max-width: 1199.98px) {
+        .billx-composer,
+        .billx-patient-strip {
+            grid-template-columns: 1fr;
         }
 
-        .navbar {
-            background: linear-gradient(90deg, #2E86C1, #1B4F72);
+        .billx-billing-overview,
+        .billx-facts {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .billx-page {
+            padding-bottom: 20px;
         }
 
-        .brand-health {
-            font-family: 'Satisfy', cursive;
-            font-size: 26px;
-            color: white;
+        .billx-main-head,
+        .billx-stage-head,
+        .billx-context-top {
+            grid-template-columns: 1fr;
         }
 
-        .brand-desk {
-            font-family: 'MonteCarlo', cursive;
-            font-size: 30px;
-            margin-left: 4px;
-            background: linear-gradient(45deg, #ffffff, #D6EAF8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        .billx-main-head,
+        .billx-stage-head,
+        .billx-context-top {
+            display: block;
         }
 
-        .container-card {
-            margin-top: 40px;
-            max-width: 1150px;
+        .billx-form,
+        .billx-side-card {
+            padding: 18px;
         }
 
-        .card {
-            border-radius: 14px;
-            border: none;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+        .billx-facts,
+        .billx-settings,
+        .billx-meds,
+        .billx-head-strip {
+            grid-template-columns: 1fr;
         }
 
-        .btn-primary {
-            background-color: #2E86C1;
-            border: none;
+        .billx-builder-head {
+            display: none;
         }
 
-        .btn-primary:hover {
-            background-color: #1f618d;
+        .billx-builder-row {
+            grid-template-columns: 1fr;
         }
 
-        .text-success { color: #28B463 !important; }
-        .text-danger { color: #E74C3C !important; }
-        .text-warning { color: #F4D03F !important; }
-    </style>
-</head>
+        .billx-builder-shell,
+        .billx-addon-card {
+            padding: 14px;
+        }
 
-<body>
+        .billx-chip-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
 
-<!-- NAVBAR -->
-<nav class="navbar navbar-expand-lg navbar-dark shadow">
-    <div class="container">
-        <a class="navbar-brand d-flex align-items-center" href="#">
-            <span class="brand-health">Health</span>
-            <span class="brand-desk">Desk</span>
-        </a>
+<div class="billx-page">
+    <div class="hd-page-header">
+        <h4><i class="bi bi-receipt me-2"></i>Billing Management</h4>
+        <small>Create bills only from completed appointments, with doctor details pulled automatically from the database.</small>
+    </div>
 
-        <button class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#nav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+    {% if status_note %}
+    <div class="hd-alert warning billx-alert"><i class="bi bi-exclamation-triangle me-1"></i> {{ status_note }}</div>
+    {% endif %}
 
-        <div class="collapse navbar-collapse" id="nav">
-            <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link text-white" href="#">Dashboard</a></li>
-                <li class="nav-item"><a class="nav-link text-white" href="#">Patients</a></li>
-                <li class="nav-item"><a class="nav-link text-white" href="#">Doctors</a></li>
-                <li class="nav-item"><a class="nav-link text-white" href="#">Queue</a></li>
-                <li class="nav-item"><a class="nav-link text-white" href="#">Diagnosis</a></li>
-                <li class="nav-item"><a class="nav-link text-white active" href="#">Billing</a></li>
-            </ul>
+    <div class="billx-layout">
+        <div class="billx-card billx-main-card">
+            <div class="billx-main-head">
+                <div>
+                    <h2>Create New Bill</h2>
+                    <p>Everything is arranged in one clean flow: confirm patient context, build charges, then review the bill before downloading the PDF.</p>
+                </div>
+                <div class="billx-head-strip">
+                    <div class="billx-head-chip">
+                        <small>Billing Rule</small>
+                        <strong>Completed appointments only</strong>
+                    </div>
+                    <div class="billx-head-chip">
+                        <small>Doctor Source</small>
+                        <strong>Pulled automatically from appointment data</strong>
+                    </div>
+                    <div class="billx-head-chip">
+                        <small>Output</small>
+                        <strong>Preview now, download as PDF anytime</strong>
+                    </div>
+                </div>
+            </div>
+
+            <form action="/generate_bill" method="POST" id="billing-form" class="billx-form">
+                <div class="billx-stage">
+                    <div class="billx-stage-head">
+                        <div>
+                            <h3>1. Patient And Appointment</h3>
+                            <p>Pick the patient and review the appointment context before adding charges.</p>
+                        </div>
+                    </div>
+
+                    <div class="billx-patient-strip">
+                        <div>
+                            <label class="form-label">Patient</label>
+                            <select name="patient_id" id="patient_id" class="form-select" required>
+                                <option value="">Select patient</option>
+                                {% for patient in patients %}
+                                <option value="{{ patient.id }}" {% if selected_patient_id|int == patient.id %}selected{% endif %}>
+                                    #{{ patient.id }} - {{ patient.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="billx-context">
+                            <div class="billx-context-top">
+                                <div>
+                                    <span class="billx-context-label">Loaded Context</span>
+                                    <div class="billx-context-title" id="context_patient_name">Select a patient to load appointment details</div>
+                                </div>
+                                <div id="context_badge_wrap"></div>
+                            </div>
+                            <div id="context_warning" class="billx-note warn"></div>
+                            <div id="context_existing_bill" class="billx-note info"></div>
+                        </div>
+                    </div>
+
+                    <div class="billx-facts" style="margin-top:14px;">
+                        <div class="billx-fact">
+                            <small>Doctor</small>
+                            <strong id="context_doctor">-</strong>
+                        </div>
+                        <div class="billx-fact">
+                            <small>Department</small>
+                            <strong id="context_department">-</strong>
+                        </div>
+                        <div class="billx-fact">
+                            <small>Appointment ID</small>
+                            <strong id="context_appointment_id">-</strong>
+                        </div>
+                        <div class="billx-fact">
+                            <small>Appointment Date</small>
+                            <strong id="context_appointment_date">-</strong>
+                        </div>
+                        <div class="billx-fact">
+                            <small>Bill Date</small>
+                            <input type="date" name="date" id="bill_date" class="form-control form-control-sm mt-2" value="{{ selected_date }}" readonly required>
+                        </div>
+                        <div class="billx-fact">
+                            <small>Payment Status</small>
+                            <select name="payment_status" class="form-select form-select-sm mt-2" required>
+                                <option value="PAID">PAID</option>
+                                <option value="PENDING">PENDING</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="billx-stage">
+                    <div class="billx-stage-head">
+                        <div>
+                            <h3>2. Build The Charges</h3>
+                            <p>Use treatment categories to keep the bill builder clean and easy to scan.</p>
+                        </div>
+                        <button type="button" class="hd-btn hd-btn-outline hd-btn-sm" id="add-treatment-row">
+                            <i class="bi bi-plus-circle"></i> Add Treatment
+                        </button>
+                    </div>
+
+                    <div class="billx-composer">
+                        <div class="billx-builder-shell">
+                            <div class="billx-builder-head">
+                                <span>Category</span>
+                                <span>Treatment</span>
+                                <span>Price</span>
+                                <span></span>
+                            </div>
+                            <div id="treatment-rows" class="billx-builder-list"></div>
+                        </div>
+
+                        <div class="billx-addon-grid">
+                            <div class="billx-addon-card">
+                                <label class="form-label">Lab Tests</label>
+                                <div class="billx-chip-grid">
+                                    {% for item in pricing_catalog.lab_tests %}
+                                    <label class="billx-chip">
+                                        <input type="checkbox" name="lab_tests" value="{{ item.code }}" class="lab-checkbox">
+                                        <span>
+                                            <strong>{{ item.name }}</strong>
+                                            <small>Rs {{ item.price }}</small>
+                                        </span>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <div class="billx-addon-card">
+                                <div class="billx-meds">
+                                    <div>
+                                        <label class="form-label">Medicines Amount</label>
+                                        <input type="number" name="medicine_amount" id="medicine_amount" class="form-control" min="0" value="0">
+                                    </div>
+                                    <div>
+                                        <label class="form-label">Medicine Notes</label>
+                                        <input type="text" name="medicine_notes" class="form-control" placeholder="Optional medicine details">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="billx-actions">
+                    <button class="hd-btn hd-btn-primary" id="generate_bill_btn">
+                        <i class="bi bi-receipt"></i> Generate Bill
+                    </button>
+                    <a class="hd-btn hd-btn-outline" href="/billing">
+                        <i class="bi bi-arrow-clockwise"></i> Reset
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        <div class="billx-side-stack">
+            <div class="billx-card billx-side-card">
+                <div class="billx-side-head">
+                    <h3>Live Summary</h3>
+                    <p>A running total placed directly after charge building so the flow stays easy to follow.</p>
+                </div>
+                <div class="billx-total-stack">
+                    <div class="billx-total-line">
+                        <small>Doctor Fee</small>
+                        <strong id="summary_doctor_fee">Rs 0</strong>
+                    </div>
+                    <div class="billx-total-line">
+                        <small>Treatments</small>
+                        <strong id="summary_treatments">Rs 0</strong>
+                    </div>
+                    <div class="billx-total-line">
+                        <small>Lab Tests</small>
+                        <strong id="summary_labs">Rs 0</strong>
+                    </div>
+                    <div class="billx-total-line">
+                        <small>Medicines</small>
+                        <strong id="summary_medicines">Rs 0</strong>
+                    </div>
+                    <div class="billx-total-grand">
+                        <small>Total Bill</small>
+                        <strong id="summary_total">Rs 0</strong>
+                    </div>
+                </div>
+            </div>
+
+            {% if bill_preview %}
+            <div class="billx-card billx-side-card">
+                <div class="billx-side-head">
+                    <h3>Bill Preview</h3>
+                    <p>The saved bill is ready to review and download.</p>
+                </div>
+                {% if preview_bill %}
+                <a class="hd-btn hd-btn-primary hd-btn-sm mb-3" href="/billing/download/{{ preview_bill.bill_id }}">
+                    <i class="bi bi-file-earmark-pdf"></i> Download PDF
+                </a>
+                {% endif %}
+                <pre class="billx-preview">{{ bill_preview }}</pre>
+            </div>
+            {% endif %}
+
+            <div class="billx-card billx-side-card">
+                <div class="billx-side-head">
+                    <h3>Recent Bills</h3>
+                    <p>Quick access to previous previews and PDF downloads.</p>
+                </div>
+
+                <div class="billx-history">
+                    {% for b in bills|reverse %}
+                    <div class="billx-history-item">
+                        <div class="billx-history-top">
+                            <div>
+                                <strong>#{{ b.bill_id }} - {{ b.name }}</strong>
+                                <small>{{ b.date }}</small>
+                            </div>
+                            <span class="hd-badge {% if b.status == 'PAID' %}completed{% else %}urgent{% endif %}">{{ b.status }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                            <small class="text-muted">Total Amount</small>
+                            <strong>Rs {{ b.total|int }}</strong>
+                        </div>
+                        <div class="billx-history-actions">
+                            <a class="hd-btn hd-btn-outline hd-btn-sm" href="/billing?preview_bill_id={{ b.bill_id }}">Preview</a>
+                            <a class="hd-btn hd-btn-primary hd-btn-sm" href="/billing/download/{{ b.bill_id }}">PDF</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    {% if not bills %}
+                    <div class="billx-empty">No bills found yet.</div>
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
-</nav>
-
-<!-- MAIN CONTENT -->
-<div class="container container-card">
-
-    <h2 class="fw-semibold">Billing Management</h2>
-    <p class="text-muted">Generate and manage patient bills</p>
-
-    <!-- FORM -->
-    <div class="card p-4 mb-4">
-        <h5>Create New Bill</h5>
-
-        <div class="row">
-            <div class="col-md-4 mb-3">
-                <label>Patient Name</label>
-                <input type="text" class="form-control" placeholder="Enter patient name">
-            </div>
-
-            <div class="col-md-4 mb-3">
-                <label>Doctor</label>
-                <input type="text" class="form-control" placeholder="Doctor name">
-            </div>
-
-            <div class="col-md-4 mb-3">
-                <label>Date</label>
-                <input type="date" class="form-control">
-            </div>
-        </div>
-
-        <div class="row">
-            <div class="col-md-3 mb-3">
-                <label>Consultation (₹)</label>
-                <input type="number" id="consultation" class="form-control" value="0">
-            </div>
-
-            <div class="col-md-3 mb-3">
-                <label>Medicines (₹)</label>
-                <input type="number" id="medicine" class="form-control" value="0">
-            </div>
-
-            <div class="col-md-3 mb-3">
-                <label>Lab (₹)</label>
-                <input type="number" id="lab" class="form-control" value="0">
-            </div>
-
-            <div class="col-md-3 mb-3">
-                <label>Other (₹)</label>
-                <input type="number" id="other" class="form-control" value="0">
-            </div>
-        </div>
-
-        <div class="row">
-            <div class="col-md-4 mb-3">
-                <label>Total (₹)</label>
-                <input type="text" id="total" class="form-control" readonly>
-            </div>
-        </div>
-
-        <button class="btn btn-primary" onclick="calculateTotal()">Calculate Total</button>
-        <button class="btn btn-success">Generate Bill</button>
-    </div>
-
-    <!-- TABLE -->
-    <div class="card p-4">
-        <h5>Recent Bills</h5>
-
-        <table class="table">
-            <thead class="table-light">
-                <tr>
-                    <th>#</th>
-                    <th>Patient</th>
-                    <th>Doctor</th>
-                    <th>Date</th>
-                    <th>Total (₹)</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                <tr>
-                    <td>1</td>
-                    <td>Ravi Kumar</td>
-                    <td>Dr. Sharma</td>
-                    <td>05-04-2026</td>
-                    <td>1500</td>
-                    <td class="text-success">Paid</td>
-                </tr>
-
-                <tr>
-                    <td>2</td>
-                    <td>Anita</td>
-                    <td>Dr. Meena</td>
-                    <td>06-04-2026</td>
-                    <td>2200</td>
-                    <td class="text-warning">Pending</td>
-                </tr>
-
-                <tr>
-                    <td>3</td>
-                    <td>Arun</td>
-                    <td>Dr. Raj</td>
-                    <td>07-04-2026</td>
-                    <td>1800</td>
-                    <td class="text-danger">Unpaid</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-
 </div>
 
-<!-- SCRIPT -->
 <script>
-function calculateTotal() {
-    let c = parseFloat(document.getElementById('consultation').value) || 0;
-    let m = parseFloat(document.getElementById('medicine').value) || 0;
-    let l = parseFloat(document.getElementById('lab').value) || 0;
-    let o = parseFloat(document.getElementById('other').value) || 0;
+const patients = {{ patients|tojson }};
+const billingLookup = {{ billing_lookup|tojson }};
+const pricingCatalog = {{ pricing_catalog|tojson }};
 
-    document.getElementById('total').value = c + m + l + o;
+const patientMap = Object.fromEntries(patients.map((patient) => [String(patient.id), patient]));
+const treatmentRows = document.getElementById("treatment-rows");
+const patientSelect = document.getElementById("patient_id");
+const billDateInput = document.getElementById("bill_date");
+const medicineAmountInput = document.getElementById("medicine_amount");
+const generateButton = document.getElementById("generate_bill_btn");
+
+function formatCurrency(value) {
+    return `Rs ${Number(value || 0).toFixed(0)}`;
 }
+
+function getCurrentContext() {
+    return billingLookup[String(patientSelect.value)] || null;
+}
+
+function treatmentCategories() {
+    const context = getCurrentContext();
+    const department = context && context.department ? context.department : "";
+    const source = department
+        ? pricingCatalog.treatments.filter((item) => (item.departments || []).includes(department))
+        : pricingCatalog.treatments;
+    return [...new Set(source.map((item) => item.category))];
+}
+
+function buildOption(value, label) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    return option;
+}
+
+function populateTreatmentSelect(select, category, selectedCode = "") {
+    select.innerHTML = "";
+    select.appendChild(buildOption("", "Select treatment"));
+    const context = getCurrentContext();
+    const department = context && context.department ? context.department : "";
+    pricingCatalog.treatments
+        .filter((item) => item.category === category)
+        .filter((item) => !department || (item.departments || []).includes(department))
+        .forEach((item) => {
+            const option = buildOption(item.code, `${item.name} (Rs ${item.price})`);
+            if (item.code === selectedCode) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+}
+
+function createTreatmentRow(initialCategory = "", initialCode = "") {
+    const row = document.createElement("div");
+    row.className = "billx-builder-row";
+
+    const categorySelect = document.createElement("select");
+    categorySelect.className = "form-select treatment-category";
+    categorySelect.appendChild(buildOption("", "Select category"));
+    treatmentCategories().forEach((category) => {
+        const option = buildOption(category, category);
+        if (category === initialCategory) {
+            option.selected = true;
+        }
+        categorySelect.appendChild(option);
+    });
+
+    const treatmentSelect = document.createElement("select");
+    treatmentSelect.name = "treatments";
+    treatmentSelect.className = "form-select treatment-code";
+    populateTreatmentSelect(treatmentSelect, initialCategory, initialCode);
+
+    const priceTag = document.createElement("div");
+    priceTag.className = "billx-price-pill";
+    priceTag.textContent = "Rs 0";
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "hd-btn hd-btn-outline hd-btn-sm";
+    removeButton.innerHTML = '<i class="bi bi-trash"></i>';
+
+    categorySelect.addEventListener("change", () => {
+        populateTreatmentSelect(treatmentSelect, categorySelect.value);
+        updateTotals();
+    });
+
+    treatmentSelect.addEventListener("change", updateTotals);
+    removeButton.addEventListener("click", () => {
+        row.remove();
+        ensureTreatmentRow();
+        updateTotals();
+    });
+
+    row.appendChild(categorySelect);
+    row.appendChild(treatmentSelect);
+    row.appendChild(priceTag);
+    row.appendChild(removeButton);
+    treatmentRows.appendChild(row);
+    updateRowPrice(row);
+}
+
+function ensureTreatmentRow() {
+    if (!treatmentRows.children.length) {
+        createTreatmentRow();
+    }
+}
+
+function updateRowPrice(row) {
+    const select = row.querySelector(".treatment-code");
+    const priceTag = row.querySelector(".billx-price-pill");
+    const treatment = pricingCatalog.treatments.find((item) => item.code === select.value);
+    priceTag.textContent = formatCurrency(treatment ? treatment.price : 0);
+}
+
+function updateTreatmentRowsDisplay() {
+    Array.from(treatmentRows.children).forEach(updateRowPrice);
+}
+
+function updateContextPanel() {
+    const patient = patientMap[String(patientSelect.value)] || null;
+    const context = getCurrentContext();
+    const badgeWrap = document.getElementById("context_badge_wrap");
+    const warning = document.getElementById("context_warning");
+    const existingBill = document.getElementById("context_existing_bill");
+
+    document.getElementById("context_patient_name").textContent = patient
+        ? `${patient.name} (#${patient.id})`
+        : "Select a patient to load appointment details";
+    document.getElementById("context_doctor").textContent = context && context.doctor_name ? context.doctor_name : "-";
+    document.getElementById("context_department").textContent = context && context.department ? context.department : "-";
+    document.getElementById("context_appointment_id").textContent = context && context.appointment_id ? `#${context.appointment_id}` : "-";
+    document.getElementById("context_appointment_date").textContent = context && context.appointment_date ? context.appointment_date : "-";
+
+    badgeWrap.innerHTML = "";
+    if (context && context.appointment_status) {
+        const badge = document.createElement("span");
+        badge.className = `hd-badge ${String(context.appointment_status).toLowerCase().replace('-', '')}`;
+        badge.textContent = context.appointment_status;
+        badgeWrap.appendChild(badge);
+    }
+
+    if (context && context.warning) {
+        warning.style.display = "block";
+        warning.textContent = context.warning;
+    } else {
+        warning.style.display = "none";
+        warning.textContent = "";
+    }
+
+    if (context && context.existing_bill_id) {
+        existingBill.style.display = "block";
+        existingBill.innerHTML = `Existing bill found: <a href="/billing?preview_bill_id=${context.existing_bill_id}">Preview bill #${context.existing_bill_id}</a>`;
+    } else {
+        existingBill.style.display = "none";
+        existingBill.innerHTML = "";
+    }
+
+    billDateInput.value = context && context.appointment_date ? context.appointment_date : "{{ selected_date }}";
+    generateButton.disabled = !(context && context.can_bill && !context.existing_bill_id);
+}
+
+function updateTotals() {
+    const context = getCurrentContext();
+    const doctorFee = context && context.can_bill
+        ? Number((pricingCatalog.doctor_fees || {})[context.department] || 0)
+        : 0;
+
+    const treatmentTotal = Array.from(document.querySelectorAll(".treatment-code"))
+        .reduce((sum, select) => {
+            const treatment = pricingCatalog.treatments.find((item) => item.code === select.value);
+            return sum + Number(treatment ? treatment.price : 0);
+        }, 0);
+
+    const labTotal = Array.from(document.querySelectorAll(".lab-checkbox:checked"))
+        .reduce((sum, input) => {
+            const test = pricingCatalog.lab_tests.find((item) => item.code === input.value);
+            return sum + Number(test ? test.price : 0);
+        }, 0);
+
+    const medicineTotal = Number(medicineAmountInput.value || 0);
+    const total = doctorFee + treatmentTotal + labTotal + medicineTotal;
+
+    updateTreatmentRowsDisplay();
+    document.getElementById("summary_doctor_fee").textContent = formatCurrency(doctorFee);
+    document.getElementById("summary_treatments").textContent = formatCurrency(treatmentTotal);
+    document.getElementById("summary_labs").textContent = formatCurrency(labTotal);
+    document.getElementById("summary_medicines").textContent = formatCurrency(medicineTotal);
+    document.getElementById("summary_total").textContent = formatCurrency(total);
+}
+
+document.getElementById("add-treatment-row").addEventListener("click", () => {
+    createTreatmentRow();
+});
+
+patientSelect.addEventListener("change", () => {
+    treatmentRows.innerHTML = "";
+    ensureTreatmentRow();
+    updateContextPanel();
+    updateTotals();
+});
+
+medicineAmountInput.addEventListener("input", updateTotals);
+document.querySelectorAll(".lab-checkbox").forEach((input) => input.addEventListener("change", updateTotals));
+
+ensureTreatmentRow();
+updateContextPanel();
+updateTotals();
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-</body>
-</html>
+{% endblock %}

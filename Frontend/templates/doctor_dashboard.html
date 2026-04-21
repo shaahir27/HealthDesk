@@ -1,0 +1,221 @@
+{% extends "index.html" %}
+
+{% block content %}
+
+<style>
+    .docx-shell { display:grid; gap:20px; }
+    .docx-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:20px; }
+    .docx-card { background:#fff; border:1px solid #dfe8ef; border-radius:22px; box-shadow:0 16px 40px rgba(24,44,71,0.06); }
+    .docx-card-body { padding:20px; }
+    .docx-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px; }
+    .docx-title { margin:0 0 4px; font-size:1.02rem; font-weight:700; color:#21364d; }
+    .docx-sub { margin:0; color:#6b7d8e; font-size:0.88rem; }
+    .docx-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
+    .docx-flow { display:grid; gap:20px; }
+    .docx-metric { padding:18px; border-radius:18px; background:linear-gradient(180deg,#ffffff 0%,#f8fbfd 100%); border:1px solid #e3ebf2; }
+    .docx-metric small { display:block; color:#708496; margin-bottom:6px; }
+    .docx-metric strong { font-size:1.35rem; color:#19324b; }
+    .docx-panel { padding:18px; border-radius:18px; background:#f8fbfd; border:1px solid #e5edf3; }
+    .docx-panel-grid { display:grid; gap:14px; }
+    .docx-summary-list { display:grid; gap:10px; }
+    .docx-summary-line { display:flex; justify-content:space-between; gap:10px; padding:13px 14px; border-radius:14px; background:#fff; border:1px solid #e2ebf1; }
+    .docx-summary-line small { color:#6f8396; }
+    .docx-table-wrap { overflow:auto; }
+    @media (max-width: 991.98px) {
+        .docx-grid, .docx-summary { grid-template-columns:1fr; }
+    }
+    @media (max-width: 767.98px) {
+        .docx-card-body { padding:16px; }
+        .docx-head { display:block; }
+    }
+</style>
+
+<div class="hd-page-header">
+    <h4><i class="bi bi-grid-1x2-fill me-2"></i>Doctor Dashboard</h4>
+    {% if doctor_info %}
+    <small>{{ doctor_info.name }} | {{ doctor_info.department }}</small>
+    {% else %}
+    <small>Manage your consultations, queue patients, and live status from one workspace</small>
+    {% endif %}
+</div>
+
+{% if status_note %}
+<div class="hd-alert info"><i class="bi bi-info-circle me-1"></i> {{ status_note }}</div>
+{% endif %}
+
+{% if billing_patient_id %}
+<div class="hd-alert success">
+    <i class="bi bi-check-circle-fill me-1"></i>
+    Diagnosis saved for patient {{ billing_patient_id }}.
+    {% if billing_bill_id %}Bill #{{ billing_bill_id }} generated automatically.{% else %}Billing will be available after completion flow.{% endif %}
+</div>
+{% endif %}
+
+<div class="docx-shell">
+    <div class="docx-summary">
+        <div class="docx-metric">
+            <small>Queue Patients</small>
+            <strong>{{ queue_patients|length }}</strong>
+        </div>
+        <div class="docx-metric">
+            <small>Appointments</small>
+            <strong>{{ appointments|length }}</strong>
+        </div>
+        <div class="docx-metric">
+            <small>Daily Status</small>
+            <div class="mt-2">{% if doctor_info %}<span class="hd-badge {{ doctor_info.daily_status|lower }}">{{ doctor_info.daily_status }}</span>{% else %}-{% endif %}</div>
+        </div>
+        <div class="docx-metric">
+            <small>Current Status</small>
+            <div class="mt-2">{% if doctor_info %}<span class="hd-badge {{ doctor_info.current_status|lower }}">{{ doctor_info.current_status }}</span>{% else %}-{% endif %}</div>
+        </div>
+    </div>
+
+    <div class="docx-grid">
+        <div class="docx-flow">
+            <div class="docx-card">
+                <div class="docx-card-body">
+                    <div class="docx-head">
+                        <div>
+                            <h5 class="docx-title"><i class="bi bi-calendar2-check-fill me-1"></i> My Appointments</h5>
+                            <p class="docx-sub">Appointments that still require diagnosis or completion action.</p>
+                        </div>
+                    </div>
+                    <div class="docx-table-wrap">
+                        <table class="hd-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Patient</th>
+                                    <th>Date</th>
+                                    <th>Slot</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for a in appointments %}
+                                <tr>
+                                    <td>{{ a.appointment_id }}</td>
+                                    <td>#{{ a.patient_id }}</td>
+                                    <td>{{ a.date }}</td>
+                                    <td>{{ a.time_slot }}</td>
+                                    <td><span class="hd-badge {{ a.status|lower|replace('-', '') }}">{{ a.status }}</span></td>
+                                    <td>
+                                        <div class="d-flex gap-1 flex-wrap">
+                                            <a class="hd-btn hd-btn-outline hd-btn-sm" href="/diagnosis?patient_id={{ a.patient_id }}">
+                                                <i class="bi bi-clipboard2-pulse"></i> Diagnosis
+                                            </a>
+                                            <form action="/doctor_complete_consultation" method="POST" class="d-inline">
+                                                <input type="hidden" name="appointment_id" value="{{ a.appointment_id }}">
+                                                <input type="hidden" name="patient_id" value="{{ a.patient_id }}">
+                                                <button class="hd-btn hd-btn-success hd-btn-sm">
+                                                    <i class="bi bi-check-circle"></i> Complete
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% if not appointments %}
+                                <tr><td colspan="6" class="text-muted text-center py-3">No assigned appointments right now.</td></tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="docx-card">
+                <div class="docx-card-body">
+                    <div class="docx-head">
+                        <div>
+                            <h5 class="docx-title"><i class="bi bi-activity me-1"></i> Update My Availability</h5>
+                            <p class="docx-sub">Keep your status accurate so reception can route patients correctly.</p>
+                        </div>
+                    </div>
+                    <form action="/doctor_my_status" method="POST" class="docx-panel-grid">
+                        <div>
+                            <label class="form-label">Daily Status</label>
+                            <select name="daily_status" class="form-select" required>
+                                <option value="Available" {% if doctor_info and doctor_info.daily_status == "Available" %}selected{% endif %}>Available</option>
+                                <option value="Unavailable" {% if doctor_info and doctor_info.daily_status != "Available" %}selected{% endif %}>Unavailable</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Current Status</label>
+                            <select name="current_status" class="form-select" required>
+                                <option value="Free" {% if doctor_info and doctor_info.current_status == "Free" %}selected{% endif %}>Free</option>
+                                <option value="Busy" {% if doctor_info and doctor_info.current_status == "Busy" %}selected{% endif %}>Busy</option>
+                                <option value="Emergency" {% if doctor_info and doctor_info.current_status == "Emergency" %}selected{% endif %}>Emergency</option>
+                            </select>
+                        </div>
+                        <button class="hd-btn hd-btn-primary hd-btn-block"><i class="bi bi-check2"></i> Save Status</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="docx-card">
+                <div class="docx-card-body">
+                    <div class="docx-head">
+                        <div>
+                            <h5 class="docx-title"><i class="bi bi-people-fill me-1"></i> Queue Patients</h5>
+                            <p class="docx-sub">Patients currently waiting under your assigned queue.</p>
+                        </div>
+                    </div>
+                    <div class="docx-table-wrap">
+                        <table class="hd-table">
+                            <thead>
+                                <tr>
+                                    <th>Token</th>
+                                    <th>Patient</th>
+                                    <th>Priority</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for q in queue_patients %}
+                                <tr>
+                                    <td><strong>{{ q.token }}</strong></td>
+                                    <td>
+                                        <div>#{{ q.patient_id }}</div>
+                                        <small class="text-muted">{{ q.name or "-" }}</small>
+                                    </td>
+                                    <td><span class="hd-badge {% if q.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ q.priority }}</span></td>
+                                    <td>
+                                        <a class="hd-btn hd-btn-primary hd-btn-sm" href="/diagnosis?patient_id={{ q.patient_id }}">
+                                            Diagnose
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% if not queue_patients %}
+                                <tr><td colspan="4" class="text-muted text-center py-3">No patients in your queue right now.</td></tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="docx-card">
+                <div class="docx-card-body">
+                    <div class="docx-head">
+                        <div>
+                            <h5 class="docx-title"><i class="bi bi-person-badge me-1"></i> Quick Summary</h5>
+                            <p class="docx-sub">Useful details without extra clutter.</p>
+                        </div>
+                    </div>
+                    <div class="docx-summary-list">
+                        <div class="docx-summary-line"><small>Name</small><strong>{{ doctor_info.name if doctor_info else "-" }}</strong></div>
+                        <div class="docx-summary-line"><small>Department</small><strong>{{ doctor_info.department if doctor_info else "-" }}</strong></div>
+                        <div class="docx-summary-line"><small>Daily Status</small><strong>{{ doctor_info.daily_status if doctor_info else "-" }}</strong></div>
+                        <div class="docx-summary-line"><small>Current Status</small><strong>{{ doctor_info.current_status if doctor_info else "-" }}</strong></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

@@ -3,174 +3,142 @@
 {% block content %}
 
 <style>
-/* 🔥 CARD STYLE */
-.premium-card {
-    border-radius: 16px;
-    background: rgba(255,255,255,0.9);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.05);
-    transition: 0.3s;
-}
-
-.premium-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 28px rgba(0,0,0,0.08);
-}
-
-/* 🔥 STATUS DOTS */
-.status-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    display: inline-block;
-    margin-right: 6px;
-}
-
-.green { background: #2ecc71; }
-.red { background: #e74c3c; }
-.gray { background: #7f8c8d; }
-
-/* 🔥 BUTTON */
-.btn-smooth {
-    transition: 0.25s ease;
-}
-
-.btn-smooth:hover {
-    transform: translateY(-1px);
-}
+    .drx-shell { display:grid; gap:20px; }
+    .drx-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:20px; }
+    .drx-card { background:#fff; border:1px solid #dee7ef; border-radius:22px; box-shadow:0 16px 36px rgba(20,40,66,0.06); }
+    .drx-body { padding:20px; }
+    .drx-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px; }
+    .drx-title { margin:0 0 4px; font-size:1.02rem; font-weight:700; color:#1f3750; }
+    .drx-sub { margin:0; color:#728598; font-size:0.88rem; }
 </style>
 
-<div class="container mt-4">
-
-<!-- HEADER -->
-<div class="mb-4">
-    <h4 class="fw-bold" style="color:#2E86C1;">Doctor Management</h4>
-    <small class="text-muted">Manage doctors and availability</small>
+<div class="hd-page-header">
+    <h4><i class="bi bi-heart-pulse-fill me-2"></i>Doctor Management</h4>
+    <small>Add doctors, issue credentials, and manage daily availability with less clutter</small>
 </div>
 
-<!-- ADD DOCTOR -->
-<div class="premium-card p-4 mb-4">
+{% if status_note %}
+<div class="hd-alert warning">{{ status_note }}</div>
+{% endif %}
 
-    <h6 class="fw-semibold mb-3">Add Doctor</h6>
+{% if created_account %}
+<div class="hd-alert success">
+    <strong>Doctor account created.</strong>
+    {{ created_account.doctor_name }} can log in with username <code>{{ created_account.username }}</code>
+    and password <code>{{ created_account.password }}</code>.
+</div>
+{% endif %}
 
-    <form action="/add_doctor" method="POST">
-
-        <div class="row g-3">
-
-            <div class="col-md-4">
-                <input type="text" name="name" class="form-control" placeholder="Doctor Name" required>
+<div class="drx-shell">
+    <div class="drx-grid">
+        <div class="drx-card">
+            <div class="drx-body">
+                <div class="drx-head">
+                    <div>
+                        <h5 class="drx-title"><i class="bi bi-person-plus me-1"></i> Add New Doctor</h5>
+                        <p class="drx-sub">Create a doctor profile and optionally define their login credentials right away.</p>
+                    </div>
+                </div>
+                <form action="/add_doctor" method="POST">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Doctor Name</label>
+                            <input type="text" name="name" class="form-control" placeholder="Full name" required>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Department</label>
+                            <select name="department" class="form-select" required>
+                                <option value="">Select</option>
+                                <option>General</option>
+                                <option>Cardiology</option>
+                                <option>Orthopaedics</option>
+                                <option>ENT</option>
+                                <option>Neurology</option>
+                                <option>Dermatology</option>
+                                <option>Pediatrics</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Experience</label>
+                            <input type="number" name="experience" class="form-control" placeholder="Years" min="0" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Username</label>
+                            <input type="text" name="username" class="form-control" placeholder="Optional, auto-generated if blank">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Password</label>
+                            <input type="text" name="password" class="form-control" placeholder="Optional, auto-generated if blank">
+                        </div>
+                        <div class="col-12">
+                            <small class="text-muted">If username or password is left empty, HealthDesk creates the doctor login automatically and shows it after registration.</small>
+                        </div>
+                        <div class="col-12">
+                            <button class="hd-btn hd-btn-primary hd-btn-block"><i class="bi bi-plus"></i> Add Doctor</button>
+                        </div>
+                    </div>
+                </form>
             </div>
-
-            <div class="col-md-4">
-                <select name="department" class="form-select" required>
-                    <option value="">Department</option>
-                    <option>General</option>
-                    <option>Cardiology</option>
-                    <option>Orthopaedics</option>
-                    <option>ENT</option>
-                    <option>Neurology</option>
-                    <option>Dermatology</option>
-                    <option>Pediatrics</option>
-                </select>
-            </div>
-
-            <div class="col-md-2">
-                <input type="number" name="experience" class="form-control" placeholder="Years" required>
-            </div>
-
-            <div class="col-md-2">
-                <button class="btn btn-primary w-100 btn-smooth">
-                    Add
-                </button>
-            </div>
-
         </div>
 
-    </form>
-
-</div>
-
-<!-- DOCTOR TABLE -->
-<div class="premium-card p-4">
-
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h6 class="text-muted mb-0">Doctor List</h6>
-        <small class="text-muted">{{ doctors|length }} doctors</small>
+        <div class="drx-card">
+            <div class="drx-body">
+                <div class="drx-head">
+                    <div>
+                        <h5 class="drx-title"><i class="bi bi-list-ul me-1"></i> Doctor Directory</h5>
+                        <p class="drx-sub">{{ doctors|length }} doctors in the system with live status controls.</p>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="hd-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Doctor</th>
+                                <th>Access</th>
+                                <th>Status</th>
+                                <th>Update</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for d in doctors %}
+                            <tr>
+                                <td>{{ d.id }}</td>
+                                <td>
+                                    <strong>{{ d.name }}</strong>
+                                    <small class="d-block text-muted">{{ d.department }} | {{ d.experience }} yrs</small>
+                                </td>
+                                <td><code>{{ d.username or "Not assigned" }}</code></td>
+                                <td>
+                                    <div><span class="hd-badge {{ d.daily_status|lower }}">{{ d.daily_status }}</span></div>
+                                    <div class="mt-1"><span class="hd-badge {{ d.current_status|lower }}">{{ d.current_status }}</span></div>
+                                </td>
+                                <td>
+                                    <form action="/doctor_status" method="POST" class="d-grid gap-1">
+                                        <input type="hidden" name="doctor_id" value="{{ d.id }}">
+                                        <select name="daily_status" class="form-select form-select-sm" required>
+                                            <option value="Available" {% if d.daily_status == "Available" %}selected{% endif %}>Available</option>
+                                            <option value="Unavailable" {% if d.daily_status != "Available" %}selected{% endif %}>Unavailable</option>
+                                        </select>
+                                        <select name="current_status" class="form-select form-select-sm" required>
+                                            <option value="Free" {% if d.current_status == "Free" %}selected{% endif %}>Free</option>
+                                            <option value="Busy" {% if d.current_status == "Busy" %}selected{% endif %}>Busy</option>
+                                            <option value="Emergency" {% if d.current_status == "Emergency" %}selected{% endif %}>Emergency</option>
+                                        </select>
+                                        <button class="hd-btn hd-btn-primary hd-btn-sm">Update</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not doctors %}
+                            <tr><td colspan="5" class="text-muted text-center py-3">No doctors found.</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
-
-    <div class="table-responsive">
-
-        <table class="table align-middle">
-
-            <thead class="table-light">
-                <tr>
-                    <th>ID</th>
-                    <th>Doctor</th>
-                    <th>Department</th>
-                    <th>Experience</th>
-                    <th>Daily</th>
-                    <th>Status</th>
-                    <th></th>
-                </tr>
-            </thead>
-
-            <tbody>
-
-                {% for d in doctors %}
-
-                <tr>
-
-                    <td class="fw-semibold">{{ d.id }}</td>
-
-                    <td>
-                        <strong>Dr {{ d.name }}</strong>
-                    </td>
-
-                    <td>{{ d.department }}</td>
-
-                    <td>{{ d.experience }} yrs</td>
-
-                    <!-- DAILY STATUS -->
-                    <td>
-                        {% if d.daily_status == "Available" %}
-                            <span class="status-dot green"></span> Available
-                        {% else %}
-                            <span class="status-dot gray"></span> Off
-                        {% endif %}
-                    </td>
-
-                    <!-- CURRENT STATUS -->
-                    <td>
-                        {% if d.current_status == "Free" %}
-                            <span class="status-dot green"></span> Free
-                        {% else %}
-                            <span class="status-dot red"></span> Busy
-                        {% endif %}
-                    </td>
-
-                    <!-- ACTION -->
-                    <td>
-                        <form action="/toggle_doctor" method="POST">
-                            <input type="hidden" name="doctor_id" value="{{ d.id }}">
-                            <input type="hidden" name="status"
-                                   value="{% if d.daily_status == 'Available' %}Off{% else %}Available{% endif %}">
-                            <button class="btn btn-sm btn-outline-primary btn-smooth">
-                                Toggle
-                            </button>
-                        </form>
-                    </td>
-
-                </tr>
-
-                {% endfor %}
-
-            </tbody>
-
-        </table>
-
-    </div>
-
-</div>
-
 </div>
 
 {% endblock %}

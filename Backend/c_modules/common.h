@@ -23,6 +23,8 @@
 #define QUEUE_FILE "Backend/data/queue.txt"
 #define DIAGNOSIS_FILE "Backend/data/diagnosis.txt"
 #define BILLING_FILE "Backend/data/billing.txt"
+#define APPOINTMENT_FILE "Backend/data/appointment.txt"
+#define USER_FILE "Backend/data/users.txt"
 // STRUCT DECLARATIONS
 
 struct Patient;
@@ -30,6 +32,8 @@ struct Doctor;
 struct Queue;
 struct Diagnosis;
 struct Billing;
+struct Appointment;
+struct BillingItem;
 
 // STRUCT DEFINITIONS
 
@@ -83,6 +87,22 @@ struct Billing {
     int patient_id;
     float total;
     char status[MAX_SMALL];   // Paid / Pending
+};
+
+// Appointment
+struct Appointment {
+    int appointment_id;
+    int patient_id;
+    int doctor_id;
+    char date[20];
+    char time_slot[20];
+    char status[MAX_SMALL];   // Booked / Completed / Cancelled / Rescheduled / No-show
+};
+
+// Billing item
+struct BillingItem {
+    char description[MAX_NAME];
+    float amount;
 };
 
 #endif

@@ -6,16 +6,20 @@ struct Queue {
 };
 
 void initQueue(struct Queue* q) {
-    q->front = q->rear = NULL;
+    q->front = NULL;
+    q->rear = NULL;
 }
 
 void enqueue(struct Queue* q, struct QueueNode data) {
     struct QueueNode* newNode = malloc(sizeof(struct QueueNode));
+    if (newNode == NULL) return;
+
     *newNode = data;
     newNode->next = NULL;
 
     if (q->rear == NULL) {
-        q->front = q->rear = newNode;
+        q->front = newNode;
+        q->rear = newNode;
         return;
     }
 
@@ -23,194 +27,128 @@ void enqueue(struct Queue* q, struct QueueNode data) {
     q->rear = newNode;
 }
 
-struct QueueNode* dequeue(struct Queue* q) {
-    if (q->front == NULL) return NULL;
-
-    struct QueueNode* temp = q->front;
-    q->front = q->front->next;
-
-    if (q->front == NULL) q->rear = NULL;
-
-    temp->next = NULL;
-    return temp;
-}
-
-void loadQueue(struct Queue* urgentQ, struct Queue* normalQ) {
+void loadQueue(struct Queue* q) {
     FILE *fp = fopen(QUEUE_FILE, "r");
-    if (!fp) return;
-
     char line[MAX_LINE];
 
+    if (fp == NULL) return;
+
     while (fgets(line, sizeof(line), fp)) {
-
         struct QueueNode temp;
+        char buffer[MAX_LINE];
+        char *token;
 
-        char *token = strtok(line, "|");
+        strcpy(buffer, line);
+
+        token = strtok(buffer, "|");
+        if (token == NULL) continue;
         temp.token = atoi(token);
 
         token = strtok(NULL, "|");
+        if (token == NULL) continue;
         temp.patient_id = atoi(token);
 
         token = strtok(NULL, "|");
+        if (token == NULL) continue;
         temp.doctor_id = atoi(token);
 
         token = strtok(NULL, "|");
+        if (token == NULL) continue;
         strcpy(temp.priority, token);
 
         token = strtok(NULL, "\n");
+        if (token == NULL) continue;
         strcpy(temp.status, token);
 
         temp.next = NULL;
-
-        if (strcmp(temp.priority, "Urgent") == 0) {
-            enqueue(urgentQ, temp);
-        } else {
-            enqueue(normalQ, temp);
-        }
+        enqueue(q, temp);
     }
 
     fclose(fp);
 }
 
-void updateQueueFile(struct Queue* urgentQ, struct Queue* normalQ) {
+struct QueueNode* dequeueNextPatient(struct Queue* q) {
+    struct QueueNode* current = q->front;
+
+    while (current != NULL) {
+        if (strcmp(current->status, "Waiting") == 0 &&
+            strcmp(current->priority, "Urgent") == 0) {
+            return current;
+        }
+        current = current->next;
+    }
+
+    current = q->front;
+    while (current != NULL) {
+        if (strcmp(current->status, "Waiting") == 0) {
+            return current;
+        }
+        current = current->next;
+    }
+
+    return NULL;
+}
+
+void updateQueueFile(struct Queue* q) {
     FILE *fp = fopen(QUEUE_FILE, "w");
+    struct QueueNode* current = q->front;
 
-    struct QueueNode* temp = urgentQ->front;
-    while (temp != NULL) {
-        fprintf(fp, "%d|%d|%d|%s|%s\n",
-            temp->token,
-            temp->patient_id,
-            temp->doctor_id,
-            temp->priority,
-            temp->status
-        );
-        temp = temp->next;
-    }
+    if (fp == NULL) return;
 
-    temp = normalQ->front;
-    while (temp != NULL) {
+    while (current != NULL) {
         fprintf(fp, "%d|%d|%d|%s|%s\n",
-            temp->token,
-            temp->patient_id,
-            temp->doctor_id,
-            temp->priority,
-            temp->status
+            current->token,
+            current->patient_id,
+            current->doctor_id,
+            current->priority,
+            current->status
         );
-        temp = temp->next;
+        current = current->next;
     }
 
     fclose(fp);
 }
 
-void freeDoctor(int doctor_id) {
-    FILE *fp = fopen(DOCTOR_FILE, "r");
-    FILE *temp = fopen("Backend/data/temp.txt", "w");
+void freeQueue(struct Queue* q) {
+    struct QueueNode* current = q->front;
 
-    char line[MAX_LINE];
-
-    while (fgets(line, sizeof(line), fp)) {
-
-        struct Doctor d;
-        char buffer[MAX_LINE];
-        strcpy(buffer, line);
-
-        char *token = strtok(buffer, "|");
-        d.id = atoi(token);
-
-        token = strtok(NULL, "|");
-        strcpy(d.name, token);
-
-        token = strtok(NULL, "|");
-        strcpy(d.specialization, token);
-
-        token = strtok(NULL, "|");
-        d.experience = atoi(token);
-
-        token = strtok(NULL, "|");
-        strcpy(d.daily_status, token);
-
-        token = strtok(NULL, "\n");
-        strcpy(d.current_status, token);
-
-        if (d.id == doctor_id) {
-            strcpy(d.current_status, "Free");
-        }
-
-        fprintf(temp, "%d|%s|%s|%d|%s|%s\n",
-            d.id,
-            d.name,
-            d.specialization,
-            d.experience,
-            d.daily_status,
-            d.current_status
-        );
+    while (current != NULL) {
+        struct QueueNode* next = current->next;
+        free(current);
+        current = next;
     }
 
-    fclose(fp);
-    fclose(temp);
-
-    remove(DOCTOR_FILE);
-    rename("Backend/data/temp.txt", DOCTOR_FILE);
+    q->front = NULL;
+    q->rear = NULL;
 }
 
 int serveNextPatient() {
+    struct Queue q;
+    struct QueueNode* nextPatient;
 
-    struct Queue urgentQ, normalQ;
-    initQueue(&urgentQ);
-    initQueue(&normalQ);
+    initQueue(&q);
+    loadQueue(&q);
 
-    loadQueue(&urgentQ, &normalQ);
-
-    struct QueueNode* temp = NULL;
-
-    if (urgentQ.front != NULL) {
-        temp = dequeue(&urgentQ);
-    } else if (normalQ.front != NULL) {
-        temp = dequeue(&normalQ);
-    } else {
+    nextPatient = dequeueNextPatient(&q);
+    if (nextPatient == NULL) {
+        freeQueue(&q);
         return 0;
     }
 
-    while (temp != NULL) {
+    strcpy(nextPatient->status, "Completed");
+    updateQueueFile(&q);
 
-        if (strcmp(temp->status, "Waiting") == 0) {
-
-            int doctor_id = temp->doctor_id;
-
-            strcpy(temp->status, "Completed");
-
-            updateQueueFile(&urgentQ, &normalQ);
-
-            if (doctor_id != -1) {
-                freeDoctor(doctor_id);
-            }
-
-            free(temp);
-            return doctor_id;
-        }
-
-        free(temp);
-
-        if (urgentQ.front != NULL) {
-            temp = dequeue(&urgentQ);
-        } else if (normalQ.front != NULL) {
-            temp = dequeue(&normalQ);
-        } else {
-            return 0;
-        }
-    }
-
-    return 0;
+    freeQueue(&q);
+    return 1;
 }
 
 int main() {
+    int served = serveNextPatient();
 
-    int doctor_id = serveNextPatient();
-
-    if (doctor_id == 0) {
+    if (served == 0) {
         printf("No Patient");
     } else {
-        printf("Served|DoctorFreed");
+        printf("Served|QueueUpdated");
     }
 
     return 0;

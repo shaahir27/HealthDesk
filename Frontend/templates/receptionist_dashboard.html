@@ -1,0 +1,113 @@
+{% extends "index.html" %}
+
+{% block content %}
+
+<style>
+    .rx-shell { display:grid; gap:20px; }
+    .rx-hero { display:grid; grid-template-columns:minmax(0,1fr); gap:18px; padding:24px; border-radius:24px; background:linear-gradient(135deg,#183a59 0%,#2a5b81 100%); color:#fff; box-shadow:0 18px 40px rgba(24,58,89,0.18); }
+    .rx-hero h4 { margin:0 0 6px; font-size:1.9rem; }
+    .rx-hero p { margin:0; color:rgba(255,255,255,0.76); max-width:680px; }
+    .rx-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:18px; }
+    .rx-action { padding:16px; border-radius:18px; background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.14); color:#fff; text-decoration:none; }
+    .rx-action strong { display:block; margin-top:8px; }
+    .rx-action small { color:rgba(255,255,255,0.72); }
+    .rx-side { display:grid; gap:12px; }
+    .rx-side-card { padding:18px; border-radius:18px; background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.14); }
+    .rx-side-card small { display:block; color:rgba(255,255,255,0.72); margin-bottom:6px; }
+    .rx-side-card strong { font-size:1.25rem; }
+    .rx-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:20px; }
+    .rx-card { background:#fff; border:1px solid #dfe7ee; border-radius:22px; box-shadow:0 16px 36px rgba(21,40,66,0.06); }
+    .rx-card-body { padding:20px; }
+    .rx-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px; }
+    .rx-title { margin:0 0 4px; font-size:1.02rem; font-weight:700; color:#1f3750; }
+    .rx-sub { margin:0; color:#728598; font-size:0.88rem; }
+    .rx-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
+    .rx-stat { padding:18px; border-radius:18px; border:1px solid #e4ebf1; background:#f8fbfd; }
+    .rx-stat small { display:block; color:#728598; margin-bottom:6px; }
+    .rx-stat strong { font-size:1.3rem; color:#19324b; }
+    @media (max-width: 991.98px) {
+        .rx-stats { grid-template-columns:1fr; }
+        .rx-actions { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    }
+    @media (max-width: 767.98px) {
+        .rx-actions { grid-template-columns:1fr; }
+        .rx-card-body { padding:16px; }
+    }
+</style>
+
+<div class="rx-shell">
+    <div class="rx-hero">
+        <div>
+            <h4>Reception Command Center</h4>
+            <p>{{ today }} | Manage patient intake, appointments, queue movement, and doctor coordination from one place.</p>
+            <div class="rx-actions">
+                <a class="rx-action" href="/reception"><i class="bi bi-search"></i><strong>Patient Search</strong><small>Find or register a patient</small></a>
+                <a class="rx-action" href="/appointments"><i class="bi bi-calendar2-check"></i><strong>Appointments</strong><small>Book, move, or complete slots</small></a>
+                <a class="rx-action" href="/billing"><i class="bi bi-receipt"></i><strong>Billing</strong><small>Create bills and view recent ones</small></a>
+            </div>
+        </div>
+        <div class="rx-side">
+            <div class="rx-side-card"><small>Waiting Queue</small><strong>{{ waiting_count }}</strong></div>
+            <div class="rx-side-card"><small>Available Doctors</small><strong>{{ available_doctors }}</strong></div>
+            <div class="rx-side-card"><small>Completed Today</small><strong>{{ completed_count }}</strong></div>
+        </div>
+    </div>
+
+    <div class="rx-stats">
+        <div class="rx-stat"><small>Waiting Queue</small><strong>{{ waiting_count }}</strong></div>
+        <div class="rx-stat"><small>Booked Today</small><strong>{{ booked_count }}</strong></div>
+        <div class="rx-stat"><small>Completed Today</small><strong>{{ completed_count }}</strong></div>
+        <div class="rx-stat"><small>Available Doctors</small><strong>{{ available_doctors }}</strong></div>
+    </div>
+
+    <div class="rx-grid">
+        <div class="rx-card">
+            <div class="rx-card-body">
+                <div class="rx-head">
+                    <div>
+                        <h5 class="rx-title"><i class="bi bi-lightning-charge me-1"></i> Next Patient To Serve</h5>
+                        <p class="rx-sub">The highest-priority patient currently at the front of the queue.</p>
+                    </div>
+                </div>
+                {% if next_patient %}
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                    <div>
+                        <div class="hd-token">{{ next_patient.token }}</div>
+                        <small class="text-muted">Token Number</small>
+                    </div>
+                    <div>
+                        <div class="fw-semibold">Patient #{{ next_patient.patient_id }}</div>
+                        <small class="text-muted">Doctor: {{ "Not Assigned" if next_patient.doctor_id == -1 else "Dr " ~ next_patient.doctor_id }}</small>
+                    </div>
+                    <div>
+                        <span class="hd-badge {% if next_patient.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ next_patient.priority }}</span>
+                    </div>
+                    <form action="/serve" method="POST">
+                        <button class="hd-btn hd-btn-primary"><i class="bi bi-arrow-right-circle"></i> Serve Patient</button>
+                    </form>
+                </div>
+                {% else %}
+                <div class="text-muted py-3">No patients waiting in the queue.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="rx-card">
+            <div class="rx-card-body">
+                <div class="rx-head">
+                    <div>
+                        <h5 class="rx-title"><i class="bi bi-grid me-1"></i> Quick Access</h5>
+                        <p class="rx-sub">Jump straight into the most frequent front-desk tasks.</p>
+                    </div>
+                </div>
+                <div class="d-grid gap-2">
+                    <a class="hd-btn hd-btn-primary hd-btn-block" href="/reception"><i class="bi bi-person-plus"></i> Search Or Register Patient</a>
+                    <a class="hd-btn hd-btn-outline hd-btn-block" href="/queue"><i class="bi bi-people-fill"></i> Open Live Queue</a>
+                    <a class="hd-btn hd-btn-outline hd-btn-block" href="/doctors"><i class="bi bi-heart-pulse"></i> Doctor Availability</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

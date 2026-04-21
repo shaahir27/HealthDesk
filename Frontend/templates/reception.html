@@ -1,0 +1,232 @@
+{% extends "index.html" %}
+
+{% block content %}
+
+<style>
+    .rcx-shell { display:grid; gap:20px; }
+    .rcx-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:20px; }
+    .rcx-card { background:#fff; border:1px solid #dee7ef; border-radius:22px; box-shadow:0 16px 36px rgba(20,40,66,0.06); }
+    .rcx-body { padding:20px; }
+    .rcx-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px; }
+    .rcx-title { margin:0 0 4px; font-size:1.02rem; font-weight:700; color:#1f3750; }
+    .rcx-sub { margin:0; color:#728598; font-size:0.88rem; }
+</style>
+
+<div class="hd-page-header">
+    <h4><i class="bi bi-person-plus-fill me-2"></i>Reception</h4>
+    <small>Search, register, and schedule patient visits without jumping between multiple screens</small>
+</div>
+
+{% if message %}
+<div class="hd-alert info">{{ message }}</div>
+{% endif %}
+
+{% if booking_status == "booked" %}
+<div class="hd-alert success">
+    <i class="bi bi-check-circle-fill me-1"></i>
+    Appointment confirmed{% if queue_token %}. Queue token <strong>{{ queue_token }}</strong> created{% endif %}.
+</div>
+{% elif booking_status == "failed" %}
+<div class="hd-alert danger">
+    <i class="bi bi-x-circle-fill me-1"></i>
+    Appointment could not be booked. Please choose another slot.
+</div>
+{% endif %}
+
+<div class="rcx-shell">
+    <div class="rcx-grid">
+        <div class="rcx-card">
+            <div class="rcx-body">
+                <div class="rcx-head">
+                    <div>
+                        <h5 class="rcx-title"><i class="bi bi-search me-1"></i> 1. Find Patient</h5>
+                        <p class="rcx-sub">Search by phone number first to avoid duplicate patient records.</p>
+                    </div>
+                </div>
+                <form action="/reception" method="POST">
+                    <input type="hidden" name="action" value="search">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-12">
+                            <label class="form-label">Phone Number</label>
+                            <input type="tel" name="phone" class="form-control" pattern="[0-9]{10}" value="{{ phone }}" placeholder="Enter 10-digit mobile number" required>
+                        </div>
+                        <div class="col-12">
+                            <button class="hd-btn hd-btn-primary hd-btn-block"><i class="bi bi-search"></i> Search Patient</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if patient %}
+        <div class="rcx-card">
+            <div class="rcx-body">
+                <div class="rcx-head">
+                    <div>
+                        <h5 class="rcx-title"><i class="bi bi-person-badge me-1"></i> 2. Patient Profile</h5>
+                        <p class="rcx-sub">Patient found. Review details before choosing doctor and slot.</p>
+                    </div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-6 col-md-3"><small class="text-muted d-block">ID</small><strong>{{ patient.id }}</strong></div>
+                    <div class="col-6 col-md-3"><small class="text-muted d-block">Name</small><strong>{{ patient.name }}</strong></div>
+                    <div class="col-6 col-md-3"><small class="text-muted d-block">Phone</small>{{ patient.phone }}</div>
+                    <div class="col-6 col-md-3"><small class="text-muted d-block">Department</small><span class="hd-badge booked">{{ patient.department }}</span></div>
+                    <div class="col-6 col-md-3"><small class="text-muted d-block">Age / Gender</small>{{ patient.age }} / {{ patient.gender }}</div>
+                    <div class="col-6 col-md-3"><small class="text-muted d-block">Visit</small>{{ patient.visit_type }}</div>
+                    <div class="col-6 col-md-3"><small class="text-muted d-block">Priority</small><span class="hd-badge {% if patient.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ patient.priority }}</span></div>
+                    <div class="col-12"><small class="text-muted d-block">Symptoms</small>{{ patient.symptoms }}</div>
+                </div>
+            </div>
+        </div>
+        {% elif show_registration %}
+        <div class="rcx-card">
+            <div class="rcx-body">
+                <div class="rcx-head">
+                    <div>
+                        <h5 class="rcx-title"><i class="bi bi-person-plus me-1"></i> 2. Register Patient</h5>
+                        <p class="rcx-sub">No matching patient found. Add a new record and continue to booking.</p>
+                    </div>
+                </div>
+                <form action="/reception" method="POST">
+                    <input type="hidden" name="action" value="register">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6"><label class="form-label">Full Name</label><input type="text" name="name" class="form-control" required></div>
+                        <div class="col-6 col-md-3"><label class="form-label">Age</label><input type="number" name="age" class="form-control" min="0" max="120" required></div>
+                        <div class="col-6 col-md-3"><label class="form-label">Gender</label><select name="gender" class="form-select" required><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+                        <div class="col-12 col-md-4"><label class="form-label">Phone</label><input type="tel" name="phone" class="form-control" pattern="[0-9]{10}" value="{{ phone }}" required></div>
+                        <div class="col-12 col-md-8"><label class="form-label">Address</label><input type="text" name="address" class="form-control" required></div>
+                        <div class="col-12"><label class="form-label">Symptoms</label><textarea name="symptoms" class="form-control" rows="2" required></textarea></div>
+                        <div class="col-6 col-md-4"><label class="form-label">Visit Type</label><select name="visit_type" class="form-select" required><option value="">Select</option><option>New</option><option>Follow-up</option><option>Emergency</option></select></div>
+                        <div class="col-6 col-md-4"><label class="form-label">Priority</label><select name="priority" class="form-select" required><option value="">Select</option><option>Normal</option><option>Urgent</option></select></div>
+                        <div class="col-12 col-md-4"><label class="form-label">Department</label><select name="department" class="form-select" required><option value="">Select</option><option value="General">General Medicine</option><option value="Cardiology">Cardiology</option><option value="Orthopaedics">Orthopaedics</option><option value="ENT">ENT</option><option value="Neurology">Neurology</option><option value="Dermatology">Dermatology</option><option value="Pediatrics">Pediatrics</option><option value="Other">Other</option></select></div>
+                        <div class="col-12"><button class="hd-btn hd-btn-primary"><i class="bi bi-person-check"></i> Register And Continue</button></div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if patient %}
+    <div class="rcx-grid">
+        <div class="rcx-card">
+            <div class="rcx-body">
+                <div class="rcx-head">
+                    <div>
+                        <h5 class="rcx-title"><i class="bi bi-calendar2-check me-1"></i> 3. Choose Doctor And Date</h5>
+                        <p class="rcx-sub">Load available slots for the selected doctor and appointment day.</p>
+                    </div>
+                </div>
+                <form method="GET" action="/reception">
+                    <input type="hidden" name="patient_id" value="{{ patient.id }}">
+                    <input type="hidden" name="phone" value="{{ patient.phone }}">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label">Department</label>
+                            <select name="department" class="form-select">
+                                {% for dep in doctors|map(attribute='department')|unique|list %}
+                                <option value="{{ dep }}" {% if selected_department == dep %}selected{% endif %}>{{ dep }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label">Doctor</label>
+                            <select name="doctor_id" class="form-select">
+                                {% for d in doctors %}
+                                {% if not selected_department or d.department == selected_department %}
+                                <option value="{{ d.id }}" {% if selected_doctor|int == d.id %}selected{% endif %}>Dr {{ d.name }} ({{ d.department }})</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label">Date</label>
+                            <input type="date" name="date" class="form-control" value="{{ selected_date }}" required>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <button class="hd-btn hd-btn-primary hd-btn-block"><i class="bi bi-clock"></i> Load</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="rcx-card">
+            <div class="rcx-body">
+                <div class="rcx-head">
+                    <div>
+                        <h5 class="rcx-title"><i class="bi bi-person-vcard me-1"></i> Doctor Info</h5>
+                        <p class="rcx-sub">Check live status before confirming the appointment.</p>
+                    </div>
+                </div>
+                {% if selected_doctor_info %}
+                <div class="row g-3">
+                    <div class="col-6"><small class="text-muted d-block">Doctor</small><strong>Dr {{ selected_doctor_info.name }}</strong></div>
+                    <div class="col-6"><small class="text-muted d-block">Department</small>{{ selected_doctor_info.department }}</div>
+                    <div class="col-6"><small class="text-muted d-block">Daily Status</small><span class="hd-badge {{ selected_doctor_info.daily_status|lower }}">{{ selected_doctor_info.daily_status }}</span></div>
+                    <div class="col-6"><small class="text-muted d-block">Current Status</small><span class="hd-badge {{ selected_doctor_info.current_status|lower }}">{{ selected_doctor_info.current_status }}</span></div>
+                </div>
+                {% else %}
+                <div class="text-muted">Load a doctor to see availability details.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if suggested_doctors %}
+    <div class="hd-alert info">
+        <i class="bi bi-info-circle me-1"></i> Alternative doctors with available slots:
+        <div class="d-flex gap-2 flex-wrap mt-2">
+            {% for d in suggested_doctors %}
+            <a class="hd-btn hd-btn-outline hd-btn-sm" href="/reception?patient_id={{ patient.id }}&phone={{ patient.phone }}&department={{ d.department }}&doctor_id={{ d.id }}&date={{ selected_date }}">Dr {{ d.name }} | {{ d.available_slots }} slots</a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if slots %}
+    <div class="rcx-card">
+        <div class="rcx-body">
+            <div class="rcx-head">
+                <div>
+                    <h5 class="rcx-title"><i class="bi bi-grid-3x3-gap me-1"></i> 4. Confirm Slot</h5>
+                    <p class="rcx-sub">Tap an available slot to book instantly for this patient.</p>
+                </div>
+            </div>
+            <div class="hd-slot-grid">
+                {% for slot in slots %}
+                    {% if slot.state == "Available" %}
+                    <form action="/book_appointment" method="POST">
+                        <input type="hidden" name="return_to" value="reception">
+                        <input type="hidden" name="patient_id" value="{{ patient.id }}">
+                        <input type="hidden" name="doctor_id" value="{{ selected_doctor }}">
+                        <input type="hidden" name="appointment_date" value="{{ selected_date }}">
+                        <input type="hidden" name="time_slot" value="{{ slot.time }}">
+                        <button class="hd-slot available w-100">
+                            <div class="hd-slot-time">{{ slot.time }}</div>
+                            <div class="hd-slot-label">Book Now</div>
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="hd-slot {{ slot.state|lower|replace('-', '-') }}">
+                        <div class="hd-slot-time">{{ slot.time }}</div>
+                        <div class="hd-slot-label">{{ slot.state }}</div>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if booking_status == "booked" and queue_doctor_id == "-1" %}
+    <div class="hd-alert warning">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+        Booking confirmed, but no doctor is currently free. Patient is in queue for reassignment.
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+
+{% endblock %}
