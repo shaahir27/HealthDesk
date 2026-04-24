@@ -2,6 +2,131 @@
 
 This document explains the HealthDesk workflow from a user perspective. It focuses on what happens on each page and how the receptionist, doctor, queue, diagnosis, appointment, and billing flows connect.
 
+## Quick Mind Map
+
+Use this as the one-screen overview before explaining the detailed flow.
+
+```mermaid
+mindmap
+  root((HealthDesk))
+    Login
+      Receptionist
+      Doctor
+    Receptionist Dashboard
+      Reception
+        Search Patient
+        Register Patient
+        Book Appointment
+        Add To Queue
+      Appointments
+        Slot Board
+        Cancel
+        Reschedule
+        No-show
+        Alternatives
+      Queue
+        Urgent First
+        Normal Patients
+        Serve Patient
+      Doctors
+        Add Doctor
+        Update Status
+        Block Slots
+        Reassign
+      Billing
+        Completed Appointment
+        Generate Bill
+        Download PDF
+    Doctor Dashboard
+      Assigned Appointments
+      Queue Patients
+      Complete Consultation
+      Diagnosis
+      Prescription
+      Availability
+    Data Files
+      patients.txt
+      appointment.txt
+      queue.txt
+      diagnosis.txt
+      billing.txt
+      doctors.txt
+      users.txt
+```
+
+## Big Picture Flow
+
+```mermaid
+flowchart LR
+    Start([Open HealthDesk]) --> Login[Login]
+    Login -->|Receptionist| RD[Receptionist Dashboard]
+    Login -->|Doctor| DD[Doctor Dashboard]
+
+    RD --> Reception[Reception Page]
+    RD --> Appointments[Appointments Page]
+    RD --> Queue[Queue Page]
+    RD --> Doctors[Doctors Page]
+    RD --> Billing[Billing Page]
+
+    Reception --> Search[Search Patient]
+    Search -->|Found| Profile[Patient Profile]
+    Search -->|Not Found| Register[Register Patient]
+    Register --> Profile
+    Profile --> SelectSlot[Select Doctor, Date, Slot]
+    SelectSlot --> Book[Book Appointment]
+    Book -->|Today| AddQueue[Add To Queue]
+    Book -->|Future Date| Future[Future Appointment Saved]
+
+    DD --> Assigned[Assigned Appointments]
+    DD --> DocQueue[Assigned Queue Patients]
+    Assigned --> Complete[Complete Consultation]
+    DocQueue --> Diagnose[Open Diagnosis]
+    Complete --> Diagnose
+    Diagnose --> Prescription[Diagnosis + Prescription]
+    Prescription --> BillContext[Billing Context Created]
+    BillContext --> Billing
+    Billing --> FinalBill[Bill Preview / PDF]
+```
+
+## Demo Choreography
+
+This sequence works well when presenting the system to teammates or evaluators.
+
+```text
+Scene 1: Login
+Show that the same system opens different dashboards based on role.
+
+Scene 2: Receptionist Intake
+Search by phone, register a new patient if needed, then book an appointment.
+
+Scene 3: Queue Movement
+Book a same-day appointment and show the queue token being created.
+
+Scene 4: Doctor Consultation
+Log in as the doctor, complete the appointment, and open diagnosis.
+
+Scene 5: Diagnosis To Billing
+Save diagnosis and prescription, then show that billing becomes available.
+
+Scene 6: Exception Handling
+Mark a doctor unavailable, show blocked slots, and show alternative doctors.
+```
+
+<details>
+<summary><strong>Presentation Tip: Make It Feel Animated</strong></summary>
+
+When sharing this file, reveal it section by section instead of scrolling all at once:
+
+1. Start with the mind map.
+2. Move to the big picture flow.
+3. Demonstrate the receptionist journey.
+4. Demonstrate the doctor journey.
+5. Finish with billing and data flow.
+
+This gives the walkthrough a natural "animation" effect even in plain Markdown.
+
+</details>
+
 ## 1. Login Flow
 
 1. User opens the HealthDesk system.
@@ -35,6 +160,24 @@ From here, the receptionist can go to:
 ## 3. Reception Page Flow
 
 The reception page is used for patient intake and appointment booking.
+
+```mermaid
+flowchart TD
+    A[Enter Phone Number] --> B{Patient Exists?}
+    B -->|Yes| C[Show Patient Profile]
+    B -->|No| D[Register Patient]
+    D --> C
+    C --> E[Select Department]
+    E --> F[Select Doctor]
+    F --> G[Select Date]
+    G --> H{Slots Available?}
+    H -->|Yes| I[Book Slot]
+    H -->|No| J[Show Alternative Doctors]
+    J --> F
+    I --> K{Appointment Today?}
+    K -->|Yes| L[Create Queue Token]
+    K -->|No| M[Save Future Appointment]
+```
 
 1. Receptionist enters the patient's phone number.
 2. System searches existing patient records.
@@ -70,6 +213,18 @@ The appointments page is used to view, book, cancel, and reschedule appointments
 ## 5. Queue Flow
 
 The queue manages same-day patients waiting for consultation.
+
+```mermaid
+flowchart LR
+    A[Same-Day Booking] --> B[Queue Token Created]
+    B --> C{Priority}
+    C -->|Urgent| D[Shown First]
+    C -->|Normal| E[Shown After Urgent]
+    D --> F[Doctor Consultation]
+    E --> F
+    F --> G[Consultation Completed]
+    G --> H[Queue Status Completed]
+```
 
 1. A patient is added to the queue when a same-day appointment is booked.
 2. Queue stores token, patient ID, doctor ID, priority, and status.
@@ -128,6 +283,22 @@ Availability flow:
 
 The diagnosis page is used by doctors to review patient history and record consultation details.
 
+```mermaid
+sequenceDiagram
+    participant Doctor
+    participant DiagnosisPage as Diagnosis Page
+    participant Files as Data Files
+    participant Billing as Billing Context
+
+    Doctor->>DiagnosisPage: Open assigned patient
+    DiagnosisPage->>Files: Load patient and history
+    Files-->>DiagnosisPage: Patient details and previous diagnoses
+    Doctor->>DiagnosisPage: Enter diagnosis and prescription
+    DiagnosisPage->>Files: Save diagnosis
+    DiagnosisPage->>Billing: Link completed appointment to billing
+    Billing-->>Doctor: Return to dashboard with billing context
+```
+
 1. Doctor opens diagnosis page for an assigned patient.
 2. System shows patient details.
 3. System shows previous diagnosis history.
@@ -141,6 +312,19 @@ The diagnosis page is used by doctors to review patient history and record consu
 ## 9. Billing Flow
 
 Billing is handled by the receptionist after consultation is completed.
+
+```mermaid
+flowchart TD
+    A[Select Patient] --> B{Completed Appointment Exists?}
+    B -->|No| C[Billing Blocked]
+    B -->|Yes| D[Load Patient, Doctor, Department]
+    D --> E{Bill Already Exists?}
+    E -->|Yes| F[Show Existing Bill]
+    E -->|No| G[Add Treatments, Lab Tests, Medicines]
+    G --> H[Calculate Total]
+    H --> I[Save Bill]
+    I --> J[Preview / Download PDF]
+```
 
 1. Receptionist opens the billing page.
 2. Receptionist selects a patient.
@@ -177,6 +361,18 @@ This is the normal full patient journey.
 ## 11. Unavailable Doctor Flow
 
 This flow happens when a doctor cannot take appointments.
+
+```mermaid
+flowchart TD
+    A[Doctor Status Updated] --> B{Unavailable, Off, or Emergency?}
+    B -->|No| C[Doctor Remains Bookable]
+    B -->|Yes| D[Block Doctor Slots]
+    D --> E[Check Future Booked Appointments]
+    E --> F{Alternative Same-Department Doctor?}
+    F -->|Yes| G[Suggest / Reassign]
+    F -->|No| H[Show No Alternative Available]
+    H --> I[Receptionist Manually Reschedules]
+```
 
 1. Receptionist or doctor updates doctor status to unavailable, off, or emergency.
 2. System blocks that doctor's slots.
