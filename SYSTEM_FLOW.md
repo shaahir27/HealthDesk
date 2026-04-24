@@ -9,49 +9,40 @@ Use this as the one-screen overview before explaining the detailed flow.
 ```mermaid
 mindmap
   root((HealthDesk))
-    Login
-      Receptionist
-      Doctor
-    Receptionist Dashboard
-      Reception
-        Search Patient
-        Register Patient
-        Book Appointment
-        Add To Queue
-      Appointments
-        Slot Board
-        Cancel
-        Reschedule
-        No-show
-        Alternatives
-      Queue
-        Urgent First
-        Normal Patients
-        Serve Patient
-      Doctors
-        Add Doctor
-        Update Status
-        Block Slots
-        Reassign
+    Access
+      Login
+      Role Based Dashboard
+        Receptionist
+        Doctor
+    Patient Journey
+      Search or Register
+      Book Appointment
+      Same Day Queue
+      Doctor Consultation
+      Diagnosis and Prescription
       Billing
-        Completed Appointment
-        Generate Bill
-        Download PDF
-    Doctor Dashboard
-      Assigned Appointments
-      Queue Patients
+    Receptionist Work
+      Patient Intake
+      Appointment Control
+      Queue Monitoring
+      Doctor Availability
+      Bill Generation
+    Doctor Work
+      View Assigned Patients
       Complete Consultation
-      Diagnosis
-      Prescription
-      Availability
-    Data Files
-      patients.txt
-      appointment.txt
-      queue.txt
-      diagnosis.txt
-      billing.txt
-      doctors.txt
-      users.txt
+      Add Medical Notes
+      Update Availability
+    Rules
+      Urgent Before Normal
+      No Double Booking
+      Bill Only After Completion
+      Doctors Access Own Patients
+    Storage
+      Patient Records
+      Appointment Records
+      Queue Records
+      Diagnosis Records
+      Billing Records
 ```
 
 ## Big Picture Flow
