@@ -5,17 +5,24 @@
 
 int generateBillId() {
     FILE *fp = fopen(BILLING_FILE, "r");
-    int count = 0;
+    int max_id = 999;
     char line[MAX_LINE];
 
     if (fp != NULL) {
         while (fgets(line, sizeof(line), fp)) {
-            if (strlen(line) > 1) count++;
+            char buffer[MAX_LINE];
+            char *token;
+
+            strcpy(buffer, line);
+            token = strtok(buffer, "|");
+            if (token != NULL && atoi(token) > max_id) {
+                max_id = atoi(token);
+            }
         }
         fclose(fp);
     }
 
-    return count + 1000;
+    return max_id + 1;
 }
 
 void formatDateForPrint(const char *iso_date, char *out) {

@@ -22,7 +22,7 @@
     <small>Monitor waiting patients and move the line forward in real time</small>
 </div>
 
-<div class="qx-shell">
+<div class="qx-shell" data-auto-refresh="15000">
     <div class="qx-grid">
         <div class="qx-card">
             <div class="qx-body">
@@ -109,9 +109,5 @@
         </div>
     </div>
 </div>
-
-<script>
-    setInterval(() => { window.location.reload(); }, 5000);
-</script>
 
 {% endblock %}

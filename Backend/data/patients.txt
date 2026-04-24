@@ -17,5 +17,6 @@
 17|Surya|38|Male|9011122233|Madurai|Joint pain|New|Normal|Orthopaedics
 18|Nisha|29|Female|9122233344|Trichy|Allergy|Follow-up|Normal|Dermatology
 19|Ajay|42|Male|9233344455|Salem|Head injury|Emergency|Urgent|Neurology
-20|Pooja|20|Female|9344455566|Erode|Throat pain|New|Normal|ENT21|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever|Follow-up|Normal|General
+20|Pooja|20|Female|9344455566|Erode|Throat pain|New|Normal|ENT
 21|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever|New|Normal|General
+22|Shireen Fathima|46|Female|9677082707|A3 24 Lakeside Phase 1, Surapet Main Road|Fever|New|Normal|General

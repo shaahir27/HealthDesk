@@ -50,7 +50,7 @@ HealthDesk/
 |-- README.md
 |-- Backend/
 |   |-- data/
-|   |   |-- appointments.txt
+|   |   |-- appointment.txt
 |   |   |-- billing.txt
 |   |   |-- diagnosis.txt
 |   |   |-- doctors.txt
@@ -79,7 +79,6 @@ HealthDesk/
         |-- doctors.html
         |-- index.html
         |-- login.html
-        |-- patient.html
         |-- queue.html
         |-- reception.html
         `-- receptionist_dashboard.html
@@ -180,7 +179,7 @@ This project uses flat files instead of a database. Important files include:
 - `Backend/data/users.txt` for login accounts
 - `Backend/data/doctors.txt` for doctor profiles and status
 - `Backend/data/patients.txt` for patient records
-- `Backend/data/appointments.txt` for appointment records
+- `Backend/data/appointment.txt` for appointment records
 - `Backend/data/queue.txt` for queue flow
 - `Backend/data/diagnosis.txt` for diagnosis history
 - `Backend/data/billing.txt` for bill records
@@ -199,7 +198,6 @@ Important pages in the current application:
 - `/billing`
 - `/doctor`
 - `/diagnosis`
-- `/patient`
 
 ## Notes
 

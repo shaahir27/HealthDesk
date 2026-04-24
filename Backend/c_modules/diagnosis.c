@@ -5,6 +5,8 @@ struct DiagnosisNode {
     struct DiagnosisNode* next;
 };
 
+int parseDiagnosisLine(char *line, struct Diagnosis *d);
+
 void push(struct DiagnosisNode** top, struct Diagnosis data) {
     struct DiagnosisNode* newNode = malloc(sizeof(struct DiagnosisNode));
     if (newNode == NULL) return;
@@ -41,17 +43,20 @@ void freeStack(struct DiagnosisNode** top) {
 
 int generateDiagnosisId() {
     FILE *fp = fopen(DIAGNOSIS_FILE, "r");
-    int count = 0;
+    int max_id = 0;
     char line[MAX_LINE];
 
     if (fp != NULL) {
         while (fgets(line, sizeof(line), fp)) {
-            count++;
+            struct Diagnosis d;
+            if (parseDiagnosisLine(line, &d) && d.record_id > max_id) {
+                max_id = d.record_id;
+            }
         }
         fclose(fp);
     }
 
-    return count + 1;
+    return max_id + 1;
 }
 
 int parseDiagnosisLine(char *line, struct Diagnosis *d) {

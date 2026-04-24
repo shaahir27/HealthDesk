@@ -8,19 +8,42 @@ const char *DEFAULT_SLOTS[SLOT_COUNT] = {
     "02:00 PM", "04:00 PM", "06:00 PM", "08:05 PM"
 };
 
+int validSlot(const char *time_slot) {
+    int i;
+    for (i = 0; i < SLOT_COUNT; i++) {
+        if (strcmp(DEFAULT_SLOTS[i], time_slot) == 0) return 1;
+    }
+    return 0;
+}
+
+int validDate(const char *date) {
+    int y, m, d;
+    char tail;
+    if (sscanf(date, "%4d-%2d-%2d%c", &y, &m, &d, &tail) != 3) return 0;
+    if (y < 1900 || m < 1 || m > 12 || d < 1 || d > 31) return 0;
+    return 1;
+}
+
 int generateAppointmentId() {
     FILE *fp = fopen(APPOINTMENT_FILE, "r");
-    int count = 0;
+    int max_id = 0;
     char line[MAX_LINE];
 
     if (fp != NULL) {
         while (fgets(line, sizeof(line), fp)) {
-            if (strlen(line) > 1) count++;
+            char buffer[MAX_LINE];
+            char *token;
+
+            strcpy(buffer, line);
+            token = strtok(buffer, "|");
+            if (token != NULL && atoi(token) > max_id) {
+                max_id = atoi(token);
+            }
         }
         fclose(fp);
     }
 
-    return count + 1;
+    return max_id + 1;
 }
 
 int loadAppointments(struct Appointment *list, int max_count) {
@@ -131,6 +154,7 @@ int doctorIsBlocked(int doctor_id) {
 
 const char* getSlotState(int doctor_id, const char *date, const char *time_slot, struct Appointment *list, int count) {
     int i;
+    const char *state = "Available";
 
     if (doctorIsBlocked(doctor_id)) return "Blocked";
 
@@ -139,15 +163,20 @@ const char* getSlotState(int doctor_id, const char *date, const char *time_slot,
             strcmp(list[i].date, date) == 0 &&
             strcmp(list[i].time_slot, time_slot) == 0) {
 
-            if (strcmp(list[i].status, "Cancelled") == 0) return "Available";
-            if (strcmp(list[i].status, "Rescheduled") == 0) return "Available";
-            if (strcmp(list[i].status, "Completed") == 0) return "Completed";
-            if (strcmp(list[i].status, "No-show") == 0) return "No-show";
-            return "Booked";
+            if (strcmp(list[i].status, "Cancelled") == 0 ||
+                strcmp(list[i].status, "Rescheduled") == 0) {
+                state = "Available";
+            } else if (strcmp(list[i].status, "Completed") == 0) {
+                state = "Completed";
+            } else if (strcmp(list[i].status, "No-show") == 0) {
+                state = "No-show";
+            } else {
+                state = "Booked";
+            }
         }
     }
 
-    return "Available";
+    return state;
 }
 
 void printSlots(int doctor_id, const char *date) {
@@ -167,6 +196,11 @@ int bookSlot(int patient_id, int doctor_id, const char *date, const char *time_s
     const char *state = getSlotState(doctor_id, date, time_slot, list, count);
     FILE *fp;
     int id;
+
+    if (patient_id <= 0 || doctor_id <= 0 || !validDate(date) || !validSlot(time_slot)) {
+        printf("Error|InvalidInput");
+        return 0;
+    }
 
     if (strcmp(state, "Available") != 0) {
         printf("Error|SlotNotAvailable");
@@ -235,6 +269,18 @@ int rescheduleAppointment(int appointment_id, const char *new_date, const char *
         return 0;
     }
 
+    if (!validDate(new_date) || !validSlot(new_time)) {
+        printf("Error|InvalidInput");
+        return 0;
+    }
+
+    if (strcmp(list[found_index].status, "Completed") == 0 ||
+        strcmp(list[found_index].status, "Cancelled") == 0 ||
+        strcmp(list[found_index].status, "Rescheduled") == 0) {
+        printf("Error|AppointmentNotActive");
+        return 0;
+    }
+
     if (count >= MAX_APPOINTMENTS) {
         printf("Error|AppointmentLimitReached");
         return 0;
@@ -292,6 +338,8 @@ void listAppointmentsForDoctorDate(int doctor_id, const char *date) {
 }
 
 int main(int argc, char *argv[]) {
+    int ok = 0;
+
     if (argc < 2) {
         printf("Error|InvalidInput");
         return 1;
@@ -299,24 +347,27 @@ int main(int argc, char *argv[]) {
 
     if (strcmp(argv[1], "slots") == 0 && argc == 4) {
         printSlots(atoi(argv[2]), argv[3]);
+        ok = 1;
     } else if (strcmp(argv[1], "book") == 0 && argc == 6) {
-        bookSlot(atoi(argv[2]), atoi(argv[3]), argv[4], argv[5]);
+        ok = bookSlot(atoi(argv[2]), atoi(argv[3]), argv[4], argv[5]);
     } else if (strcmp(argv[1], "cancel") == 0 && argc == 3) {
-        updateAppointmentStatus(atoi(argv[2]), "Cancelled");
+        ok = updateAppointmentStatus(atoi(argv[2]), "Cancelled");
     } else if (strcmp(argv[1], "complete") == 0 && argc == 3) {
-        updateAppointmentStatus(atoi(argv[2]), "Completed");
+        ok = updateAppointmentStatus(atoi(argv[2]), "Completed");
     } else if (strcmp(argv[1], "noshow") == 0 && argc == 3) {
-        updateAppointmentStatus(atoi(argv[2]), "No-show");
+        ok = updateAppointmentStatus(atoi(argv[2]), "No-show");
     } else if (strcmp(argv[1], "reschedule") == 0 && argc == 5) {
-        rescheduleAppointment(atoi(argv[2]), argv[3], argv[4]);
+        ok = rescheduleAppointment(atoi(argv[2]), argv[3], argv[4]);
     } else if (strcmp(argv[1], "availability") == 0 && argc == 5) {
         checkDoctorAvailability(atoi(argv[2]), argv[3], argv[4]);
+        ok = 1;
     } else if (strcmp(argv[1], "list") == 0 && argc == 4) {
         listAppointmentsForDoctorDate(atoi(argv[2]), argv[3]);
+        ok = 1;
     } else {
         printf("Error|InvalidCommand");
         return 1;
     }
 
-    return 0;
+    return ok ? 0 : 1;
 }

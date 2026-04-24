@@ -102,15 +102,12 @@
                                     <td>{{ a.time_slot }}</td>
                                     <td><span class="hd-badge {{ a.status|lower|replace('-', '') }}">{{ a.status }}</span></td>
                                     <td>
-                                        <div class="d-flex gap-1 flex-wrap">
-                                            <a class="hd-btn hd-btn-outline hd-btn-sm" href="/diagnosis?patient_id={{ a.patient_id }}">
-                                                <i class="bi bi-clipboard2-pulse"></i> Diagnosis
-                                            </a>
+                                        <div class="hd-inline-actions">
                                             <form action="/doctor_complete_consultation" method="POST" class="d-inline">
                                                 <input type="hidden" name="appointment_id" value="{{ a.appointment_id }}">
                                                 <input type="hidden" name="patient_id" value="{{ a.patient_id }}">
                                                 <button class="hd-btn hd-btn-success hd-btn-sm">
-                                                    <i class="bi bi-check-circle"></i> Complete
+                                                    <i class="bi bi-check-circle"></i> Complete And Diagnose
                                                 </button>
                                             </form>
                                         </div>
@@ -194,23 +191,6 @@
                                 {% endif %}
                             </tbody>
                         </table>
-                    </div>
-                </div>
-            </div>
-
-            <div class="docx-card">
-                <div class="docx-card-body">
-                    <div class="docx-head">
-                        <div>
-                            <h5 class="docx-title"><i class="bi bi-person-badge me-1"></i> Quick Summary</h5>
-                            <p class="docx-sub">Useful details without extra clutter.</p>
-                        </div>
-                    </div>
-                    <div class="docx-summary-list">
-                        <div class="docx-summary-line"><small>Name</small><strong>{{ doctor_info.name if doctor_info else "-" }}</strong></div>
-                        <div class="docx-summary-line"><small>Department</small><strong>{{ doctor_info.department if doctor_info else "-" }}</strong></div>
-                        <div class="docx-summary-line"><small>Daily Status</small><strong>{{ doctor_info.daily_status if doctor_info else "-" }}</strong></div>
-                        <div class="docx-summary-line"><small>Current Status</small><strong>{{ doctor_info.current_status if doctor_info else "-" }}</strong></div>
                     </div>
                 </div>
             </div>

@@ -1,27 +1,26 @@
 #include "common.h"
 
-int generate_id(const char *filename) {
-    FILE *fp;
-    int count = 0;
-    char line[MAX_LINE];
+struct PatientNode {
+    struct Patient data;
+    struct PatientNode *next;
+};
 
-    fp = fopen(filename, "r");
+static struct PatientNode *patients_head = NULL;
+static struct PatientNode *patients_tail = NULL;
+static int patients_loaded = 0;
+static int patients_dirty = 0;
 
-    if (fp != NULL) {
-        while (fgets(line, sizeof(line), fp)) {
-            count++;
-        }
-        fclose(fp);
-    }
-
-    return count + 1;
+void safeCopy(char *dest, const char *src, size_t dest_size) {
+    if (dest_size == 0) return;
+    strncpy(dest, src ? src : "", dest_size - 1);
+    dest[dest_size - 1] = '\0';
 }
 
 int parsePatientLine(char *line, struct Patient *p) {
     char buffer[MAX_LINE];
     char *token;
 
-    strcpy(buffer, line);
+    safeCopy(buffer, line, sizeof(buffer));
 
     token = strtok(buffer, "|");
     if (token == NULL) return 0;
@@ -29,7 +28,7 @@ int parsePatientLine(char *line, struct Patient *p) {
 
     token = strtok(NULL, "|");
     if (token == NULL) return 0;
-    strcpy(p->name, token);
+    safeCopy(p->name, token, sizeof(p->name));
 
     token = strtok(NULL, "|");
     if (token == NULL) return 0;
@@ -37,33 +36,136 @@ int parsePatientLine(char *line, struct Patient *p) {
 
     token = strtok(NULL, "|");
     if (token == NULL) return 0;
-    strcpy(p->gender, token);
+    safeCopy(p->gender, token, sizeof(p->gender));
 
     token = strtok(NULL, "|");
     if (token == NULL) return 0;
-    strcpy(p->phone, token);
+    safeCopy(p->phone, token, sizeof(p->phone));
 
     token = strtok(NULL, "|");
     if (token == NULL) return 0;
-    strcpy(p->address, token);
+    safeCopy(p->address, token, sizeof(p->address));
 
     token = strtok(NULL, "|");
     if (token == NULL) return 0;
-    strcpy(p->symptoms, token);
+    safeCopy(p->symptoms, token, sizeof(p->symptoms));
 
     token = strtok(NULL, "|");
     if (token == NULL) return 0;
-    strcpy(p->visit_type, token);
+    safeCopy(p->visit_type, token, sizeof(p->visit_type));
 
     token = strtok(NULL, "|");
     if (token == NULL) return 0;
-    strcpy(p->priority, token);
+    safeCopy(p->priority, token, sizeof(p->priority));
 
     token = strtok(NULL, "\n");
     if (token == NULL) return 0;
-    strcpy(p->department, token);
+    safeCopy(p->department, token, sizeof(p->department));
 
     return 1;
+}
+
+int appendPatientNode(struct Patient p) {
+    struct PatientNode *node = malloc(sizeof(struct PatientNode));
+    if (node == NULL) return 0;
+
+    node->data = p;
+    node->next = NULL;
+
+    if (patients_tail == NULL) {
+        patients_head = node;
+        patients_tail = node;
+    } else {
+        patients_tail->next = node;
+        patients_tail = node;
+    }
+
+    return 1;
+}
+
+void loadPatients() {
+    FILE *fp;
+    char line[MAX_LINE];
+
+    if (patients_loaded) return;
+    patients_loaded = 1;
+
+    fp = fopen(PATIENT_FILE, "r");
+    if (fp == NULL) return;
+
+    while (fgets(line, sizeof(line), fp)) {
+        struct Patient p;
+        if (parsePatientLine(line, &p)) {
+            appendPatientNode(p);
+        }
+    }
+
+    fclose(fp);
+}
+
+void savePatientsIfDirty() {
+    FILE *fp;
+    struct PatientNode *current;
+
+    if (!patients_dirty) return;
+
+    fp = fopen(PATIENT_FILE, "w");
+    if (fp == NULL) return;
+
+    current = patients_head;
+    while (current != NULL) {
+        struct Patient p = current->data;
+        fprintf(fp, "%d|%s|%d|%s|%s|%s|%s|%s|%s|%s\n",
+            p.id,
+            p.name,
+            p.age,
+            p.gender,
+            p.phone,
+            p.address,
+            p.symptoms,
+            p.visit_type,
+            p.priority,
+            p.department
+        );
+        current = current->next;
+    }
+
+    fclose(fp);
+    patients_dirty = 0;
+}
+
+void freePatients() {
+    struct PatientNode *current = patients_head;
+
+    while (current != NULL) {
+        struct PatientNode *next = current->next;
+        free(current);
+        current = next;
+    }
+
+    patients_head = NULL;
+    patients_tail = NULL;
+}
+
+void shutdownPatients() {
+    savePatientsIfDirty();
+    freePatients();
+}
+
+int nextPatientId() {
+    int max_id = 0;
+    struct PatientNode *current;
+
+    loadPatients();
+    current = patients_head;
+    while (current != NULL) {
+        if (current->data.id > max_id) {
+            max_id = current->data.id;
+        }
+        current = current->next;
+    }
+
+    return max_id + 1;
 }
 
 void printPatient(struct Patient p) {
@@ -82,24 +184,19 @@ void printPatient(struct Patient p) {
 }
 
 int searchByPhone(const char *phone, struct Patient *result) {
-    FILE *fp = fopen(PATIENT_FILE, "r");
-    char line[MAX_LINE];
+    struct PatientNode *current;
 
-    if (fp == NULL) return 0;
+    loadPatients();
+    current = patients_head;
 
-    while (fgets(line, sizeof(line), fp)) {
-        struct Patient p;
-
-        if (!parsePatientLine(line, &p)) continue;
-
-        if (strcmp(p.phone, phone) == 0) {
-            *result = p;
-            fclose(fp);
+    while (current != NULL) {
+        if (strcmp(current->data.phone, phone) == 0) {
+            *result = current->data;
             return 1;
         }
+        current = current->next;
     }
 
-    fclose(fp);
     return 0;
 }
 
@@ -107,43 +204,44 @@ void parse_patient_data(const char *data, struct Patient *p) {
     char buffer[MAX_LINE];
     char *token;
 
-    strncpy(buffer, data, sizeof(buffer) - 1);
-    buffer[sizeof(buffer) - 1] = '\0';
+    memset(p, 0, sizeof(*p));
+    safeCopy(buffer, data, sizeof(buffer));
 
     token = strtok(buffer, "|");
-    if (token != NULL) strcpy(p->name, token);
+    if (token != NULL) safeCopy(p->name, token, sizeof(p->name));
 
     token = strtok(NULL, "|");
     if (token != NULL) p->age = atoi(token);
 
     token = strtok(NULL, "|");
-    if (token != NULL) strcpy(p->gender, token);
+    if (token != NULL) safeCopy(p->gender, token, sizeof(p->gender));
 
     token = strtok(NULL, "|");
-    if (token != NULL) strcpy(p->phone, token);
+    if (token != NULL) safeCopy(p->phone, token, sizeof(p->phone));
 
     token = strtok(NULL, "|");
-    if (token != NULL) strcpy(p->address, token);
+    if (token != NULL) safeCopy(p->address, token, sizeof(p->address));
 
     token = strtok(NULL, "|");
-    if (token != NULL) strcpy(p->symptoms, token);
+    if (token != NULL) safeCopy(p->symptoms, token, sizeof(p->symptoms));
 
     token = strtok(NULL, "|");
-    if (token != NULL) strcpy(p->visit_type, token);
+    if (token != NULL) safeCopy(p->visit_type, token, sizeof(p->visit_type));
 
     token = strtok(NULL, "|");
-    if (token != NULL) strcpy(p->priority, token);
+    if (token != NULL) safeCopy(p->priority, token, sizeof(p->priority));
 
     token = strtok(NULL, "|");
-    if (token != NULL) strcpy(p->department, token);
+    if (token != NULL) safeCopy(p->department, token, sizeof(p->department));
 }
 
 void addPatient(const char *input) {
     struct Patient p;
     struct Patient existing;
-    FILE *fp;
 
+    loadPatients();
     parse_patient_data(input, &p);
+
     if (strlen(p.name) == 0 || strlen(p.phone) == 0 || p.age <= 0 || strlen(p.department) == 0) {
         printf("Error|InvalidPatientData");
         return;
@@ -166,34 +264,19 @@ void addPatient(const char *input) {
         return;
     }
 
-    p.id = generate_id(PATIENT_FILE);
-
-    fp = fopen(PATIENT_FILE, "a");
-
-    if (fp == NULL) {
-        printf("Error opening file\n");
+    p.id = nextPatientId();
+    if (!appendPatientNode(p)) {
+        printf("Error|MemoryAllocationFailed");
         return;
     }
 
-    fprintf(fp, "%d|%s|%d|%s|%s|%s|%s|%s|%s|%s\n",
-        p.id,
-        p.name,
-        p.age,
-        p.gender,
-        p.phone,
-        p.address,
-        p.symptoms,
-        p.visit_type,
-        p.priority,
-        p.department
-    );
-
-    fclose(fp);
-
+    patients_dirty = 1;
     printf("%d|%s|%s", p.id, p.visit_type, p.priority);
 }
 
 int main(int argc, char *argv[]) {
+    atexit(shutdownPatients);
+
     if (argc < 2) {
         printf("Invalid Input\n");
         return 1;

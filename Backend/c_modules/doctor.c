@@ -54,19 +54,22 @@ void printDoctor(struct Doctor d) {
 
 int generate_id() {
     FILE *fp;
-    int count = 0;
+    int max_id = 0;
     char line[MAX_LINE];
 
     fp = fopen(DOCTOR_FILE, "r");
 
     if (fp != NULL) {
         while (fgets(line, sizeof(line), fp)) {
-            count++;
+            struct Doctor d;
+            if (parseDoctorLine(line, &d) && d.id > max_id) {
+                max_id = d.id;
+            }
         }
         fclose(fp);
     }
 
-    return count + 1;
+    return max_id + 1;
 }
 
 void addDoctor(char *input) {
@@ -299,7 +302,7 @@ void searchByDepartment(struct DoctorNode* root, char *department, int available
     if (strcmp(root->data.specialization, department) == 0) {
         if (!available_only ||
             (strcmp(root->data.daily_status, "Available") == 0 &&
-             strcmp(root->data.current_status, "Free") == 0)) {
+             strcmp(root->data.current_status, "Emergency") != 0)) {
             printDoctor(root->data);
             *found = 1;
         }

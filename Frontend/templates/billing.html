@@ -182,6 +182,10 @@
         gap: 12px;
     }
 
+    .billx-facts-spaced {
+        margin-top: 14px;
+    }
+
     .billx-fact {
         padding: 14px;
         border-radius: 16px;
@@ -279,7 +283,9 @@
     }
 
     .billx-chip input {
-        display: none;
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
     }
 
     .billx-chip span {
@@ -307,6 +313,12 @@
         border-color: var(--billx-accent);
         background: var(--billx-accent-soft);
         box-shadow: 0 0 0 3px rgba(13, 138, 134, 0.08);
+    }
+
+    .billx-chip:hover span,
+    .billx-chip input:focus-visible + span {
+        border-color: var(--billx-accent);
+        box-shadow: 0 10px 22px rgba(20, 48, 72, 0.08);
     }
 
     .billx-meds {
@@ -558,7 +570,7 @@
                         </div>
                     </div>
 
-                    <div class="billx-facts" style="margin-top:14px;">
+                    <div class="billx-facts billx-facts-spaced">
                         <div class="billx-fact">
                             <small>Doctor</small>
                             <strong id="context_doctor">-</strong>

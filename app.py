@@ -13,9 +13,12 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TMPL_DIR = os.path.join(BASE_DIR, "Frontend", "templates")
 STATIC_DIR = os.path.join(BASE_DIR, "Frontend", "static")
 BACKEND_DIR = os.path.join(BASE_DIR, "Backend")
-USER_FILE = os.path.join(BACKEND_DIR, "data", "users.txt")
-BILLING_FILE = os.path.join(BACKEND_DIR, "data", "billing.txt")
-PRICING_FILE = os.path.join(BACKEND_DIR, "data", "pricing_catalog.json")
+DATA_DIR = os.path.join(BACKEND_DIR, "data")
+USER_FILE = os.path.join(DATA_DIR, "users.txt")
+BILLING_FILE = os.path.join(DATA_DIR, "billing.txt")
+PRICING_FILE = os.path.join(DATA_DIR, "pricing_catalog.json")
+APPOINTMENT_FILE = os.path.join(DATA_DIR, "appointment.txt")
+QUEUE_FILE = os.path.join(DATA_DIR, "queue.txt")
 
 app = Flask(__name__,
             template_folder = TMPL_DIR,
@@ -25,6 +28,60 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax"
 )
+def append_data_line(path, line):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    needs_newline = False
+    try:
+        with open(path, "rb") as existing:
+            existing.seek(0, os.SEEK_END)
+            if existing.tell() > 0:
+                existing.seek(-1, os.SEEK_END)
+                needs_newline = existing.read(1) != b"\n"
+    except FileNotFoundError:
+        pass
+
+    with open(path, "a", encoding="utf-8") as f:
+        if needs_newline:
+            f.write("\n")
+        f.write(f"{line}\n")
+
+def clean_record_field(value, max_length=180):
+    cleaned = str(value or "").replace("|", "/").replace("\r", " ").replace("\n", " ").strip()
+    return cleaned[:max_length]
+
+def safe_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+def parse_appointment_line(line):
+    data = line.strip().split("|")
+    if len(data) < 6:
+        return None
+    try:
+        return {
+            "appointment_id": int(data[0]),
+            "patient_id": int(data[1]),
+            "doctor_id": int(data[2]),
+            "date": data[3],
+            "time_slot": data[4],
+            "status": data[5]
+        }
+    except ValueError:
+        return None
+
+def read_appointment_file():
+    appointments = {}
+    try:
+        with open(APPOINTMENT_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                appointment = parse_appointment_line(line)
+                if appointment:
+                    appointments[appointment["appointment_id"]] = appointment
+    except FileNotFoundError:
+        return []
+    return sorted(appointments.values(), key=lambda item: item["appointment_id"])
 
 def is_authenticated():
     return session.get("logged_in", False)
@@ -40,13 +97,20 @@ def require_role(*allowed_roles):
     return decorator
 
 def authenticate_user(username, password):
-    for account in read_user_accounts():
-        if account["username"] == username and account["password"] == password:
-            return {
-                "username": account["username"],
-                "role": account["role"],
-                "doctor_id": str(account["doctor_id"])
-            }
+    exe_path = os.path.join(BACKEND_DIR, "c_modules", "auth.exe")
+    result = subprocess.run(
+        [exe_path, username, password],
+        capture_output=True,
+        text=True,
+        cwd=BASE_DIR
+    )
+    data = result.stdout.strip().split("|")
+    if result.returncode == 0 and len(data) >= 3 and data[0] == "OK":
+        return {
+            "username": username,
+            "role": data[1],
+            "doctor_id": data[2]
+        }
     return None
 
 
@@ -58,13 +122,16 @@ def read_user_accounts():
                 data = line.strip().split("|")
                 if len(data) < 5:
                     continue
-                accounts.append({
-                    "id": int(data[0]),
-                    "username": data[1],
-                    "password": data[2],
-                    "role": data[3],
-                    "doctor_id": int(data[4] or 0)
-                })
+                try:
+                    accounts.append({
+                        "id": int(data[0]),
+                        "username": data[1],
+                        "password": data[2],
+                        "role": data[3],
+                        "doctor_id": int(data[4] or 0)
+                    })
+                except ValueError:
+                    continue
     except FileNotFoundError:
         pass
     return accounts
@@ -94,8 +161,12 @@ def build_doctor_password(doctor_id):
 
 
 def save_user_account(username, password, role, doctor_id):
-    with open(USER_FILE, "a", encoding="utf-8") as f:
-        f.write(f"{next_user_id()}|{username}|{password}|{role}|{doctor_id}\n")
+    user_id = next_user_id()
+    line = (
+        f"{user_id}|{clean_record_field(username)}|{clean_record_field(password)}|"
+        f"{clean_record_field(role)}|{int(doctor_id or 0)}"
+    )
+    append_data_line(USER_FILE, line)
 
 
 def load_pricing_catalog():
@@ -236,15 +307,28 @@ def find_bill_by_appointment_id(appointment_id):
 
 
 def save_bill_record(bill):
-    with open(BILLING_FILE, "a", encoding="utf-8") as f:
-        f.write(
-            f"{bill['bill_id']}|{bill['date']}|{bill['patient_id']}|{bill['name']}|{bill['age']}|"
-            f"{bill['gender']}|{bill['doctor']}|{bill['department']}|{bill['doctor_fee']:.0f}|"
-            f"{bill['treatment_total']:.0f}|{bill['lab_total']:.0f}|{bill['medicine_total']:.0f}|"
-            f"{bill['total']:.0f}|{bill['status']}|{bill['doctor_id']}|"
-            f"{serialize_bill_items(bill['treatments'])}|{serialize_bill_items(bill['lab_tests'])}|"
-            f"{bill['medicine_notes']}|{bill.get('appointment_id', 0)}\n"
-        )
+    line = "|".join([
+        str(int(bill["bill_id"])),
+        clean_record_field(bill["date"]),
+        str(int(bill["patient_id"])),
+        clean_record_field(bill["name"]),
+        str(int(bill["age"])),
+        clean_record_field(bill["gender"]),
+        clean_record_field(bill["doctor"]),
+        clean_record_field(bill["department"]),
+        f"{float(bill['doctor_fee']):.0f}",
+        f"{float(bill['treatment_total']):.0f}",
+        f"{float(bill['lab_total']):.0f}",
+        f"{float(bill['medicine_total']):.0f}",
+        f"{float(bill['total']):.0f}",
+        clean_record_field(bill["status"]),
+        str(int(bill.get("doctor_id", 0) or 0)),
+        serialize_bill_items(bill.get("treatments", [])),
+        serialize_bill_items(bill.get("lab_tests", [])),
+        clean_record_field(bill.get("medicine_notes", "")),
+        str(int(bill.get("appointment_id", 0) or 0))
+    ])
+    append_data_line(BILLING_FILE, line)
 
 
 def build_bill_preview_text(bill):
@@ -407,7 +491,7 @@ def create_bill_record(patient, doctor, bill_date, treatment_codes=None, lab_tes
     treatment_total = sum(item["price"] for item in selected_treatments)
     lab_total = sum(item["price"] for item in selected_lab_tests)
 
-    safe_medicine_notes = medicine_notes.replace("|", "/").replace("\r", " ").replace("\n", " ").strip()
+    safe_medicine_notes = clean_record_field(medicine_notes)
 
     return {
         "bill_id": generate_bill_id(),
@@ -449,7 +533,8 @@ def load_appointment_slots(doctor_id, selected_date):
     result = subprocess.run(
         [exe_path, "slots", str(doctor_id), selected_date],
         capture_output=True,
-        text=True
+        text=True,
+        cwd=BASE_DIR
     )
 
     for line in result.stdout.strip().split("\n"):
@@ -460,6 +545,16 @@ def load_appointment_slots(doctor_id, selected_date):
             slots.append({"time": data[1], "state": data[2]})
 
     return slots
+
+def run_appointment_command(*args):
+    exe_path = os.path.join(BACKEND_DIR, "c_modules", "appointment.exe")
+    result = subprocess.run(
+        [exe_path, *[str(arg) for arg in args]],
+        capture_output=True,
+        text=True,
+        cwd=BASE_DIR
+    )
+    return result
 
 def parse_iso_date(date_str):
     try:
@@ -472,6 +567,7 @@ def is_future_or_today(date_str):
     if not parsed:
         return False
     return parsed >= date.today()
+
 
 def get_alternative_doctor_for_slot(department, appointment_date, time_slot, excluded_doctor_id):
     for doctor in suggest_doctors_by_department(department):
@@ -496,25 +592,16 @@ def reassign_appointment_to_alternative(appointment):
     if not alt_doctor:
         return None
 
-    exe_path = os.path.join(BACKEND_DIR, "c_modules", "appointment.exe")
-    cancel_result = subprocess.run(
-        [exe_path, "cancel", str(appointment["appointment_id"])],
-        capture_output=True,
-        text=True
-    )
+    cancel_result = run_appointment_command("cancel", appointment["appointment_id"])
     if cancel_result.returncode != 0:
         return None
 
-    book_result = subprocess.run(
-        [
-            exe_path, "book",
-            str(appointment["patient_id"]),
-            str(alt_doctor["id"]),
-            appointment["date"],
-            appointment["time_slot"]
-        ],
-        capture_output=True,
-        text=True
+    book_result = run_appointment_command(
+        "book",
+        appointment["patient_id"],
+        alt_doctor["id"],
+        appointment["date"],
+        appointment["time_slot"]
     )
     output = book_result.stdout.strip().split("|")
     if book_result.returncode == 0 and len(output) >= 2 and output[0] == "BOOKED":
@@ -577,12 +664,16 @@ def get_suggested_doctors(selected_department, selected_doctor, selected_date):
 
     return suggested_doctors
 
-def add_patient_to_queue(patient_id):
+def add_patient_to_queue(patient_id, doctor_id=None):
     queue_exe_path = os.path.join(BACKEND_DIR, "c_modules", "queue.exe")
+    command = [queue_exe_path, str(patient_id)]
+    if doctor_id is not None:
+        command.append(str(doctor_id))
     result = subprocess.run(
-        [queue_exe_path, str(patient_id)],
+        command,
         capture_output=True,
-        text=True
+        text=True,
+        cwd=BASE_DIR
     )
 
     output = result.stdout.strip().split("|")
@@ -594,6 +685,50 @@ def add_patient_to_queue(patient_id):
         }
 
     return None
+
+def update_waiting_queue_status(patient_id, doctor_id=None, status="Completed"):
+    rows = []
+    changed = False
+    patient_id = safe_int(patient_id)
+    doctor_id = safe_int(doctor_id, None) if doctor_id is not None else None
+
+    try:
+        with open(QUEUE_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                data = line.strip().split("|")
+                if len(data) < 5:
+                    continue
+                try:
+                    row = {
+                        "token": int(data[0]),
+                        "patient_id": int(data[1]),
+                        "doctor_id": int(data[2]),
+                        "priority": data[3],
+                        "status": data[4]
+                    }
+                except ValueError:
+                    continue
+                if (
+                    row["patient_id"] == patient_id
+                    and row["status"] == "Waiting"
+                    and (doctor_id is None or row["doctor_id"] == doctor_id)
+                ):
+                    row["status"] = status
+                    changed = True
+                rows.append(row)
+    except FileNotFoundError:
+        return False
+
+    if not changed:
+        return False
+
+    with open(QUEUE_FILE, "w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(
+                f"{row['token']}|{row['patient_id']}|{row['doctor_id']}|"
+                f"{clean_record_field(row['priority'])}|{clean_record_field(row['status'])}\n"
+            )
+    return True
 
 @app.before_request
 def require_login():
@@ -616,8 +751,7 @@ def read_queue():
     queue = []
 
     try:
-        queue_file = os.path.join(BACKEND_DIR, "data", "queue.txt")
-        with open(queue_file, "r") as f:
+        with open(QUEUE_FILE, "r", encoding="utf-8") as f:
             for line in f:
                 data = line.strip().split("|")
                 if len(data) < 5:
@@ -677,9 +811,12 @@ def count_available_doctors():
 def get_doctors():
     doctors = []
     try:
-        with open("Backend/data/doctors.txt", "r") as f:
+        doctor_file = os.path.join(BACKEND_DIR, "data", "doctors.txt")
+        with open(doctor_file, "r", encoding="utf-8") as f:
             for line in f:
                 data = line.strip().split("|")
+                if len(data) < 6:
+                    continue
                 doctors.append({
                     "id": int(data[0]),
                     "name": data[1],
@@ -697,7 +834,8 @@ def suggest_doctors_by_department(department):
     result = subprocess.run(
         [exe_path, "suggest", department],
         capture_output=True,
-        text=True
+        text=True,
+        cwd=BASE_DIR
     )
 
     doctors = []
@@ -721,25 +859,7 @@ def suggest_doctors_by_department(department):
     return doctors
 
 def read_appointments():
-    appointments = []
-    appointment_file = os.path.join(BACKEND_DIR, "data", "appointment.txt")
-    try:
-        with open(appointment_file, "r") as f:
-            for line in f:
-                data = line.strip().split("|")
-                if len(data) < 6:
-                    continue
-                appointments.append({
-                    "appointment_id": int(data[0]),
-                    "patient_id": int(data[1]),
-                    "doctor_id": int(data[2]),
-                    "date": data[3],
-                    "time_slot": data[4],
-                    "status": data[5]
-                })
-    except:
-        pass
-    return appointments
+    return read_appointment_file()
 
 
 def parse_appointment_datetime(appointment):
@@ -765,6 +885,46 @@ def get_latest_patient_appointment(patient_id):
     appointments.sort(key=parse_appointment_datetime, reverse=True)
     return appointments[0]
 
+def get_latest_completed_patient_appointment(patient_id, doctor_id=None):
+    appointments = [
+        appointment for appointment in read_appointments()
+        if appointment["patient_id"] == int(patient_id)
+        and appointment["status"] == "Completed"
+        and (doctor_id is None or appointment["doctor_id"] == int(doctor_id))
+    ]
+    if not appointments:
+        return None
+    appointments.sort(key=parse_appointment_datetime, reverse=True)
+    return appointments[0]
+
+def find_appointment_by_id(appointment_id):
+    appointment_id = safe_int(appointment_id)
+    return next(
+        (
+            appointment for appointment in read_appointments()
+            if appointment["appointment_id"] == appointment_id
+        ),
+        None
+    )
+
+def doctor_owns_appointment(appointment, doctor_id):
+    return bool(appointment) and appointment["doctor_id"] == int(doctor_id)
+
+def doctor_can_access_patient(patient_id, doctor_id):
+    patient_id = safe_int(patient_id)
+    doctor_id = safe_int(doctor_id)
+    if not patient_id or not doctor_id:
+        return False
+
+    for appointment in read_appointments():
+        if appointment["patient_id"] == patient_id and appointment["doctor_id"] == doctor_id:
+            return True
+
+    return any(
+        item["patient_id"] == patient_id and item["doctor_id"] == doctor_id
+        for item in read_queue()
+    )
+
 
 def get_doctor_by_id(doctor_id):
     return next((doctor for doctor in get_doctors() if doctor["id"] == int(doctor_id)), None)
@@ -788,7 +948,11 @@ def get_patient_billing_context(patient_id, latest_appointment=None):
         context["warning"] = "Patient not found."
         return context
 
-    latest_appointment = latest_appointment or get_latest_patient_appointment(patient_id)
+    latest_appointment = (
+        latest_appointment
+        or get_latest_completed_patient_appointment(patient_id)
+        or get_latest_patient_appointment(patient_id)
+    )
     if not latest_appointment:
         context["warning"] = "No appointment found for this patient."
         return context
@@ -853,7 +1017,8 @@ def find_patient_by_phone(phone):
     result = subprocess.run(
         [exe_path, "search", phone],
         capture_output=True,
-        text=True
+        text=True,
+        cwd=BASE_DIR
     )
 
     data = result.stdout.strip().split("|")
@@ -898,6 +1063,7 @@ def read_assigned_queue_patients(doctor_id):
             "symptoms": patient.get("symptoms", "")
         })
 
+    assigned.sort(key=lambda x: (x["priority"] != "Urgent", x["token"]))
     return assigned
 
 def get_diagnosis_context(patient_id):
@@ -905,7 +1071,8 @@ def get_diagnosis_context(patient_id):
     result = subprocess.run(
         [exe_path, "history", str(patient_id)],
         capture_output=True,
-        text=True
+        text=True,
+        cwd=BASE_DIR
     )
 
     output = result.stdout.strip().split("\n")
@@ -941,9 +1108,13 @@ def get_diagnosis_context(patient_id):
 
     return patient, diagnosis, error_message
 
-def auto_generate_bill(patient_id, doctor_id, bill_date):
+def auto_generate_bill(patient_id, doctor_id, bill_date, appointment_id=None):
     patient = find_patient_by_id(patient_id)
-    latest_appointment = get_latest_patient_appointment(patient_id)
+    latest_appointment = (
+        find_appointment_by_id(appointment_id)
+        if appointment_id
+        else get_latest_completed_patient_appointment(patient_id, doctor_id=doctor_id)
+    )
     context = get_patient_billing_context(patient_id, latest_appointment=latest_appointment)
     doctor = get_doctor_by_id(doctor_id) if doctor_id else None
 
@@ -1083,15 +1254,15 @@ def reception():
                 message = "Patient not found. Register the patient to continue."
 
         elif action == "register":
-            name = request.form["name"]
+            name = clean_record_field(request.form["name"])
             age = request.form["age"]
-            gender = request.form["gender"]
-            phone = request.form["phone"]
-            address = request.form["address"]
-            symptoms = request.form["symptoms"]
-            visit_type = request.form["visit_type"]
-            priority = request.form["priority"]
-            department = request.form["department"]
+            gender = clean_record_field(request.form["gender"])
+            phone = clean_record_field(request.form["phone"])
+            address = clean_record_field(request.form["address"])
+            symptoms = clean_record_field(request.form["symptoms"])
+            visit_type = clean_record_field(request.form["visit_type"])
+            priority = clean_record_field(request.form["priority"])
+            department = clean_record_field(request.form["department"])
             if not is_valid_phone(phone):
                 show_registration = True
                 message = "Phone must be 10 digits."
@@ -1109,7 +1280,8 @@ def reception():
                 patient_output = subprocess.run(
                     [exe_path, data_string],
                     capture_output=True,
-                    text=True
+                    text=True,
+                    cwd=BASE_DIR
                 )
 
                 data = patient_output.stdout.strip().split("|")
@@ -1207,68 +1379,6 @@ def doctor_dashboard():
         status_note=status_note
     )
 
-#patient
-@app.route("/patient_search", methods=["GET", "POST"])
-@require_role("Receptionist")
-def patient_search():
-    return redirect("/reception")
-
-@app.route("/patient")
-@require_role("Receptionist")
-def patient():
-    return render_template("patient.html")
-
-
-#queue
-@app.route("/add_patient", methods=["POST"])
-@require_role("Receptionist")
-def add_patient():
-
-    name = request.form["name"]
-    age = request.form["age"]
-    gender = request.form["gender"]
-    phone = request.form["phone"]    
-    address = request.form["address"]
-    symptoms = request.form["symptoms"]
-    visit_type = request.form["visit_type"]
-    priority = request.form["priority"]
-    department = request.form["department"]
-    encounter_type = request.form.get("encounter_type", "Appointment")
-
-    exe_path = os.path.join(BACKEND_DIR, "c_modules", "patient.exe")
-
-    data_string = f"{name}|{age}|{gender}|{phone}|{address}|{symptoms}|{visit_type}|{priority}|{department}"
-    
-    patient_output = subprocess.run(
-        [exe_path, data_string],
-        capture_output=True,
-        text=True
-    )
-    patient_output = patient_output.stdout.strip()
-    data = patient_output.split("|")
-    id = data[0]
-    view_type = data[1]
-    priority = data[2]
-
-    queue_assigned = False
-    if encounter_type == "Walk-in" or visit_type == "Emergency":
-        queue_exe_path = os.path.join(BACKEND_DIR, "c_modules", "queue.exe")
-        subprocess.run(
-            [queue_exe_path, id, department, priority],
-            capture_output=True,
-            text=True
-        )
-        queue_assigned = True
-
-    return render_template(
-        "add_patient.html",
-        patient_id=id,
-        visit_type=visit_type,
-        department=department,
-        priority=priority,
-        queue_assigned=queue_assigned
-    )
-
 @app.route("/queue")
 @require_role("Receptionist")
 def queue_page():
@@ -1351,15 +1461,14 @@ def book_appointment():
             )
         return redirect(f"/appointments?doctor_id={doctor_id}&date={appointment_date}")
 
-    exe_path = os.path.join(BACKEND_DIR, "c_modules", "appointment.exe")
-    result = subprocess.run(
-        [exe_path, "book", patient_id, doctor_id, appointment_date, time_slot],
-        capture_output=True,
-        text=True
-    )
+    result = run_appointment_command("book", patient_id, doctor_id, appointment_date, time_slot)
     output = result.stdout.strip().split("|")
     booking_success = result.returncode == 0 and len(output) >= 6 and output[0] == "BOOKED"
-    queue_info = add_patient_to_queue(patient_id) if booking_success else None
+    queue_info = (
+        add_patient_to_queue(patient_id, doctor_id=doctor_id)
+        if booking_success and parse_iso_date(appointment_date) == date.today()
+        else None
+    )
 
     if return_to == "reception":
         if booking_success:
@@ -1378,8 +1487,10 @@ def book_appointment():
 @require_role("Receptionist")
 def cancel_appointment():
     appointment_id = request.form["appointment_id"]
-    exe_path = os.path.join(BACKEND_DIR, "c_modules", "appointment.exe")
-    subprocess.run([exe_path, "cancel", appointment_id], capture_output=True, text=True)
+    appointment = find_appointment_by_id(appointment_id)
+    result = run_appointment_command("cancel", appointment_id)
+    if result.returncode == 0 and appointment:
+        update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "Cancelled")
     return redirect("/appointments")
 
 @app.route("/reschedule", methods=["POST"])
@@ -1388,12 +1499,12 @@ def reschedule():
     appointment_id = request.form["appointment_id"]
     new_date = request.form["new_date"]
     new_time = request.form["new_time"]
-    exe_path = os.path.join(BACKEND_DIR, "c_modules", "appointment.exe")
-    subprocess.run(
-        [exe_path, "reschedule", appointment_id, new_date, new_time],
-        capture_output=True,
-        text=True
-    )
+    appointment = find_appointment_by_id(appointment_id)
+    result = run_appointment_command("reschedule", appointment_id, new_date, new_time)
+    if result.returncode == 0 and appointment:
+        update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "Rescheduled")
+        if parse_iso_date(new_date) == date.today():
+            add_patient_to_queue(appointment["patient_id"], doctor_id=appointment["doctor_id"])
     return redirect("/appointments")
 
 @app.route("/update_appointment", methods=["POST"])
@@ -1401,25 +1512,43 @@ def reschedule():
 def update_appointment():
     appointment_id = request.form["appointment_id"]
     action = request.form["action"]
+    appointment = find_appointment_by_id(appointment_id)
 
-    exe_path = os.path.join(BACKEND_DIR, "c_modules", "appointment.exe")
+    if not appointment:
+        target = "/doctor" if session.get("role") == "Doctor" else "/appointments"
+        return redirect(f"{target}?status_note=Appointment not found")
+
+    if session.get("role") == "Doctor":
+        doctor_id = int(session.get("doctor_id", "0") or 0)
+        if not doctor_owns_appointment(appointment, doctor_id):
+            return redirect("/doctor?status_note=You can only update your own appointments")
+        if action != "complete":
+            return redirect("/doctor?status_note=Doctors can only complete their own consultations")
+        if appointment["status"] not in {"Booked", "No-show"}:
+            return redirect("/doctor?status_note=Only active appointments can be completed")
 
     if action == "reschedule":
         new_date = request.form["new_date"]
         new_time = request.form["new_time"]
         if not new_date or not new_time:
             return redirect("/appointments?status_note=Provide new date and time for reschedule")
-        subprocess.run(
-            [exe_path, "reschedule", appointment_id, new_date, new_time],
-            capture_output=True,
-            text=True
-        )
+        result = run_appointment_command("reschedule", appointment_id, new_date, new_time)
+        if result.returncode == 0:
+            update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "Rescheduled")
+            if parse_iso_date(new_date) == date.today():
+                add_patient_to_queue(appointment["patient_id"], doctor_id=appointment["doctor_id"])
     elif action == "cancel":
-        subprocess.run([exe_path, "cancel", appointment_id], capture_output=True, text=True)
+        result = run_appointment_command("cancel", appointment_id)
+        if result.returncode == 0:
+            update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "Cancelled")
     elif action == "complete":
-        subprocess.run([exe_path, "complete", appointment_id], capture_output=True, text=True)
+        result = run_appointment_command("complete", appointment_id)
+        if result.returncode == 0:
+            update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "Completed")
     elif action == "noshow":
-        subprocess.run([exe_path, "noshow", appointment_id], capture_output=True, text=True)
+        result = run_appointment_command("noshow", appointment_id)
+        if result.returncode == 0:
+            update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "No-show")
     elif action == "reassign":
         new_doctor_id = request.form["new_doctor_id"]
         new_date = request.form["new_date"]
@@ -1427,12 +1556,12 @@ def update_appointment():
         patient_id = request.form["patient_id"]
         if not new_doctor_id or not new_date or not new_time:
             return redirect("/appointments?status_note=Doctor, date and slot are required for reassignment")
-        subprocess.run([exe_path, "cancel", appointment_id], capture_output=True, text=True)
-        subprocess.run(
-            [exe_path, "book", patient_id, new_doctor_id, new_date, new_time],
-            capture_output=True,
-            text=True
-        )
+        cancel_result = run_appointment_command("cancel", appointment_id)
+        book_result = run_appointment_command("book", patient_id, new_doctor_id, new_date, new_time)
+        if cancel_result.returncode == 0:
+            update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "Cancelled")
+        if book_result.returncode == 0 and parse_iso_date(new_date) == date.today():
+            add_patient_to_queue(patient_id, doctor_id=new_doctor_id)
 
     if session.get("role") == "Doctor":
         return redirect("/doctor")
@@ -1449,7 +1578,8 @@ def serve():
     serve_output = subprocess.run(
         [serve_exe],
         capture_output=True,
-        text=True
+        text=True,
+        cwd=BASE_DIR
     )
 
     serve_output = serve_output.stdout.strip()
@@ -1493,7 +1623,7 @@ def add_doctor():
 
     data_string = f"{name}|{department}|{experience}"
     exe_path = os.path.join(BACKEND_DIR, "c_modules", "doctor.exe")
-    result = subprocess.run([exe_path, data_string], capture_output=True, text=True)
+    result = subprocess.run([exe_path, data_string], capture_output=True, text=True, cwd=BASE_DIR)
     doctor_id = result.stdout.strip()
     if not doctor_id.isdigit():
         return redirect(url_for("doctors_page", status_note="Doctor could not be added. Please check the details."))
@@ -1519,7 +1649,7 @@ def toggle_doctor():
 
     exe_path = os.path.join(BACKEND_DIR, "c_modules", "doctor.exe")
 
-    subprocess.run([exe_path, "daily", doctor_id, status])
+    subprocess.run([exe_path, "daily", doctor_id, status], cwd=BASE_DIR)
 
     return redirect("/doctors")
 
@@ -1531,7 +1661,7 @@ def doctor_status():
     current_status = request.form["current_status"]
 
     exe_path = os.path.join(BACKEND_DIR, "c_modules", "doctor.exe")
-    subprocess.run([exe_path, "status", doctor_id, daily_status, current_status])
+    subprocess.run([exe_path, "status", doctor_id, daily_status, current_status], cwd=BASE_DIR)
     should_reassign = daily_status in {"Unavailable", "Off"} or current_status == "Emergency"
     if should_reassign:
         reassigned = auto_reassign_unavailable_doctor_appointments(int(doctor_id))
@@ -1547,7 +1677,7 @@ def doctor_my_status():
     daily_status = request.form["daily_status"]
     current_status = request.form["current_status"]
     exe_path = os.path.join(BACKEND_DIR, "c_modules", "doctor.exe")
-    subprocess.run([exe_path, "status", doctor_id, daily_status, current_status])
+    subprocess.run([exe_path, "status", doctor_id, daily_status, current_status], cwd=BASE_DIR)
     should_reassign = daily_status in {"Unavailable", "Off"} or current_status == "Emergency"
     if should_reassign:
         reassigned = auto_reassign_unavailable_doctor_appointments(int(doctor_id))
@@ -1561,14 +1691,28 @@ def doctor_my_status():
 def doctor_complete_consultation():
     appointment_id = request.form["appointment_id"]
     patient_id = request.form["patient_id"]
-    exe_path = os.path.join(BACKEND_DIR, "c_modules", "appointment.exe")
-    subprocess.run([exe_path, "complete", appointment_id], capture_output=True, text=True)
+    doctor_id = int(session.get("doctor_id", "0") or 0)
+    appointment = find_appointment_by_id(appointment_id)
+    if (
+        not appointment
+        or not doctor_owns_appointment(appointment, doctor_id)
+        or appointment["patient_id"] != safe_int(patient_id)
+        or appointment["status"] not in {"Booked", "No-show"}
+    ):
+        return redirect("/doctor?status_note=You can only complete your own assigned appointments")
+
+    result = run_appointment_command("complete", appointment_id)
+    if result.returncode == 0:
+        update_waiting_queue_status(patient_id, doctor_id, "Completed")
     return redirect(f"/diagnosis?patient_id={patient_id}")
 @app.route("/diagnosis")
 @require_role("Doctor")
 def diagnosis_page():
     patient_id = request.args.get("patient_id", "").strip()
+    doctor_id = session.get("doctor_id", "0")
     if patient_id:
+        if not doctor_can_access_patient(patient_id, doctor_id):
+            return redirect("/doctor?status_note=Patient is not assigned to your consultation list")
         patient, diagnosis, error_message = get_diagnosis_context(patient_id)
         return render_template(
             "diagnosis.html",
@@ -1590,6 +1734,9 @@ def diagnosis_page():
 def diagnosis_history():
 
     patient_id = request.form["patient_id"]
+    doctor_id = session.get("doctor_id", "0")
+    if not doctor_can_access_patient(patient_id, doctor_id):
+        return redirect("/doctor?status_note=Patient is not assigned to your consultation list")
     patient, diagnosis, error_message = get_diagnosis_context(patient_id)
 
     return render_template(
@@ -1608,9 +1755,12 @@ def add_diagnosis():
 
     patient_id = request.form["patient_id"]
     doctor_id = session.get("doctor_id", request.form.get("doctor_id", "0"))
-    date = request.form["date"]
-    diagnosis_text = request.form["diagnosis"]
-    prescription = request.form["prescription"]
+    if not doctor_can_access_patient(patient_id, doctor_id):
+        return redirect("/doctor?status_note=Patient is not assigned to your consultation list")
+
+    date = clean_record_field(request.form["date"])
+    diagnosis_text = clean_record_field(request.form["diagnosis"])
+    prescription = clean_record_field(request.form["prescription"])
 
     data_string = f"{patient_id}|{doctor_id}|{date}|{diagnosis_text}|{prescription}"
 
@@ -1619,10 +1769,17 @@ def add_diagnosis():
     subprocess.run(
         [exe_path, data_string],
         capture_output=True,
-        text=True
+        text=True,
+        cwd=BASE_DIR
     )
 
-    bill = auto_generate_bill(patient_id, doctor_id, date)
+    latest_completed = get_latest_completed_patient_appointment(patient_id, doctor_id=doctor_id)
+    bill = auto_generate_bill(
+        patient_id,
+        doctor_id,
+        date,
+        appointment_id=latest_completed["appointment_id"] if latest_completed else None
+    )
     if bill:
         return redirect(
             f"/doctor?billing_patient_id={patient_id}&doctor_id={doctor_id}&bill_id={bill['bill_id']}"

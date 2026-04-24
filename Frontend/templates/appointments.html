@@ -69,11 +69,11 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-6 col-md-2">
+                    <div class="col-12 col-sm-6 col-md-2">
                         <label class="form-label">Date</label>
                         <input type="date" name="date" class="form-control" value="{{ selected_date }}" required>
                     </div>
-                    <div class="col-6 col-md-2">
+                    <div class="col-12 col-sm-6 col-md-2">
                         <button class="hd-btn hd-btn-primary hd-btn-block"><i class="bi bi-clock"></i> Load Slots</button>
                     </div>
                 </div>
@@ -109,7 +109,7 @@
                             <input type="hidden" name="doctor_id" value="{{ selected_doctor }}">
                             <input type="hidden" name="appointment_date" value="{{ selected_date }}">
                             <input type="hidden" name="time_slot" value="{{ slot.time }}">
-                            <input type="number" name="patient_id" class="form-control mb-2" style="font-size:0.82rem;" placeholder="Patient ID" required>
+                            <input type="number" name="patient_id" class="form-control form-control-sm mb-2" placeholder="Patient ID" min="1" required>
                             <button class="hd-slot available w-100">
                                 <div class="hd-slot-time">{{ slot.time }}</div>
                                 <div class="hd-slot-label">Book</div>
@@ -152,10 +152,10 @@
                                 </td>
                                 <td><span class="hd-badge {{ a.workflow_status|lower|replace('-','') }}">{{ a.workflow_status }}</span></td>
                                 <td>
-                                    <form action="/update_appointment" method="POST" class="d-grid gap-1">
+                                    <form action="/update_appointment" method="POST" class="hd-table-action-form">
                                         <input type="hidden" name="appointment_id" value="{{ a.appointment_id }}">
                                         <input type="hidden" name="patient_id" value="{{ a.patient_id }}">
-                                        <select class="form-select form-select-sm" name="action" required>
+                                        <select class="form-select form-select-sm appointment-action-select" name="action" required>
                                             <option value="">Action</option>
                                             <option value="complete">Complete</option>
                                             <option value="cancel">Cancel</option>
@@ -163,13 +163,13 @@
                                             <option value="reschedule">Reschedule</option>
                                             <option value="reassign">Reassign</option>
                                         </select>
-                                        <input type="date" class="form-control form-control-sm" name="new_date" title="New date">
-                                        <select class="form-select form-select-sm" name="new_time" title="New slot">
+                                        <input type="date" class="form-control form-control-sm appointment-extra appointment-extra-date" name="new_date" title="New date">
+                                        <select class="form-select form-select-sm appointment-extra appointment-extra-time" name="new_time" title="New slot">
                                             <option value="">Slot</option>
                                             <option>08:30 AM</option><option>09:30 AM</option><option>10:30 AM</option><option>11:40 AM</option>
                                             <option>02:00 PM</option><option>04:00 PM</option><option>06:00 PM</option><option>08:05 PM</option>
                                         </select>
-                                        <input type="number" class="form-control form-control-sm" name="new_doctor_id" placeholder="New doctor ID">
+                                        <input type="number" class="form-control form-control-sm appointment-extra appointment-extra-doctor" name="new_doctor_id" placeholder="New doctor ID" min="1">
                                         <button class="hd-btn hd-btn-primary hd-btn-sm">Apply</button>
                                     </form>
                                 </td>
