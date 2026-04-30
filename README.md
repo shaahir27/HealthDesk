@@ -7,7 +7,7 @@ The current version includes role-based login for receptionists and doctors, aut
 ## What The App Does
 
 - Reception staff can search or register patients, book appointments, monitor the queue, manage doctors, and generate bills.
-- Doctors can log in using their own credentials, manage their availability, open assigned consultations, add diagnosis records, and complete appointments.
+- Doctors can log in using their own credentials, manage their availability, open assigned consultations, and complete visits by saving diagnosis and prescription.
 - Bills are generated only for completed appointments.
 - Doctor details are fetched automatically from the patient appointment history during billing.
 - Treatment, lab test, and doctor fee pricing are pulled from a pricing catalog instead of being typed manually each time.
@@ -20,12 +20,15 @@ The current version includes role-based login for receptionists and doctors, aut
 - Auto-generated doctor username and password during doctor registration if not entered manually
 - Reception dashboard with queue, appointments, billing, and doctor access
 - Doctor dashboard with appointment list, queue, status update, and diagnosis workflow
-- Appointment booking, completion, cancellation, reschedule, and reassignment
-- Queue serving flow
+- Appointment booking, cancellation, reschedule, no-show, and reassignment
+- Doctor-driven queue completion after diagnosis save
+- Separate receptionist queue monitoring by doctor
 - Patient registration and lookup
 - Diagnosis history and consultation recording
 - Billing workflow with:
   - completed-appointment validation
+  - auto-created bill record after doctor diagnosis save
+  - receptionist billing follow-up from completed patients
   - automatic doctor retrieval
   - department-based treatment dropdowns
   - fixed doctor fee by department
@@ -142,6 +145,7 @@ This ensures only valid doctor accounts can log in to the doctor dashboard.
 
 The billing module is designed to reduce manual entry while keeping the bill detailed.
 
+- When the doctor saves diagnosis and prescription for an active consultation, the appointment is completed, the queue entry is closed, and a bill record is created automatically.
 - Select a patient from the billing page.
 - The system loads the latest appointment context for that patient.
 - Billing is allowed only if the latest relevant appointment status is `Completed`.
@@ -152,6 +156,7 @@ The billing module is designed to reduce manual entry while keeping the bill det
 - Lab tests are selected from the pricing catalog.
 - Medicines can be added as an amount plus optional notes.
 - A live summary updates the total before the bill is generated.
+- Reception can review completed patients directly from the billing page before previewing or downloading bills.
 - Bills can be previewed again later and downloaded as PDF from the billing page.
 
 ## Pricing Configuration
@@ -203,6 +208,7 @@ Important pages in the current application:
 
 - The project currently runs with local text files and does not use a relational database.
 - The included C executables are Windows binaries. If you want to run the project on another platform, you may need to rebuild those modules from the `.c` sources.
+- `Backend/c_modules/serve.exe` still exists in the repo, but the current queue workflow is doctor-driven and reception no longer manually serves the next patient from the UI.
 - `app.py` runs Flask in debug mode by default on port `5000`.
 - The default Flask secret falls back to `healthdesk-dev-secret` if `HEALTHDESK_SECRET` is not set.
 

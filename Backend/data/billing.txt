@@ -1,2 +1,4 @@
-1000|2026-04-20|1|Shaahir|18|Male|Arun|General  Medicine|1|0|0|2|3|PAID|0||||0
-1001|2026-04-30|22|Shireen Fathima|46|Female|Dr. Nisha Verma|General|500|0|0|0|500|PENDING|8||||6
+1000|2026-04-28|6|Farah|26|Female|Dr. Arun Kumar|General|500|300|250|150|1200|PAID|1|followup_consult~300|cbc~250|Paracetamol syrup and steam inhalation|5
+1001|2026-04-29|7|Gokul|18|Male|Dr. Priya Sharma|Dermatology|700|750|200|100|1750|PENDING|6|skin_procedure~750|urine_analysis~200|Antihistamine tablets|6
+1002|2026-04-26|12|Lavanya|24|Female|Dr. Deepa Menon|Dermatology|700|750|0|0|1450|PAID|10|skin_procedure~750|||12
+1003|2026-04-30|15|Omkar|33|Male|Dr. Priya Sharma|Dermatology|700|0|0|200|900|PENDING|6|||Cetirizine and moisturizer|15

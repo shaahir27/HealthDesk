@@ -1,4 +1,6 @@
-1|1|2|09-04-2026|Viral Fever|Paracetamol twice daily
-2|2|25210|08-04-2026|arthritis|ibuprofen
-3|2|1|2026-04-30|Fever Headache Vomiting Sensation|Paracetamol, dolo 650
-4|22|8|2026-04-30|fever,cough|paracetamol,ascoril-d
+1|6|1|2026-04-28|Viral fever|Paracetamol and rest
+2|7|6|2026-04-29|Dermatitis|Antihistamine cream for five days
+3|12|10|2026-04-26|Allergic rash|Topical lotion twice daily
+4|15|6|2026-04-30|Dust allergy|Cetirizine once daily
+5|20|6|2026-04-30|Acne flare|Benzoyl gel at night
+6|2|2|2026-04-15|Cardiac follow-up|Repeat ECG in two weeks

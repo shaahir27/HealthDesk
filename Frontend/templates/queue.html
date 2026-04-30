@@ -18,9 +18,13 @@
 </style>
 
 <div class="hd-page-header">
-    <h4><i class="bi bi-people-fill me-2"></i>Queue Control Panel</h4>
-    <small>Monitor waiting patients and move the line forward in real time</small>
+    <h4><i class="bi bi-people-fill me-2"></i>Doctor Queue Monitor</h4>
+    <small>Reception can monitor separate waiting queues for each doctor while doctors clear patients automatically after diagnosis.</small>
 </div>
+
+{% if status_note %}
+<div class="hd-alert info"><i class="bi bi-info-circle me-1"></i> {{ status_note }}</div>
+{% endif %}
 
 <div class="qx-shell" data-auto-refresh="15000">
     <div class="qx-grid">
@@ -28,33 +32,8 @@
             <div class="qx-body">
                 <div class="qx-head">
                     <div>
-                        <h5 class="qx-title"><i class="bi bi-broadcast me-1"></i> Now Serving</h5>
-                        <p class="qx-sub">The next patient currently at the front of the queue.</p>
-                    </div>
-                    {% if next_patient %}
-                    <span class="hd-badge {% if next_patient.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ next_patient.priority }}</span>
-                    {% endif %}
-                </div>
-
-                {% if next_patient %}
-                <div class="hd-token mb-2">{{ next_patient.token }}</div>
-                <div class="mb-1"><strong>Patient #{{ next_patient.patient_id }}</strong></div>
-                <div class="text-muted mb-3">Doctor: {{ "Not Assigned" if next_patient.doctor_id == -1 else "Dr " ~ next_patient.doctor_id }}</div>
-                <form action="/serve" method="POST">
-                    <button class="hd-btn hd-btn-primary hd-btn-block"><i class="bi bi-arrow-right-circle"></i> Serve Patient</button>
-                </form>
-                {% else %}
-                <div class="text-muted py-3 text-center">No patients waiting.</div>
-                {% endif %}
-            </div>
-        </div>
-
-        <div class="qx-card">
-            <div class="qx-body">
-                <div class="qx-head">
-                    <div>
                         <h5 class="qx-title"><i class="bi bi-bar-chart-fill me-1"></i> Queue Overview</h5>
-                        <p class="qx-sub">A quick snapshot of waiting versus completed queue volume.</p>
+                        <p class="qx-sub">A quick snapshot of current waiting patients and consultations already cleared from the queue.</p>
                     </div>
                 </div>
                 <div class="qx-stats">
@@ -80,31 +59,48 @@
         <div class="qx-body">
             <div class="qx-head">
                 <div>
-                    <h5 class="qx-title"><i class="bi bi-list-ol me-1"></i> Live Queue</h5>
-                    <p class="qx-sub">Auto-refreshing queue table for reception monitoring.</p>
+                    <h5 class="qx-title"><i class="bi bi-diagram-3-fill me-1"></i> Separate Doctor Queues</h5>
+                    <p class="qx-sub">Each doctor's current waiting patients are grouped together. Patients disappear from these lists after the doctor saves diagnosis.</p>
                 </div>
-                <small class="text-muted">{{ queue|length }} total</small>
+                <small class="text-muted">{{ queue_groups|length }} active queues</small>
             </div>
-            <div class="table-responsive">
-                <table class="hd-table">
-                    <thead>
-                        <tr><th>Token</th><th>Patient</th><th>Doctor</th><th>Priority</th><th>Status</th></tr>
-                    </thead>
-                    <tbody>
-                        {% for q in queue %}
-                        <tr>
-                            <td><strong>{{ q.token }}</strong></td>
-                            <td>#{{ q.patient_id }}</td>
-                            <td>{{ "Not Assigned" if q.doctor_id == -1 else "Dr " ~ q.doctor_id }}</td>
-                            <td><span class="hd-badge {% if q.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ q.priority }}</span></td>
-                            <td><span class="hd-dot {% if q.status == 'Waiting' %}yellow{% else %}green{% endif %}"></span>{{ q.status }}</td>
-                        </tr>
-                        {% endfor %}
-                        {% if not queue %}
-                        <tr><td colspan="5" class="text-muted text-center py-3">Queue is empty.</td></tr>
-                        {% endif %}
-                    </tbody>
-                </table>
+            <div class="qx-grid">
+                {% for group in queue_groups %}
+                <div class="qx-card">
+                    <div class="qx-body">
+                        <div class="qx-head">
+                            <div>
+                                <h5 class="qx-title">{{ group.doctor_name }}</h5>
+                                <p class="qx-sub">{{ group.department if group.department else "Unassigned queue" }}</p>
+                            </div>
+                            <span class="hd-badge normal">{{ group.patients|length }} waiting</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="hd-table">
+                                <thead>
+                                    <tr><th>Token</th><th>Patient</th><th>Priority</th><th>Symptoms</th></tr>
+                                </thead>
+                                <tbody>
+                                    {% for patient in group.patients %}
+                                    <tr>
+                                        <td><strong>{{ patient.token }}</strong></td>
+                                        <td>
+                                            <div>#{{ patient.patient_id }}</div>
+                                            <small class="text-muted">{{ patient.name or "-" }}</small>
+                                        </td>
+                                        <td><span class="hd-badge {% if patient.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ patient.priority }}</span></td>
+                                        <td>{{ patient.symptoms or "-" }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% if not queue_groups %}
+                <div class="text-muted text-center py-3">No active waiting patients in any doctor queue.</div>
+                {% endif %}
             </div>
         </div>
     </div>

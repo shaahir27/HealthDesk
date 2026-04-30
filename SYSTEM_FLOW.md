@@ -25,13 +25,13 @@ flowchart LR
     Book -->|Today| AddQueue[Add To Queue]
     Book -->|Future Date| Future[Future Appointment Saved]
 
-    DD --> Assigned[Assigned Appointments]
-    DD --> DocQueue[Assigned Queue Patients]
-    Assigned --> Complete[Complete Consultation]
+    DD --> Assigned[Upcoming Appointments]
+    DD --> DocQueue[Live Queue Patients]
+    Assigned --> Diagnose[Open Consultation On Due Date]
     DocQueue --> Diagnose[Open Diagnosis]
-    Complete --> Diagnose
     Diagnose --> Prescription[Diagnosis + Prescription]
-    Prescription --> BillContext[Billing Context Created]
+    Prescription --> Complete[Appointment + Queue Completed]
+    Complete --> BillContext[Billing Context Created]
     BillContext --> Billing
     Billing --> FinalBill[Bill Preview / PDF]
 ```
@@ -94,7 +94,6 @@ It shows:
 - Booked appointment count
 - Cancelled appointment count
 - Available doctor count
-- Next patient in queue
 
 From here, the receptionist can go to:
 
@@ -143,7 +142,7 @@ flowchart TD
 
 ## 4. Appointment Flow
 
-The appointments page is used to view, book, cancel, and reschedule appointments.
+The appointments page is used to view, book, cancel, reschedule, reassign, and mark no-show appointments.
 
 1. Receptionist opens the appointments page.
 2. Receptionist filters by department, doctor, and date.
@@ -154,8 +153,9 @@ The appointments page is used to view, book, cancel, and reschedule appointments
 7. Receptionist can cancel an appointment.
 8. Receptionist can reschedule an appointment.
 9. Rescheduling marks the old appointment as `Rescheduled` and creates a new `Booked` appointment.
-10. Receptionist can mark appointments as completed or no-show when needed.
-11. If a doctor becomes unavailable, the system checks for alternative doctors in the same department.
+10. Receptionist can mark appointments as no-show when needed.
+11. Consultation completion is not a receptionist action; it happens when the doctor saves diagnosis and prescription.
+12. If a doctor becomes unavailable, the system checks for alternative doctors in the same department.
 
 ## 5. Queue Flow
 
@@ -177,9 +177,9 @@ flowchart LR
 2. Queue stores token, patient ID, doctor ID, priority, and status.
 3. Urgent patients are shown before normal patients.
 4. Receptionist can view waiting and completed queue counts.
-5. Receptionist can serve the next patient.
-6. When a doctor completes consultation, the patient's queue status becomes completed.
-7. Cancelled or rescheduled same-day appointments update the related queue entry so stale patients do not remain waiting.
+5. Receptionist monitors separate doctor queues on the queue page instead of manually serving the next patient.
+6. When a doctor saves diagnosis and prescription, the patient's queue status becomes completed automatically.
+7. Cancelled, rescheduled, no-show, or completed appointments update the related queue entry so stale patients do not remain waiting.
 
 ## 6. Doctor Management Flow
 
@@ -201,25 +201,23 @@ The doctor dashboard is the starting point for doctors.
 
 It shows:
 
-- Assigned appointments
-- Assigned queue patients
+- Upcoming appointments
+- Live queue patients
 - Doctor availability controls
 - Billing context after diagnosis, when available
 
-Assigned appointments flow:
+Upcoming appointments flow:
 
 1. Doctor sees appointment ID, patient ID, date, slot, and status.
-2. Doctor clicks complete and diagnose.
-3. System checks that the appointment belongs to the logged-in doctor.
-4. Appointment becomes completed.
-5. Queue entry becomes completed if the patient was waiting.
-6. Doctor is sent to the diagnosis page.
+2. Future booked visits remain informational until their consultation day arrives.
+3. Due-now consultations move into the live queue flow.
 
-Queue patients flow:
+Live queue patients flow:
 
 1. Doctor sees queue token, patient ID, patient name, and priority.
 2. Urgent patients appear first.
 3. Doctor opens diagnosis for the assigned patient.
+4. Saving diagnosis and prescription completes the appointment and clears the queue entry automatically.
 
 Availability flow:
 
@@ -253,8 +251,10 @@ sequenceDiagram
 5. Doctor enters prescription.
 6. Doctor saves the record.
 7. Diagnosis is stored.
-8. System links the consultation to billing through the completed appointment.
-9. Doctor returns to dashboard with billing context available.
+8. System marks the linked appointment as completed if it was still active.
+9. System closes the related queue entry automatically.
+10. System links the consultation to billing through the completed appointment and auto-creates the bill record.
+11. Doctor returns to dashboard with billing context available.
 
 ## 9. Billing Flow
 
@@ -279,11 +279,12 @@ flowchart TD
 4. If there is no completed appointment, billing is blocked.
 5. If a completed appointment exists, billing details are loaded.
 6. System links billing to the completed appointment, doctor, department, and patient.
-7. Receptionist can add treatments, lab tests, medicine amount, medicine notes, and payment status.
-8. System calculates doctor fee, treatment total, lab total, medicine total, and final total.
-9. Bill is saved.
-10. If a bill already exists for the completed appointment, duplicate billing is prevented.
-11. Receptionist can preview and download the bill PDF.
+7. Completed patients and existing bill records are visible directly from the billing page.
+8. Receptionist can add treatments, lab tests, medicine amount, medicine notes, and payment status.
+9. System calculates doctor fee, treatment total, lab total, medicine total, and final total.
+10. Bill is saved.
+11. If a bill already exists for the completed appointment, duplicate billing is prevented.
+12. Receptionist can preview and download the bill PDF.
 
 ## 10. Complete End-To-End Patient Flow
 
@@ -298,11 +299,11 @@ This is the normal full patient journey.
 7. If appointment is today, patient is added to queue.
 8. Doctor logs in.
 9. Doctor sees assigned appointment or assigned queue patient.
-10. Doctor completes consultation.
+10. Doctor opens diagnosis from the live queue or due appointment.
 11. Doctor adds diagnosis and prescription.
-12. System creates billing context.
+12. System completes the appointment, clears the queue entry, and creates billing context automatically.
 13. Receptionist opens billing.
-14. Receptionist generates bill.
+14. Receptionist reviews the completed patient and generates or previews the bill.
 15. Bill can be previewed or downloaded.
 
 ## 11. Unavailable Doctor Flow
@@ -325,7 +326,7 @@ flowchart TD
 2. System blocks that doctor's slots.
 3. Existing future booked appointments are checked.
 4. System searches same-department doctors.
-5. If an alternative doctor has the same slot available, appointment can be reassigned.
+5. If an alternative doctor has the same slot available, appointment is reassigned automatically.
 6. If no alternative exists, system shows that no suitable doctor is available.
 7. Receptionist can manually choose another doctor or reschedule.
 
@@ -366,7 +367,7 @@ If a patient has a future booked appointment but also has a completed appointmen
 ## 16. Data Flow Summary
 
 - Patient registration updates `Backend/data/patients.txt`.
-- Appointment booking, cancellation, reschedule, completion, and no-show update `Backend/data/appointment.txt`.
+- Appointment booking, cancellation, reschedule, completion, reassignment, and no-show update `Backend/data/appointment.txt`.
 - Same-day booking and consultation status update `Backend/data/queue.txt`.
 - Diagnosis updates `Backend/data/diagnosis.txt`.
 - Billing updates `Backend/data/billing.txt`.
@@ -389,16 +390,16 @@ Login
           -> Book
           -> Cancel
           -> Reschedule
-          -> Mark Complete / No-show
+          -> Mark No-show
+          -> Reassign
           -> Handle Unavailable Doctor
       -> Queue
-          -> View Waiting
+          -> View Waiting By Doctor
           -> Urgent Before Normal
-          -> Serve Patient
       -> Doctors
           -> Add Doctor
           -> Update Availability
-          -> Suggest / Reassign Appointments
+          -> Suggest / Auto-Reassign Appointments
       -> Billing
           -> Select Completed Patient
           -> Generate Bill
@@ -406,13 +407,13 @@ Login
 
 Login
   -> Doctor Dashboard
-      -> View Assigned Appointments
-      -> View Assigned Queue Patients
-      -> Complete Consultation
+      -> View Upcoming Appointments
+      -> View Live Queue Patients
       -> Diagnosis
           -> View History
           -> Add Diagnosis
           -> Add Prescription
+          -> Complete Appointment + Queue
           -> Trigger Billing Context
       -> Update Availability
 ```

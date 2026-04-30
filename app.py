@@ -19,6 +19,7 @@ BILLING_FILE = os.path.join(DATA_DIR, "billing.txt")
 PRICING_FILE = os.path.join(DATA_DIR, "pricing_catalog.json")
 APPOINTMENT_FILE = os.path.join(DATA_DIR, "appointment.txt")
 QUEUE_FILE = os.path.join(DATA_DIR, "queue.txt")
+BILLING_EXE = os.path.join(BACKEND_DIR, "c_modules", "billing.exe")
 
 app = Flask(__name__,
             template_folder = TMPL_DIR,
@@ -220,8 +221,49 @@ def serialize_bill_items(items):
     return "^".join(f"{item['name']}~{item['price']:.0f}" for item in items)
 
 
+def run_billing_command(*args):
+    try:
+        return subprocess.run(
+            [BILLING_EXE, *[str(arg) for arg in args]],
+            capture_output=True,
+            text=True,
+            cwd=BASE_DIR
+        )
+    except FileNotFoundError:
+        return None
+
+
+def read_billing_lines_fallback():
+    try:
+        with open(BILLING_FILE, "r", encoding="utf-8") as f:
+            return [line.rstrip("\n") for line in f if line.strip()]
+    except FileNotFoundError:
+        return []
+
+
+def next_bill_id_fallback():
+    max_id = 999
+    for line in read_billing_lines_fallback():
+        head = line.split("|", 1)[0]
+        try:
+            max_id = max(max_id, int(head))
+        except ValueError:
+            continue
+    return max_id + 1
+
+
+def save_bill_line_fallback(line):
+    append_data_line(BILLING_FILE, line)
+
+
 def generate_bill_id():
-    return max((bill["bill_id"] for bill in read_bills()), default=999) + 1
+    result = run_billing_command("next-id")
+    if result and result.returncode == 0:
+        try:
+            return int(result.stdout.strip())
+        except ValueError:
+            pass
+    return next_bill_id_fallback()
 
 
 def parse_bill_line(line):
@@ -300,22 +342,30 @@ def parse_bill_line(line):
 
 def read_bills():
     bills = []
-    try:
-        with open(BILLING_FILE, "r", encoding="utf-8") as f:
-            for line in f:
-                bill = parse_bill_line(line)
-                if bill:
-                    bills.append(bill)
-    except FileNotFoundError:
-        pass
+    result = run_billing_command("list")
+    if result and result.returncode == 0:
+        lines = [line for line in result.stdout.splitlines() if line.strip()]
+    else:
+        lines = read_billing_lines_fallback()
+
+    for line in lines:
+        bill = parse_bill_line(line)
+        if bill:
+            bills.append(bill)
     return bills
 
 
 def find_bill_by_id(bill_id):
+    result = run_billing_command("find-id", bill_id)
+    if result and result.returncode == 0 and result.stdout.strip():
+        return parse_bill_line(result.stdout.strip())
     return next((bill for bill in read_bills() if bill["bill_id"] == int(bill_id)), None)
 
 
 def find_bill_by_appointment_id(appointment_id):
+    result = run_billing_command("find-appointment", appointment_id)
+    if result and result.returncode == 0 and result.stdout.strip():
+        return parse_bill_line(result.stdout.strip())
     return next(
         (
             bill for bill in read_bills()
@@ -347,7 +397,9 @@ def save_bill_record(bill):
         clean_record_field(bill.get("medicine_notes", "")),
         str(int(bill.get("appointment_id", 0) or 0))
     ])
-    append_data_line(BILLING_FILE, line)
+    result = run_billing_command("save", line)
+    if not result or result.returncode != 0:
+        save_bill_line_fallback(line)
 
 
 def build_bill_preview_text(bill):
@@ -782,6 +834,13 @@ def require_login():
     if not is_authenticated():
         return redirect(url_for("login"))
 
+@app.before_request
+def sync_doctor_statuses_before_request():
+    public_endpoints = {"login", "static"}
+    if request.endpoint in public_endpoints or not is_authenticated():
+        return
+    sync_doctor_busy_statuses()
+
 @app.context_processor
 def inject_auth_state():
     return {
@@ -813,6 +872,17 @@ def read_queue():
 
     return queue
 
+
+def write_doctor_file(doctors):
+    doctor_file = os.path.join(BACKEND_DIR, "data", "doctors.txt")
+    with open(doctor_file, "w", encoding="utf-8") as f:
+        for doctor in doctors:
+            f.write(
+                f"{int(doctor['id'])}|{clean_record_field(doctor['name'])}|"
+                f"{clean_record_field(doctor['department'])}|{int(doctor['experience'])}|"
+                f"{clean_record_field(doctor['daily_status'])}|{clean_record_field(doctor['current_status'])}\n"
+            )
+
 def process_queue(queue):
 
     queue.sort(key=lambda x: (x["priority"] != "Urgent", x["token"]))
@@ -829,6 +899,66 @@ def process_queue(queue):
     next_patient = waiting[0] if waiting else None
 
     return queue, next_patient, len(waiting), len(completed)
+
+
+def build_reception_queue_groups(queue):
+    patients = {patient["id"]: patient for patient in read_patients()}
+    doctors = {doctor["id"]: doctor for doctor in get_doctors()}
+    groups = {}
+
+    for item in queue:
+        if item["status"] != "Waiting":
+            continue
+
+        doctor = doctors.get(item["doctor_id"])
+        group_key = item["doctor_id"]
+        if group_key not in groups:
+            groups[group_key] = {
+                "doctor_id": item["doctor_id"],
+                "doctor_name": doctor["name"] if doctor else "Unassigned",
+                "department": doctor["department"] if doctor else "",
+                "patients": []
+            }
+
+        patient = patients.get(item["patient_id"], {})
+        groups[group_key]["patients"].append({
+            "token": item["token"],
+            "patient_id": item["patient_id"],
+            "priority": item["priority"],
+            "name": patient.get("name", ""),
+            "symptoms": patient.get("symptoms", "")
+        })
+
+    grouped = list(groups.values())
+    for group in grouped:
+        group["patients"].sort(key=lambda row: (row["priority"] != "Urgent", row["token"]))
+
+    grouped.sort(key=lambda group: (group["doctor_id"] == -1, group["doctor_name"]))
+    return grouped
+
+
+def build_appointment_action_groups(appointments, doctors):
+    doctor_map = {doctor["id"]: doctor for doctor in doctors}
+    groups = {}
+
+    for appointment in appointments:
+        doctor = doctor_map.get(appointment["doctor_id"])
+        group_key = appointment["doctor_id"]
+        if group_key not in groups:
+            groups[group_key] = {
+                "doctor_id": appointment["doctor_id"],
+                "doctor_name": doctor["name"] if doctor else f"Doctor #{appointment['doctor_id']}",
+                "department": doctor["department"] if doctor else "",
+                "appointments": []
+            }
+        groups[group_key]["appointments"].append(appointment)
+
+    ordered_groups = list(groups.values())
+    for group in ordered_groups:
+        group["appointments"].sort(key=lambda item: item["appointment_id"], reverse=True)
+
+    ordered_groups.sort(key=lambda group: (group["department"], group["doctor_name"]))
+    return ordered_groups
 
 def count_patients():
     patient_file = os.path.join(BACKEND_DIR, "data", "patients.txt")
@@ -872,6 +1002,46 @@ def get_doctors():
     except:
         pass
     return doctors
+
+
+def doctor_has_live_workload(doctor_id):
+    doctor_id = safe_int(doctor_id)
+    if doctor_id <= 0:
+        return False
+
+    if any(
+        item["doctor_id"] == doctor_id and item["status"] == "Waiting"
+        for item in read_queue()
+    ):
+        return True
+
+    return any(
+        appointment["doctor_id"] == doctor_id
+        and appointment["status"] in {"Booked", "No-show"}
+        and is_consultation_day_reached(appointment)
+        for appointment in read_appointments()
+    )
+
+
+def sync_doctor_busy_statuses():
+    doctors = get_doctors()
+    changed = False
+
+    for doctor in doctors:
+        if doctor["daily_status"] != "Available":
+            continue
+        if doctor["current_status"] != "Busy":
+            continue
+        if doctor_has_live_workload(doctor["id"]):
+            continue
+
+        doctor["current_status"] = "Free"
+        changed = True
+
+    if changed:
+        write_doctor_file(doctors)
+
+    return changed
 
 def suggest_doctors_by_department(department):
     exe_path = os.path.join(BACKEND_DIR, "c_modules", "doctor.exe")
@@ -1544,8 +1714,16 @@ def queue_page():
     expire_stale_consultations()
     queue = reconcile_waiting_queue_entries()
     queue, next_patient, waiting_count, completed_count = process_queue(queue)
-
-    return render_template("queue.html",queue=queue, next_patient=next_patient, waiting_count=waiting_count, completed_count=completed_count )
+    queue_groups = build_reception_queue_groups(queue)
+    return render_template(
+        "queue.html",
+        queue=queue,
+        queue_groups=queue_groups,
+        next_patient=next_patient,
+        waiting_count=waiting_count,
+        completed_count=completed_count,
+        status_note=request.args.get("status_note", "")
+    )
 
 @app.route("/appointments")
 @require_role("Receptionist")
@@ -1578,6 +1756,8 @@ def appointments_page():
             })
 
     suggested_doctors = get_suggested_doctors(selected_department, selected_doctor, selected_date)
+    enriched_appointments = [enrich_appointment_workflow_status(a) for a in appointments]
+    appointment_groups = build_appointment_action_groups(enriched_appointments, doctors)
 
     return render_template(
         "appointments.html",
@@ -1586,7 +1766,8 @@ def appointments_page():
         selected_doctor=selected_doctor,
         selected_department=selected_department,
         selected_date=selected_date,
-        appointments=[enrich_appointment_workflow_status(a) for a in appointments],
+        appointments=enriched_appointments,
+        appointment_groups=appointment_groups,
         suggested_doctors=suggested_doctors,
         week_dates=week_dates,
         date_slot_overview=date_slot_overview,
@@ -1686,6 +1867,8 @@ def update_appointment():
             return redirect("/doctor?status_note=Doctors can only complete their own consultations")
         if appointment["status"] not in {"Booked", "No-show"}:
             return redirect("/doctor?status_note=Only active appointments can be completed")
+    elif session.get("role") == "Receptionist" and action == "complete":
+        return redirect("/appointments?status_note=Reception cannot complete consultations manually. Completion happens when the doctor saves diagnosis.")
 
     if action == "reschedule":
         new_date = request.form["new_date"]
@@ -1732,19 +1915,7 @@ def update_appointment():
 @app.route("/serve", methods=["POST"])
 @require_role("Receptionist")
 def serve():
-
-    serve_exe = os.path.join(BACKEND_DIR, "c_modules", "serve.exe")
-
-    serve_output = subprocess.run(
-        [serve_exe],
-        capture_output=True,
-        text=True,
-        cwd=BASE_DIR
-    )
-
-    serve_output = serve_output.stdout.strip()
-
-    return redirect("/queue")
+    return redirect("/queue?status_note=Queue movement is now doctor-driven. Patients leave the queue automatically after diagnosis is saved.")
 
 @app.route("/doctors")
 @require_role("Receptionist")
@@ -1988,6 +2159,26 @@ def billing_page():
         str(patient["id"]): get_patient_billing_context(patient["id"])
         for patient in patients
     }
+    billing_ready_patients = []
+    for patient in patients:
+        context = billing_lookup.get(str(patient["id"]))
+        if not context:
+            continue
+        if context.get("appointment_status") != "Completed":
+            continue
+        billing_ready_patients.append({
+            "patient_id": patient["id"],
+            "name": patient["name"],
+            "doctor_name": context.get("doctor_name", ""),
+            "department": context.get("department", ""),
+            "appointment_id": context.get("appointment_id", 0),
+            "appointment_date": context.get("appointment_date", ""),
+            "bill_id": context.get("existing_bill_id", 0)
+        })
+    billing_ready_patients.sort(
+        key=lambda item: parse_iso_date(item["appointment_date"]) or date.min,
+        reverse=True
+    )
     if preview_bill:
         bill_preview = build_bill_preview_text(preview_bill)
 
@@ -2003,6 +2194,7 @@ def billing_page():
             "date",
             billing_context["appointment_date"] if billing_context and billing_context["appointment_date"] else date.today().isoformat()
         ),
+        billing_ready_patients=billing_ready_patients,
         preview_bill=preview_bill,
         status_note=status_note,
         billing_context=billing_context

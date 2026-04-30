@@ -77,37 +77,47 @@
                 <div class="docx-card-body">
                     <div class="docx-head">
                         <div>
-                            <h5 class="docx-title"><i class="bi bi-calendar2-check-fill me-1"></i> Upcoming Appointments</h5>
-                            <p class="docx-sub">Future scheduled visits assigned to you. These are not in today's live queue yet.</p>
+                            <h5 class="docx-title"><i class="bi bi-people-fill me-1"></i> Live Queue</h5>
+                            <p class="docx-sub">Patients waiting right now with a valid consultation for today or an earlier untreated appointment.</p>
                         </div>
                     </div>
                     <div class="docx-table-wrap">
                         <table class="hd-table">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
+                                    <th>Token</th>
                                     <th>Patient</th>
-                                    <th>Date</th>
-                                    <th>Slot</th>
-                                    <th>Status</th>
+                                    <th>Priority</th>
+                                    <th>Appointment</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for a in appointments %}
+                                {% for q in live_queue_patients %}
                                 <tr>
-                                    <td>{{ a.appointment_id }}</td>
-                                    <td>#{{ a.patient_id }}</td>
-                                    <td>{{ a.date }}</td>
-                                    <td>{{ a.time_slot }}</td>
-                                    <td><span class="hd-badge {{ a.status|lower|replace('-', '') }}">{{ a.status }}</span></td>
+                                    <td><strong>{{ q.token }}</strong></td>
                                     <td>
-                                        <span class="text-muted">Moves to live queue on consultation day</span>
+                                        <div>#{{ q.patient_id }}</div>
+                                        <small class="text-muted">{{ q.name or "-" }}</small>
+                                    </td>
+                                    <td><span class="hd-badge {% if q.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ q.priority }}</span></td>
+                                    <td>
+                                        {% if q.appointment_id %}
+                                        <div>#{{ q.appointment_id }}</div>
+                                        <small class="text-muted">{{ q.appointment_date }}</small>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a class="hd-btn hd-btn-primary hd-btn-sm" href="/diagnosis?patient_id={{ q.patient_id }}&appointment_id={{ q.appointment_id }}">
+                                            Start Consultation
+                                        </a>
                                     </td>
                                 </tr>
                                 {% endfor %}
-                                {% if not appointments %}
-                                <tr><td colspan="6" class="text-muted text-center py-3">No upcoming appointments right now.</td></tr>
+                                {% if not live_queue_patients %}
+                                <tr><td colspan="5" class="text-muted text-center py-3">No patients in your live queue right now.</td></tr>
                                 {% endif %}
                             </tbody>
                         </table>
@@ -148,47 +158,37 @@
                 <div class="docx-card-body">
                     <div class="docx-head">
                         <div>
-                            <h5 class="docx-title"><i class="bi bi-people-fill me-1"></i> Live Queue</h5>
-                            <p class="docx-sub">Patients waiting right now with a valid consultation for today or an earlier untreated appointment.</p>
+                            <h5 class="docx-title"><i class="bi bi-calendar2-check-fill me-1"></i> Upcoming Appointments</h5>
+                            <p class="docx-sub">Future scheduled visits assigned to you. These are not in today's live queue yet.</p>
                         </div>
                     </div>
                     <div class="docx-table-wrap">
                         <table class="hd-table">
                             <thead>
                                 <tr>
-                                    <th>Token</th>
+                                    <th>ID</th>
                                     <th>Patient</th>
-                                    <th>Priority</th>
-                                    <th>Appointment</th>
-                                    <th>Action</th>
+                                    <th>Date</th>
+                                    <th>Slot</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for q in live_queue_patients %}
+                                {% for a in appointments %}
                                 <tr>
-                                    <td><strong>{{ q.token }}</strong></td>
+                                    <td>{{ a.appointment_id }}</td>
+                                    <td>#{{ a.patient_id }}</td>
+                                    <td>{{ a.date }}</td>
+                                    <td>{{ a.time_slot }}</td>
+                                    <td><span class="hd-badge {{ a.status|lower|replace('-', '') }}">{{ a.status }}</span></td>
                                     <td>
-                                        <div>#{{ q.patient_id }}</div>
-                                        <small class="text-muted">{{ q.name or "-" }}</small>
-                                    </td>
-                                    <td><span class="hd-badge {% if q.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ q.priority }}</span></td>
-                                    <td>
-                                        {% if q.appointment_id %}
-                                        <div>#{{ q.appointment_id }}</div>
-                                        <small class="text-muted">{{ q.appointment_date }}</small>
-                                        {% else %}
-                                        <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <a class="hd-btn hd-btn-primary hd-btn-sm" href="/diagnosis?patient_id={{ q.patient_id }}&appointment_id={{ q.appointment_id }}">
-                                            Start Consultation
-                                        </a>
+                                        <span class="text-muted">Moves to live queue on consultation day</span>
                                     </td>
                                 </tr>
                                 {% endfor %}
-                                {% if not live_queue_patients %}
-                                <tr><td colspan="5" class="text-muted text-center py-3">No patients in your live queue right now.</td></tr>
+                                {% if not appointments %}
+                                <tr><td colspan="6" class="text-muted text-center py-3">No upcoming appointments right now.</td></tr>
                                 {% endif %}
                             </tbody>
                         </table>

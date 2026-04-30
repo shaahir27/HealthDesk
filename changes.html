@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HealthDesk — Project Review Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Sora:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg: #0d0f14;
+    --surface: #141720;
+    --surface2: #1a1e2b;
+    --border: #252a3a;
+    --accent: #4f8ef7;
+    --accent2: #7c5af7;
+    --red: #f25c5c;
+    --orange: #f5a623;
+    --green: #3ecf8e;
+    --yellow: #f5c842;
+    --text: #c9d1e0;
+    --muted: #5a6380;
+    --heading: #e8ecf5;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Sora', sans-serif;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  header {
+    background: linear-gradient(135deg, #0a0c12 0%, #141b2d 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 40px 48px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  header h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 22px;
+    color: var(--heading);
+    letter-spacing: -0.5px;
+  }
+
+  header .meta {
+    display: flex;
+    gap: 24px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  header .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .badge-red   { background: rgba(242,92,92,0.15); color: var(--red); border: 1px solid rgba(242,92,92,0.3); }
+  .badge-orange{ background: rgba(245,166,35,0.15); color: var(--orange); border: 1px solid rgba(245,166,35,0.3); }
+  .badge-green { background: rgba(62,207,142,0.15); color: var(--green); border: 1px solid rgba(62,207,142,0.3); }
+  .badge-blue  { background: rgba(79,142,247,0.15); color: var(--accent); border: 1px solid rgba(79,142,247,0.3); }
+  .badge-yellow{ background: rgba(245,200,66,0.15); color: var(--yellow); border: 1px solid rgba(245,200,66,0.3); }
+  .badge-purple{ background: rgba(124,90,247,0.15); color: var(--accent2); border: 1px solid rgba(124,90,247,0.3); }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 48px 32px; }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    text-align: center;
+  }
+
+  .summary-card .number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .summary-card .label {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  .section { margin-bottom: 48px; }
+
+  .section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .issue-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  .issue-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid transparent;
+    transition: background 0.15s;
+  }
+
+  .issue-header:hover { background: var(--surface2); }
+  .issue-header.open { border-bottom-color: var(--border); }
+
+  .issue-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    min-width: 28px;
+  }
+
+  .issue-title {
+    flex: 1;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--heading);
+  }
+
+  .issue-body {
+    display: none;
+    padding: 20px 24px;
+  }
+
+  .issue-body.open { display: block; }
+
+  .field {
+    margin-bottom: 16px;
+  }
+
+  .field-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 6px;
+  }
+
+  .field-value {
+    color: var(--text);
+    font-size: 13.5px;
+    line-height: 1.65;
+  }
+
+  pre, code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: #0a0c12;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    color: #a8b8d8;
+    overflow-x: auto;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    display: block;
+    margin-top: 6px;
+  }
+
+  code.inline {
+    display: inline;
+    padding: 1px 6px;
+    background: #1a1e2b;
+    border-radius: 3px;
+    font-size: 12px;
+    border: none;
+  }
+
+  .chevron {
+    color: var(--muted);
+    font-size: 12px;
+    transition: transform 0.2s;
+  }
+
+  .chevron.open { transform: rotate(90deg); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 8px;
+  }
+
+  th {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  .verdict-banner {
+    background: linear-gradient(135deg, rgba(242,92,92,0.08), rgba(245,166,35,0.08));
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--red);
+    border-radius: 10px;
+    padding: 24px 28px;
+    margin-bottom: 32px;
+  }
+
+  .verdict-banner h2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+    color: var(--red);
+    margin-bottom: 8px;
+  }
+
+  .verdict-banner p {
+    font-size: 14px;
+    color: var(--text);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>// HealthDesk — Project Review Report</h1>
+  <div class="meta">
+    <span class="badge badge-red">CRITICAL: 3</span>
+    <span class="badge badge-orange">HIGH: 5</span>
+    <span class="badge badge-yellow">MEDIUM: 6</span>
+    <span class="badge badge-blue">LOW: 4</span>
+    <span class="badge badge-purple">VERDICT: NEEDS CHANGES</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="number" style="color:var(--red)">3</div>
+      <div class="label">Critical Issues</div>
+    </div>
+    <div class="summary-card">
+      <div class="number" style="color:var(--orange)">5</div>
+      <div class="label">High Priority</div>
+    </div>
+    <div class="summary-card">
+      <div class="number" style="color:var(--yellow)">6</div>
+      <div class="label">Medium Priority</div>
+    </div>
+    <div class="summary-card">
+      <div class="number" style="color:var(--green)">4</div>
+      <div class="label">Low Priority</div>
+    </div>
+  </div>
+
+  <div class="verdict-banner">
+    <h2>⚠ VERDICT: NEEDS CHANGES</h2>
+    <p>Core workflow is architecturally sound and most features work. However, 3 Critical issues (a Python crash bug, a security hole, and a data corruption risk) must be fixed before any demo or production use. 5 High-priority issues affect correctness for real-world edge cases. Review all issues below, starting from the top.</p>
+  </div>
+
+  <!-- ─── CRITICAL ─── -->
+  <div class="section">
+    <div class="section-title">🔴 Critical Issues — Must Fix Before Demo</div>
+
+    <!-- C1 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">C-01</span>
+        <span class="issue-title">Python crash: <code class="inline">date</code> variable shadows <code class="inline">datetime.date</code> module inside <code class="inline">add_diagnosis</code></span>
+        <span class="badge badge-red">CRITICAL</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value">In the <code class="inline">add_diagnosis</code> route (app.py ~line 2045), the local variable <code class="inline">date = clean_record_field(request.form["date"])</code> shadows the <code class="inline">date</code> class imported from Python's <code class="inline">datetime</code> module. Any code within that scope that later calls <code class="inline">date.today()</code> will crash with <code class="inline">AttributeError: 'str' object has no attribute 'today'</code>.</div>
+        </div>
+        <div class="field"><div class="field-label">Why It's a Problem</div>
+          <div class="field-value">The function calls <code class="inline">auto_generate_bill(..., date, ...)</code> and inside <code class="inline">build_doctor_password</code> further upstream uses <code class="inline">date.today().year</code>. If any downstream function in the call chain uses <code class="inline">date.today()</code>, the app crashes silently for every doctor who saves a diagnosis — i.e., the core clinical workflow breaks.</div>
+        </div>
+        <div class="field"><div class="field-label">Failing Case</div>
+          <div class="field-value">Doctor opens a patient's consultation, fills diagnosis + prescription, clicks Save → 500 Internal Server Error.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+<pre>
+# Change the local variable name from 'date' to 'consult_date'
+consult_date = clean_record_field(request.form["date"])
+# ...
+auto_generate_bill(patient_id, doctor_id, consult_date, ...)
+# Also update all references in the same function to consult_date
+</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- C2 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">C-02</span>
+        <span class="issue-title">Credentials exposed in OS process list — <code class="inline">authenticate_user</code> passes password as CLI argument</span>
+        <span class="badge badge-red">CRITICAL</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value"><code class="inline">subprocess.run([exe_path, username, password], ...)</code> passes the plaintext password as a command-line argument. On Linux/Windows, any user on the same machine can read running process arguments (<code class="inline">ps aux</code> / Task Manager) and see the password.</div>
+        </div>
+        <div class="field"><div class="field-label">Why It's a Problem</div>
+          <div class="field-value">All role credentials — Receptionist and all Doctor accounts — are permanently compromised to anyone with OS-level access. This is a known security anti-pattern that fails any security review.</div>
+        </div>
+        <div class="field"><div class="field-label">Failing Case</div>
+          <div class="field-value">Any OS user runs <code class="inline">ps aux | grep auth.exe</code> during login and sees: <code class="inline">auth.exe reception admin123</code></div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+<pre>
+# Option A (Recommended): Do auth in Python directly, bypass C exe
+def authenticate_user(username, password):
+    for account in read_user_accounts():
+        if account["username"] == username and account["password"] == password:
+            return {"username": username, "role": account["role"], "doctor_id": str(account["doctor_id"])}
+    return None
+
+# Option B: Pass credentials via stdin to auth.exe
+result = subprocess.run([exe_path], input=f"{username}\n{password}\n",
+                        capture_output=True, text=True, cwd=BASE_DIR)
+</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- C3 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">C-03</span>
+        <span class="issue-title">Race condition: concurrent appointment booking can cause double-booking the same slot</span>
+        <span class="badge badge-red">CRITICAL</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value"><code class="inline">appointment.c:bookSlot()</code> reads all appointments, checks slot availability, then appends a new booking — but uses two separate file operations with no locking. Two concurrent booking requests for the same slot can both pass the availability check before either writes, resulting in two appointments for the same doctor+date+time slot.</div>
+        </div>
+        <div class="field"><div class="field-label">Why It's a Problem</div>
+          <div class="field-value">In a real clinic with a receptionist + the Python Flask dev server handling multiple requests, this is a real risk. Two patients get booked for the same slot; the doctor sees a double appointment; billing is confused.</div>
+        </div>
+        <div class="field"><div class="field-label">Failing Case</div>
+          <div class="field-value">Two receptionists both open the appointment page for Dr. Arun Kumar at 08:30 AM, both see "Available", both click Book within milliseconds. Both bookings go through.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+<pre>
+# In appointment.c bookSlot(), use file locking:
+#include &lt;fcntl.h&gt;
+// At start of bookSlot:
+int lockfd = open(APPOINTMENT_FILE, O_RDWR);
+flock(lockfd, LOCK_EX);  // exclusive lock
+// ... do read-check-write ...
+flock(lockfd, LOCK_UN);
+close(lockfd);
+
+# OR in Python, use a threading.Lock() around run_appointment_command("book",...)
+import threading
+_appt_lock = threading.Lock()
+def run_appointment_command(*args):
+    with _appt_lock:
+        ...
+</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── HIGH ─── -->
+  <div class="section">
+    <div class="section-title">🟠 High Priority Issues</div>
+
+    <!-- H1 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">H-01</span>
+        <span class="issue-title">Past-date appointment booking is allowed with no validation</span>
+        <span class="badge badge-orange">HIGH</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value">The <code class="inline">book_appointment</code> route in Python and <code class="inline">bookSlot()</code> in <code class="inline">appointment.c</code> only check that the slot is "Available". Neither checks whether the appointment date is in the past. The C <code class="inline">validDate()</code> only checks format, not that the date is ≥ today.</div>
+        </div>
+        <div class="field"><div class="field-label">Why It's a Problem</div>
+          <div class="field-value">A receptionist (or tampered POST request) can create an appointment for yesterday. That appointment will immediately be marked "No-show" by <code class="inline">expire_stale_consultations()</code> on the next page load, creating confusing ghost records.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+<pre>
+# In book_appointment route, add before calling run_appointment_command:
+parsed_appt_date = parse_iso_date(appointment_date)
+if not parsed_appt_date or parsed_appt_date < date.today():
+    return redirect(f"/appointments?status_note=Cannot book for a past date")
+</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- H2 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">H-02</span>
+        <span class="issue-title">Billing <code class="inline">total</code> field is stored from user input, not re-calculated — tamper risk</span>
+        <span class="badge badge-orange">HIGH</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value"><code class="inline">create_bill_record()</code> calculates a correct total server-side (doctor_fee + treatment_total + lab_total + medicine_total), and this is fine. However, old 13-field bill records parsed by <code class="inline">parse_bill_line()</code> read the stored total directly without re-verification. If someone manually edits <code class="inline">billing.txt</code>, a mismatched total is displayed and sent on the PDF.</div>
+        </div>
+        <div class="field"><div class="field-label">Why It's a Problem</div>
+          <div class="field-value">Bill PDFs may show a total that doesn't match line items. For a clinic, this is a legal/audit concern.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+<pre>
+# In parse_bill_line(), after parsing, recompute:
+bill["total"] = (bill["doctor_fee"] + bill["treatment_total"]
+                 + bill["lab_total"] + bill["medicine_total"])
+# This makes the system self-healing against manual file edits.
+</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- H3 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">H-03</span>
+        <span class="issue-title"><code class="inline">read_patients()</code> silently drops patients whose records don't have exactly 10 fields</span>
+        <span class="badge badge-orange">HIGH</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value"><code class="inline">if len(data) != 10: continue</code> — if a patient record ever gets written with a mismatched number of pipe-separated fields (e.g., because a name or address contained a <code class="inline">|</code> that wasn't fully sanitized, or a trailing whitespace creates an empty 11th field), the patient becomes invisible to all Python-side lookups. They can still receive appointments from the C side.</div>
+        </div>
+        <div class="field"><div class="field-label">Failing Case</div>
+          <div class="field-value">Patient name "Dr. S|Kumar" (pipe slips through) → record has 11 fields → Python can't find patient → billing lookup fails → "Patient not found" even though they exist in the file.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+<pre>
+# Use >= 10 instead of != 10 and truncate/pad:
+if len(data) < 10:
+    continue
+# This tolerates extra fields while rejecting genuinely corrupt lines
+</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- H4 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">H-04</span>
+        <span class="issue-title">Doctor status update uses a temp file (<code class="inline">temp.txt</code>) with a hardcoded path — multi-instance unsafe</span>
+        <span class="badge badge-orange">HIGH</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value">In <code class="inline">doctor.c</code>, <code class="inline">updateDoctorStatuses()</code> writes to <code class="inline">Backend/data/temp.txt</code> then renames it. If two status updates happen simultaneously (e.g., receptionist and doctor both updating at once), both processes write to the same <code class="inline">temp.txt</code>, and whichever <code class="inline">rename()</code> runs last will overwrite the other's full doctors file — potentially losing a doctor's update or corrupting the file.</div>
+        </div>
+        <div class="field"><div class="field-label">Failing Case</div>
+          <div class="field-value">Receptionist sets Dr. A → Unavailable at the same moment Dr. B updates his own status → Dr. A's change is lost; doctors.txt is now the state from whichever process finished last.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+<pre>
+// Use a unique temp filename per process:
+char temp_path[256];
+snprintf(temp_path, sizeof(temp_path),
+         "Backend/data/temp_%d.txt", getpid());
+// Then rename(temp_path, DOCTOR_FILE)
+// Even better: use file locking before the read-modify-write cycle
+</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- H5 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">H-05</span>
+        <span class="issue-title">Patient registration form has no server-side validation for required fields (name, gender, department)</span>
+        <span class="badge badge-orange">HIGH</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value">The <code class="inline">register</code> action in the reception route validates phone and age, but does not check for empty <code class="inline">name</code>, <code class="inline">gender</code>, <code class="inline">department</code>, or <code class="inline">symptoms</code> fields. If those are blank (e.g., HTML form bypass via curl), a patient is registered with empty critical fields. The C module's <code class="inline">addPatient()</code> catches empty name/phone/department, but its error output (<code class="inline">Error|InvalidPatientData</code>) causes the Python side to silently fail the else branch and show a generic error — no user-friendly message.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+<pre>
+# In the 'register' action block, add:
+if not name:
+    show_registration = True
+    message = "Patient name is required."
+elif not gender:
+    show_registration = True
+    message = "Gender is required."
+elif not department:
+    show_registration = True
+    message = "Department is required."
+</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── MEDIUM ─── -->
+  <div class="section">
+    <div class="section-title">🟡 Medium Priority Issues</div>
+
+    <!-- M1 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">M-01</span>
+        <span class="issue-title">Billing page is O(n²) — calls <code class="inline">get_patient_billing_context()</code> for every patient on every load</span>
+        <span class="badge badge-yellow">MEDIUM</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value"><code class="inline">billing_lookup = {str(patient["id"]): get_patient_billing_context(patient["id"]) for patient in patients}</code> runs for every patient on every billing page load. Each <code class="inline">get_patient_billing_context()</code> call internally calls <code class="inline">read_appointments()</code> and <code class="inline">read_bills()</code> which re-read the files from disk. With 20 patients = 40 file reads per page load. At 200 patients = 400 file reads.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+<pre>
+# Pre-load appointments and bills once, then pass them in:
+all_appointments = read_appointments()
+all_bills = read_bills()
+billing_lookup = {
+    str(p["id"]): get_patient_billing_context_from_cache(p["id"], all_appointments, all_bills)
+    for p in patients
+}
+</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- M2 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">M-02</span>
+        <span class="issue-title"><code class="inline">billing.c</code> is a dead module — never called from Python; causes confusion</span>
+        <span class="badge badge-yellow">MEDIUM</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value">The entire <code class="inline">billing.c</code> / <code class="inline">billing.exe</code> module is never invoked by <code class="inline">app.py</code>. All billing logic (creation, reading, PDF) is handled purely in Python. The C module writes bills in the old 13-field format, while Python now writes a 19-field format. If <code class="inline">billing.exe</code> is accidentally called or re-introduced, it will write incompatible data.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+          <div class="field-value">Either remove <code class="inline">billing.c</code> / <code class="inline">billing.exe</code> from the project or add a clear comment in <code class="inline">common.h</code> marking it as deprecated. Do not call it from anywhere.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- M3 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">M-03</span>
+        <span class="issue-title"><code class="inline">serve.c</code> / <code class="inline">serve.exe</code> is a dead module — the <code class="inline">/serve</code> route just redirects</span>
+        <span class="badge badge-yellow">MEDIUM</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value">The <code class="inline">/serve</code> POST route does nothing but redirect with a message: <em>"Queue movement is now doctor-driven."</em> The <code class="inline">serve.exe</code> binary exists and works, but is never called. The serve button in the queue page is completely non-functional from the user's perspective — no feedback on which patient was served.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+          <div class="field-value">Either remove the Serve button from the queue UI, or implement the logic. If queue is doctor-driven (correct design), the button should not appear at all so receptionists don't keep clicking it expecting something to happen.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- M4 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">M-04</span>
+        <span class="issue-title">Diagnosis parsing skips <code class="inline">data[2]</code> (patient_id field) — silently misaligns if format ever changes</span>
+        <span class="badge badge-yellow">MEDIUM</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value">In <code class="inline">get_diagnosis_context()</code>, the <code class="inline">DIAGNOSIS</code> output from <code class="inline">diagnosis.c</code> is: <code class="inline">DIAGNOSIS|record_id|patient_id|doctor_id|date|diagnosis|prescription</code>. The Python parser uses <code class="inline">data[3]</code> for doctor_id, <code class="inline">data[4]</code> for date — this is currently correct by skipping <code class="inline">data[2]</code> (patient_id). However, <code class="inline">data[2]</code> is never captured into the returned dict. If someone adds a field to the C output before patient_id, all fields silently misalign.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+<pre>
+elif data[0] == "DIAGNOSIS":
+    diagnosis.append({
+        "record_id": data[1],
+        "patient_id": data[2],   # ← explicitly capture
+        "doctor_id": data[3],
+        "date": data[4],
+        "diagnosis": data[5],
+        "prescription": data[6]
+    })
+</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- M5 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">M-05</span>
+        <span class="issue-title">No validation that <code class="inline">payment_status</code> is one of the allowed values when generating a bill</span>
+        <span class="badge badge-yellow">MEDIUM</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value"><code class="inline">payment_status = request.form["payment_status"].strip()</code> is written directly to the billing file without validating that it is one of <code class="inline">["PENDING", "PAID", "WAIVED"]</code>. A tampered POST request or a rogue client can inject arbitrary strings (e.g., <code class="inline">PAID|fake|1000</code>) which, due to the pipe delimiter, could corrupt the billing record.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+<pre>
+ALLOWED_PAYMENT_STATUSES = {"PENDING", "PAID", "WAIVED"}
+if payment_status not in ALLOWED_PAYMENT_STATUSES:
+    payment_status = "PENDING"
+</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- M6 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">M-06</span>
+        <span class="issue-title">Doctor dashboard shows empty queue if appointment date is today but doctor is marked <code class="inline">Busy</code>, not <code class="inline">Free</code></span>
+        <span class="badge badge-yellow">MEDIUM</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value"><code class="inline">suggest_doctors_by_department()</code> in <code class="inline">doctor.c</code> filters out doctors where <code class="inline">current_status == "Emergency"</code> but includes both Free and Busy. However, the queue module's <code class="inline">findAvailableDoctor()</code> requires <code class="inline">current_status == "Free"</code>. This means walk-in queue assignments may silently assign to -1 (no doctor) when all doctors in a department are Busy but Available — causing token 7 in the current data (patient 13, doctor 2) to be valid, but a new walk-in would get doctor_id = -1.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+          <div class="field-value">Align the "suggest" logic in <code class="inline">doctor.c</code> and the queue assignment logic to use the same availability criteria. Document which status combinations allow queue assignment vs. appointment booking separately.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── LOW ─── -->
+  <div class="section">
+    <div class="section-title">🔵 Low Priority Issues</div>
+
+    <!-- L1 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">L-01</span>
+        <span class="issue-title">Secret key falls back to a hardcoded default in production</span>
+        <span class="badge badge-blue">LOW</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value"><code class="inline">app.secret_key = os.environ.get("HEALTHDESK_SECRET", "healthdesk-dev-secret")</code> — if the environment variable is not set (which it won't be unless explicitly configured), every deployment uses the same hardcoded secret. Session cookies can be forged by anyone who knows this default.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+<pre>
+secret = os.environ.get("HEALTHDESK_SECRET")
+if not secret:
+    raise RuntimeError("HEALTHDESK_SECRET env variable is not set")
+app.secret_key = secret
+# Or during development, log a warning and auto-generate:
+import secrets
+app.secret_key = secret or secrets.token_hex(32)
+</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- L2 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">L-02</span>
+        <span class="issue-title">Passwords stored in plaintext in <code class="inline">users.txt</code></span>
+        <span class="badge badge-blue">LOW</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value"><code class="inline">users.txt</code> contains <code class="inline">reception|admin123</code> in plaintext. Anyone with file access to the server gets all credentials immediately.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+          <div class="field-value">Hash passwords with <code class="inline">werkzeug.security.generate_password_hash</code> when creating accounts and verify with <code class="inline">check_password_hash</code> during login. This alone would significantly raise the security baseline. (Requires moving auth fully to Python — which you should do anyway per C-02.)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- L3 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">L-03</span>
+        <span class="issue-title"><code class="inline">MAX_APPOINTMENTS = 2000</code> — static array in C will crash silently beyond limit</span>
+        <span class="badge badge-blue">LOW</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value"><code class="inline">appointment.c</code> declares <code class="inline">struct Appointment list[MAX_APPOINTMENTS]</code> on the stack and silently stops reading at 2000 appointments. Any booking or reschedule beyond that limit silently fails — no error, no log. For a clinic running 20+ appointments/day, this is ~3 months of data.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+          <div class="field-value">Either increase the limit to 50000, allocate dynamically with <code class="inline">malloc()</code>, or — better — move to a circular/archiving model where completed appointments older than 90 days are moved to a separate archive file.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- L4 -->
+    <div class="issue-card">
+      <div class="issue-header" onclick="toggle(this)">
+        <span class="issue-num">L-04</span>
+        <span class="issue-title">No CSRF protection on state-changing POST routes</span>
+        <span class="badge badge-blue">LOW</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="issue-body">
+        <div class="field"><div class="field-label">Problem</div>
+          <div class="field-value">All <code class="inline">POST</code> routes (book appointment, cancel, generate bill, etc.) have no CSRF tokens. While <code class="inline">SESSION_COOKIE_SAMESITE="Lax"</code> provides some protection in modern browsers, it is not sufficient for a medical application where actions have real consequences.</div>
+        </div>
+        <div class="field"><div class="field-label">Fix</div>
+<pre>
+pip install Flask-WTF
+# In app.py:
+from flask_wtf.csrf import CSRFProtect
+csrf = CSRFProtect(app)
+# In every form template: {{ csrf_token() }} hidden input
+</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── TEST CASES ─── -->
+  <div class="section">
+    <div class="section-title">✅ Test Cases</div>
+    <table>
+      <tr>
+        <th>#</th>
+        <th>Module</th>
+        <th>Test Case</th>
+        <th>Expected Output</th>
+        <th>Status</th>
+      </tr>
+      <tr>
+        <td>T-01</td>
+        <td>Auth</td>
+        <td>Login with correct receptionist credentials (reception / admin123)</td>
+        <td>Redirect to /receptionist_dashboard, session role = Receptionist</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-02</td>
+        <td>Auth</td>
+        <td>Login with wrong password</td>
+        <td>Stay on login page, error: "Invalid username or password."</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-03</td>
+        <td>Auth</td>
+        <td>Doctor login → check doctor_id is correctly linked</td>
+        <td>Session doctor_id = 1, redirect to /doctor</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-04</td>
+        <td>Patient Reg.</td>
+        <td>Register patient with phone 9000000001 (already exists)</td>
+        <td>"Patient already exists. Continue with appointment booking." — existing patient loaded</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-05</td>
+        <td>Patient Reg.</td>
+        <td>Register patient with phone "12345" (5 digits)</td>
+        <td>Error: "Phone must be 10 digits."</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-06</td>
+        <td>Patient Reg.</td>
+        <td>Register patient with age 0 or 150</td>
+        <td>Error: "Age must be between 1 and 120."</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-07</td>
+        <td>Appointment</td>
+        <td>Book slot for Dr. Arun Kumar, 2026-04-30, 08:30 AM (already Booked in data)</td>
+        <td>Slot shows Booked/unavailable; booking fails</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-08</td>
+        <td>Appointment</td>
+        <td>Book appointment for yesterday's date</td>
+        <td><span class="badge badge-red">FAIL</span> — no past-date guard, booking succeeds (Issue H-01)</td>
+        <td><span class="badge badge-red">FAIL</span></td>
+      </tr>
+      <tr>
+        <td>T-09</td>
+        <td>Appointment</td>
+        <td>Book slot for Dr. Kavya Nair (Unavailable)</td>
+        <td>All slots show "Blocked"; booking rejected by C module</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-10</td>
+        <td>Queue</td>
+        <td>Add patient 1 (Urgent) to queue; check ordering vs. Normal priority patient</td>
+        <td>Urgent patient appears first in queue list</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-11</td>
+        <td>Diagnosis</td>
+        <td>Doctor saves diagnosis for patient 1 with appointment 1</td>
+        <td><span class="badge badge-red">FAIL</span> — Python crash from date variable shadowing (Issue C-01)</td>
+        <td><span class="badge badge-red">FAIL</span></td>
+      </tr>
+      <tr>
+        <td>T-12</td>
+        <td>Diagnosis</td>
+        <td>Doctor saves diagnosis with empty prescription field</td>
+        <td>Redirect back with error: "Prescription is required"</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-13</td>
+        <td>Billing</td>
+        <td>Generate bill for patient 6 (appointment 5 = Completed)</td>
+        <td>Bill created with correct doctor fee (500 for General) + selected items</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-14</td>
+        <td>Billing</td>
+        <td>Generate bill for patient 1 (appointment 1 = Booked, not Completed)</td>
+        <td>Warning: "Billing is available only after completion." No bill created.</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-15</td>
+        <td>Billing</td>
+        <td>Download PDF for bill 1000</td>
+        <td>PDF downloaded with correct patient/doctor info and total Rs 1200</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-16</td>
+        <td>Doctor Mgmt</td>
+        <td>Add doctor with duplicate username (e.g., "dr.arun.kumar")</td>
+        <td>Error: "Username already exists."</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-17</td>
+        <td>Doctor Mgmt</td>
+        <td>Set Dr. Rajesh Iyer (Off) → trigger auto-reassign → no future appointments found</td>
+        <td>"No alternative doctor available for reassignment"</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-18</td>
+        <td>Stale Expire</td>
+        <td>On page load, appointment 11 (patient 11, 2026-04-27, No-show) is past</td>
+        <td>Status stays No-show (correct); queue entry 10 updated to No-show</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-19</td>
+        <td>Security</td>
+        <td>Try accessing /billing without login</td>
+        <td>Redirect to /login</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+      <tr>
+        <td>T-20</td>
+        <td>Security</td>
+        <td>Doctor tries to access /billing (Receptionist-only route)</td>
+        <td>Redirect to /</td>
+        <td><span class="badge badge-green">PASS</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ─── WHAT WORKS WELL ─── -->
+  <div class="section">
+    <div class="section-title">✔ What's Working Well</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px 28px;font-size:13.5px;line-height:2;">
+      <strong style="color:var(--green)">Role-based access control</strong> is cleanly implemented with the <code class="inline">require_role</code> decorator and the <code class="inline">before_request</code> auth guard. ·
+      <strong style="color:var(--green)">Pipe-injection prevention</strong> via <code class="inline">clean_record_field()</code> is consistently applied across all user inputs. ·
+      <strong style="color:var(--green)">Multi-format bill parsing</strong> (13/18/19 fields) ensures backward compatibility with old billing records. ·
+      <strong style="color:var(--green)">Auto-expiry of stale appointments</strong> → No-show on page load is a clean design. ·
+      <strong style="color:var(--green)">Auto-reassignment of appointments</strong> when a doctor goes Unavailable/Emergency is a solid workflow feature. ·
+      <strong style="color:var(--green)">Appointment slot state machine</strong> in C (Available / Booked / Completed / No-show / Blocked) is correctly implemented and correctly reflects real-world states. ·
+      <strong style="color:var(--green)">Pricing catalog via JSON</strong> is a maintainable, no-compile-needed approach for business rules. ·
+      <strong style="color:var(--green)">PDF bill generation</strong> with ReportLab is functional and clean.
+    </div>
+  </div>
+
+  <!-- ─── PRIORITY TABLE ─── -->
+  <div class="section">
+    <div class="section-title">📋 Fix Priority Summary</div>
+    <table>
+      <tr><th>Issue</th><th>Impact</th><th>Priority</th><th>Effort</th></tr>
+      <tr><td>C-01: date variable shadow crash</td><td>App crashes on core workflow</td><td><span class="badge badge-red">CRITICAL</span></td><td>1 line rename</td></tr>
+      <tr><td>C-02: Password in process list</td><td>All credentials exposed</td><td><span class="badge badge-red">CRITICAL</span></td><td>Move auth to Python (~20 lines)</td></tr>
+      <tr><td>C-03: Double-booking race condition</td><td>Data corruption</td><td><span class="badge badge-red">CRITICAL</span></td><td>Add threading.Lock in Python</td></tr>
+      <tr><td>H-01: Past-date booking allowed</td><td>Ghost appointments created</td><td><span class="badge badge-orange">HIGH</span></td><td>3-line guard in route</td></tr>
+      <tr><td>H-02: Bill total not re-verified</td><td>Incorrect invoices / audit risk</td><td><span class="badge badge-orange">HIGH</span></td><td>2 lines in parse_bill_line()</td></tr>
+      <tr><td>H-03: Patients with != 10 fields dropped</td><td>Patient invisible, billing fails</td><td><span class="badge badge-orange">HIGH</span></td><td>Change != to &lt;</td></tr>
+      <tr><td>H-04: Temp file collision in doctor.c</td><td>Corrupt doctors.txt</td><td><span class="badge badge-orange">HIGH</span></td><td>Add getpid() to temp name</td></tr>
+      <tr><td>H-05: No server-side field validation in register</td><td>Blank patient records</td><td><span class="badge badge-orange">HIGH</span></td><td>~10 lines validation</td></tr>
+      <tr><td>M-01 to M-06: Medium issues</td><td>Performance / data hygiene</td><td><span class="badge badge-yellow">MEDIUM</span></td><td>Various</td></tr>
+      <tr><td>L-01 to L-04: Low issues</td><td>Security hardening</td><td><span class="badge badge-blue">LOW</span></td><td>Various</td></tr>
+    </table>
+  </div>
+
+</div>
+
+<script>
+function toggle(header) {
+  const body = header.nextElementSibling;
+  const chevron = header.querySelector('.chevron');
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  chevron.classList.toggle('open', !isOpen);
+  header.classList.toggle('open', !isOpen);
+}
+</script>
+</body>
+</html>

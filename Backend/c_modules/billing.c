@@ -1,364 +1,152 @@
 #include "common.h"
 
-#define MAX_BILLS 2000
-#define MAX_BILL_ITEMS 10
+#define BILLING_FIELD_COUNT 19
 
-int generateBillId() {
+void safeCopy(char *dest, const char *src, size_t dest_size) {
+    if (dest_size == 0) return;
+    strncpy(dest, src ? src : "", dest_size - 1);
+    dest[dest_size - 1] = '\0';
+}
+
+int nextBillId() {
     FILE *fp = fopen(BILLING_FILE, "r");
-    int max_id = 999;
     char line[MAX_LINE];
+    int max_id = 999;
 
-    if (fp != NULL) {
-        while (fgets(line, sizeof(line), fp)) {
-            char buffer[MAX_LINE];
-            char *token;
-
-            strcpy(buffer, line);
-            token = strtok(buffer, "|");
-            if (token != NULL && atoi(token) > max_id) {
-                max_id = atoi(token);
-            }
-        }
-        fclose(fp);
+    if (fp == NULL) {
+        return max_id + 1;
     }
 
+    while (fgets(line, sizeof(line), fp)) {
+        char buffer[MAX_LINE];
+        char *token;
+        int bill_id;
+
+        safeCopy(buffer, line, sizeof(buffer));
+        token = strtok(buffer, "|");
+        if (token == NULL) continue;
+
+        bill_id = atoi(token);
+        if (bill_id > max_id) {
+            max_id = bill_id;
+        }
+    }
+
+    fclose(fp);
     return max_id + 1;
 }
 
-void formatDateForPrint(const char *iso_date, char *out) {
-    int y, m, d;
-    if (sscanf(iso_date, "%d-%d-%d", &y, &m, &d) == 3) {
-        sprintf(out, "%02d-%02d-%04d", d, m, y);
-    } else {
-        strcpy(out, iso_date);
-    }
-}
+int extractFieldPreserveEmpty(const char *line, int target_index, char *out, size_t out_size) {
+    int field_index = 0;
+    size_t out_pos = 0;
 
-int addItem(struct BillingItem *items, int *count, const char *description, float amount) {
-    if (*count >= MAX_BILL_ITEMS) return 0;
+    if (out_size == 0) return 0;
+    out[0] = '\0';
 
-    strcpy(items[*count].description, description);
-    items[*count].amount = amount;
-    (*count)++;
-    return 1;
-}
+    while (1) {
+        char ch = *line;
 
-float totalItems(struct BillingItem *items, int count) {
-    float total = 0;
-    int i;
-    for (i = 0; i < count; i++) total += items[i].amount;
-    return total;
-}
-
-int parsePatientLine(char *line, struct Patient *p) {
-    char buffer[MAX_LINE];
-    char *token;
-
-    strcpy(buffer, line);
-
-    token = strtok(buffer, "|");
-    if (!token) return 0;
-    p->id = atoi(token);
-
-    token = strtok(NULL, "|");
-    if (!token) return 0;
-    strcpy(p->name, token);
-
-    token = strtok(NULL, "|");
-    if (!token) return 0;
-    p->age = atoi(token);
-
-    token = strtok(NULL, "|");
-    if (!token) return 0;
-    strcpy(p->gender, token);
-
-    token = strtok(NULL, "|");
-    if (!token) return 0;
-    strcpy(p->phone, token);
-
-    token = strtok(NULL, "|");
-    if (!token) return 0;
-    strcpy(p->address, token);
-
-    token = strtok(NULL, "|");
-    if (!token) return 0;
-    strcpy(p->symptoms, token);
-
-    token = strtok(NULL, "|");
-    if (!token) return 0;
-    strcpy(p->visit_type, token);
-
-    token = strtok(NULL, "|");
-    if (!token) return 0;
-    strcpy(p->priority, token);
-
-    token = strtok(NULL, "\n");
-    if (!token) return 0;
-    strcpy(p->department, token);
-
-    return 1;
-}
-
-int parseDoctorLine(char *line, struct Doctor *d) {
-    char buffer[MAX_LINE];
-    char *token;
-
-    strcpy(buffer, line);
-
-    token = strtok(buffer, "|");
-    if (!token) return 0;
-    d->id = atoi(token);
-
-    token = strtok(NULL, "|");
-    if (!token) return 0;
-    strcpy(d->name, token);
-
-    token = strtok(NULL, "|");
-    if (!token) return 0;
-    strcpy(d->specialization, token);
-
-    token = strtok(NULL, "|");
-    if (!token) return 0;
-    d->experience = atoi(token);
-
-    token = strtok(NULL, "|");
-    if (!token) return 0;
-    strcpy(d->daily_status, token);
-
-    token = strtok(NULL, "\n");
-    if (!token) return 0;
-    strcpy(d->current_status, token);
-
-    return 1;
-}
-
-int getPatientById(int patient_id, struct Patient *p) {
-    FILE *fp = fopen(PATIENT_FILE, "r");
-    char line[MAX_LINE];
-
-    if (fp == NULL) return 0;
-
-    while (fgets(line, sizeof(line), fp)) {
-        if (!parsePatientLine(line, p)) continue;
-
-        if (p->id == patient_id) {
-            fclose(fp);
-            return 1;
+        if (field_index == target_index && ch != '\0' && ch != '\n' && ch != '|') {
+            if (out_pos + 1 < out_size) {
+                out[out_pos++] = ch;
+            }
         }
+
+        if (ch == '|' || ch == '\n' || ch == '\0') {
+            if (field_index == target_index) {
+                out[out_pos] = '\0';
+                return 1;
+            }
+
+            if (ch == '|') {
+                field_index++;
+                line++;
+                continue;
+            }
+
+            break;
+        }
+
+        line++;
     }
 
-    fclose(fp);
     return 0;
 }
 
-int getDoctorById(int doctor_id, struct Doctor *d) {
-    FILE *fp = fopen(DOCTOR_FILE, "r");
-    char line[MAX_LINE];
+int parseAppointmentId(const char *line) {
+    char field_value[MAX_LINE];
 
-    if (fp == NULL) return 0;
-
-    while (fgets(line, sizeof(line), fp)) {
-        if (!parseDoctorLine(line, d)) continue;
-
-        if (d->id == doctor_id) {
-            fclose(fp);
-            return 1;
-        }
+    if (extractFieldPreserveEmpty(line, 18, field_value, sizeof(field_value))) {
+        return atoi(field_value);
     }
 
-    fclose(fp);
     return 0;
-}
-
-void printBill(
-    int bill_id, const char *date, int patient_id, const char *name, int age, const char *gender,
-    const char *doctor, const char *department, struct BillingItem *items, int item_count,
-    float total, const char *payment_status
-) {
-    int i;
-    char printable_date[20];
-    formatDateForPrint(date, printable_date);
-
-    printf("=========================================================\n");
-    printf("                    HEALTHDESK CLINIC\n");
-    printf("=========================================================\n");
-    printf("Address: Chennai\n");
-    printf("Phone: +91 XXXXX XXXXX\n\n");
-    printf("---------------------------------------------------------\n");
-    printf("Bill ID   : %d\n", bill_id);
-    printf("Date      : %s\n", printable_date);
-    printf("---------------------------------------------------------\n");
-    printf("Patient ID: %d\n", patient_id);
-    printf("Name      : %s\n", name);
-    printf("Age       : %d\n", age);
-    printf("Gender    : %s\n\n", gender);
-    printf("Doctor    : %s\n", doctor);
-    printf("Department: %s\n", department);
-    printf("---------------------------------------------------------\n\n");
-    printf("                   BILL DETAILS\n");
-    printf("---------------------------------------------------------\n");
-    printf("%-28s %s\n", "Description", "Amount (Rs)");
-    printf("---------------------------------------------------------\n");
-    for (i = 0; i < item_count; i++) {
-        printf("%-28s %.0f\n", items[i].description, items[i].amount);
-    }
-    printf("\n---------------------------------------------------------\n");
-    printf("TOTAL                        Rs %.0f\n", total);
-    printf("---------------------------------------------------------\n\n");
-    printf("Payment Status: %s\n\n", payment_status);
-    printf("---------------------------------------------------------\n");
-    printf("         Thank you for visiting HealthDesk\n");
-    printf("---------------------------------------------------------\n");
-}
-
-void saveBill(
-    int bill_id, const char *date, int patient_id, const char *name, int age, const char *gender,
-    const char *doctor, const char *department, float consultation, float medicines,
-    float lab_tests, float total, const char *payment_status
-) {
-    FILE *fp = fopen(BILLING_FILE, "a");
-    if (!fp) return;
-
-    fprintf(fp, "%d|%s|%d|%s|%d|%s|%s|%s|%.0f|%.0f|%.0f|%.0f|%s\n",
-        bill_id, date, patient_id, name, age, gender, doctor, department,
-        consultation, medicines, lab_tests, total, payment_status
-    );
-
-    fclose(fp);
-}
-
-void generateBill(char *input) {
-    char buffer[MAX_LINE];
-    char *token;
-    int bill_id;
-    int patient_id;
-    char name[MAX_NAME];
-    int age;
-    char gender[MAX_SMALL];
-    char doctor[MAX_NAME];
-    char department[MAX_NAME];
-    char date[20];
-    float consultation;
-    float medicines;
-    float lab_tests;
-    char payment_status[MAX_SMALL];
-    struct BillingItem items[MAX_BILL_ITEMS];
-    int item_count = 0;
-    float total;
-
-    strcpy(buffer, input);
-
-    token = strtok(buffer, "|");
-    if (!token) { printf("Error|InvalidInput"); return; }
-    patient_id = atoi(token);
-
-    token = strtok(NULL, "|");
-    if (!token) { printf("Error|InvalidInput"); return; }
-    strcpy(name, token);
-
-    token = strtok(NULL, "|");
-    if (!token) { printf("Error|InvalidInput"); return; }
-    age = atoi(token);
-
-    token = strtok(NULL, "|");
-    if (!token) { printf("Error|InvalidInput"); return; }
-    strcpy(gender, token);
-
-    token = strtok(NULL, "|");
-    if (!token) { printf("Error|InvalidInput"); return; }
-    strcpy(doctor, token);
-
-    token = strtok(NULL, "|");
-    if (!token) { printf("Error|InvalidInput"); return; }
-    strcpy(department, token);
-
-    token = strtok(NULL, "|");
-    if (!token) { printf("Error|InvalidInput"); return; }
-    strcpy(date, token);
-
-    token = strtok(NULL, "|");
-    if (!token) { printf("Error|InvalidInput"); return; }
-    consultation = (float)atof(token);
-
-    token = strtok(NULL, "|");
-    if (!token) { printf("Error|InvalidInput"); return; }
-    medicines = (float)atof(token);
-
-    token = strtok(NULL, "|");
-    if (!token) { printf("Error|InvalidInput"); return; }
-    lab_tests = (float)atof(token);
-
-    token = strtok(NULL, "\n");
-    if (!token) { printf("Error|InvalidInput"); return; }
-    strcpy(payment_status, token);
-
-    addItem(items, &item_count, "Consultation Fee", consultation);
-    addItem(items, &item_count, "Medicines", medicines);
-    addItem(items, &item_count, "Lab Tests", lab_tests);
-
-    total = totalItems(items, item_count);
-    bill_id = generateBillId();
-
-    printBill(
-        bill_id, date, patient_id, name, age, gender, doctor, department,
-        items, item_count, total, payment_status
-    );
-
-    saveBill(
-        bill_id, date, patient_id, name, age, gender, doctor, department,
-        consultation, medicines, lab_tests, total, payment_status
-    );
-}
-
-void generateAutoBill(int patient_id, int doctor_id, const char *date) {
-    struct Patient p;
-    struct Doctor d;
-    int bill_id;
-    float consultation = 500;
-    float medicines = 0;
-    float lab_tests = 0;
-    float total = consultation + medicines + lab_tests;
-
-    if (!getPatientById(patient_id, &p)) {
-        printf("Error|PatientNotFound");
-        return;
-    }
-
-    if (!getDoctorById(doctor_id, &d)) {
-        printf("Error|DoctorNotFound");
-        return;
-    }
-
-    bill_id = generateBillId();
-
-    saveBill(
-        bill_id,
-        date,
-        p.id,
-        p.name,
-        p.age,
-        p.gender,
-        d.name,
-        p.department,
-        consultation,
-        medicines,
-        lab_tests,
-        total,
-        "PENDING"
-    );
-
-    printf("AUTO_BILL|%d|%d|%d|%.0f|PENDING", bill_id, patient_id, doctor_id, total);
 }
 
 void listBills() {
     FILE *fp = fopen(BILLING_FILE, "r");
     char line[MAX_LINE];
-    if (!fp) return;
+
+    if (fp == NULL) return;
 
     while (fgets(line, sizeof(line), fp)) {
         printf("%s", line);
     }
+
     fclose(fp);
+}
+
+int findBillById(int bill_id) {
+    FILE *fp = fopen(BILLING_FILE, "r");
+    char line[MAX_LINE];
+
+    if (fp == NULL) return 0;
+
+    while (fgets(line, sizeof(line), fp)) {
+        char buffer[MAX_LINE];
+        char *token;
+
+        safeCopy(buffer, line, sizeof(buffer));
+        token = strtok(buffer, "|");
+        if (token == NULL) continue;
+
+        if (atoi(token) == bill_id) {
+            printf("%s", line);
+            fclose(fp);
+            return 1;
+        }
+    }
+
+    fclose(fp);
+    return 0;
+}
+
+int findBillByAppointmentId(int appointment_id) {
+    FILE *fp = fopen(BILLING_FILE, "r");
+    char line[MAX_LINE];
+
+    if (fp == NULL) return 0;
+
+    while (fgets(line, sizeof(line), fp)) {
+        if (parseAppointmentId(line) == appointment_id) {
+            printf("%s", line);
+            fclose(fp);
+            return 1;
+        }
+    }
+
+    fclose(fp);
+    return 0;
+}
+
+int saveBillLine(const char *serialized_line) {
+    FILE *fp = fopen(BILLING_FILE, "a");
+
+    if (fp == NULL) return 0;
+
+    fprintf(fp, "%s\n", serialized_line);
+    fclose(fp);
+    return 1;
 }
 
 int main(int argc, char *argv[]) {
@@ -367,13 +155,33 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    if (strcmp(argv[1], "list") == 0) {
-        listBills();
-    } else if (strcmp(argv[1], "auto") == 0 && argc == 5) {
-        generateAutoBill(atoi(argv[2]), atoi(argv[3]), argv[4]);
-    } else {
-        generateBill(argv[1]);
+    if (strcmp(argv[1], "next-id") == 0) {
+        printf("%d", nextBillId());
+        return 0;
     }
 
-    return 0;
+    if (strcmp(argv[1], "list") == 0) {
+        listBills();
+        return 0;
+    }
+
+    if (strcmp(argv[1], "find-id") == 0 && argc == 3) {
+        return findBillById(atoi(argv[2])) ? 0 : 1;
+    }
+
+    if (strcmp(argv[1], "find-appointment") == 0 && argc == 3) {
+        return findBillByAppointmentId(atoi(argv[2])) ? 0 : 1;
+    }
+
+    if (strcmp(argv[1], "save") == 0 && argc == 3) {
+        if (saveBillLine(argv[2])) {
+            printf("SAVED");
+            return 0;
+        }
+        printf("Error|SaveFailed");
+        return 1;
+    }
+
+    printf("Error|InvalidCommand");
+    return 1;
 }

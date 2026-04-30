@@ -669,6 +669,43 @@
         <div class="billx-side-stack">
             <div class="billx-card billx-side-card">
                 <div class="billx-side-head">
+                    <h3>Completed Patients In Billing</h3>
+                    <p>These consultations are already completed and visible for reception billing follow-up.</p>
+                </div>
+
+                <div class="billx-history">
+                    {% for item in billing_ready_patients %}
+                    <div class="billx-history-item">
+                        <div class="billx-history-top">
+                            <div>
+                                <strong>#{{ item.patient_id }} - {{ item.name }}</strong>
+                                <small>{{ item.appointment_date }} | {{ item.doctor_name or "Doctor pending" }}</small>
+                            </div>
+                            <span class="hd-badge completed">Completed</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                            <small class="text-muted">Appointment #{{ item.appointment_id }}</small>
+                            <small class="text-muted">{{ item.department or "-" }}</small>
+                        </div>
+                        <div class="billx-history-actions">
+                            {% if item.bill_id %}
+                            <a class="hd-btn hd-btn-outline hd-btn-sm" href="/billing?preview_bill_id={{ item.bill_id }}&patient_id={{ item.patient_id }}">Preview Bill</a>
+                            <a class="hd-btn hd-btn-primary hd-btn-sm" href="/billing/download/{{ item.bill_id }}">PDF</a>
+                            {% else %}
+                            <a class="hd-btn hd-btn-primary hd-btn-sm" href="/billing?patient_id={{ item.patient_id }}">Open Billing</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    {% if not billing_ready_patients %}
+                    <div class="billx-empty">No completed patients are waiting in billing right now.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="billx-card billx-side-card">
+                <div class="billx-side-head">
                     <h3>Live Summary</h3>
                     <p>A running total placed directly after charge building so the flow stays easy to follow.</p>
                 </div>

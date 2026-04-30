@@ -8,7 +8,7 @@
     .rx-kicker { margin-bottom:8px; color:rgba(255,255,255,0.68); font-size:0.74rem; font-weight:700; letter-spacing:1.7px; text-transform:uppercase; }
     .rx-hero h4 { margin:0 0 8px; font-size:1.9rem; }
     .rx-hero p { margin:0; color:rgba(255,255,255,0.78); max-width:720px; }
-    .rx-grid { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(280px,0.85fr); gap:20px; }
+    .rx-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:20px; }
     .rx-card { background:#fff; border:1px solid #dfe7ee; border-radius:22px; box-shadow:0 16px 36px rgba(21,40,66,0.06); }
     .rx-card-body { padding:20px; }
     .rx-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px; }
@@ -18,11 +18,6 @@
     .rx-stat { padding:18px; border-radius:18px; border:1px solid #e4ebf1; background:#f8fbfd; }
     .rx-stat small { display:block; color:#728598; margin-bottom:6px; }
     .rx-stat strong { font-size:1.3rem; color:#19324b; }
-    .rx-patient-strip { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:18px; padding:18px; border-radius:18px; background:#f8fbfd; border:1px solid #e4ebf1; }
-    .rx-token-wrap { min-width:118px; }
-    .rx-token-wrap small { color:#728598; }
-    .rx-patient-meta { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
-    .rx-empty { padding:26px; border-radius:18px; background:#f8fbfd; border:1px dashed #cdd9e3; color:#728598; text-align:center; }
     .rx-action-list { display:grid; gap:10px; }
     .rx-action-row { display:grid; grid-template-columns:40px minmax(0,1fr) auto; align-items:center; gap:12px; padding:13px 14px; border:1px solid #e4ebf1; border-radius:16px; background:#fbfdff; color:#1f3750; text-decoration:none; transition:all 0.2s ease; }
     .rx-action-row:hover, .rx-action-row:focus { transform:translateY(-2px); border-color:#b9d4e8; box-shadow:0 10px 22px rgba(21,40,66,0.08); color:#183a59; }
@@ -33,9 +28,7 @@
     .rx-action-row:hover small, .rx-action-row:focus small { color:#52677a; }
     .rx-action-row:hover .rx-action-icon, .rx-action-row:focus .rx-action-icon { background:#dcecf7; color:#123d5e; }
     @media (max-width: 991.98px) {
-        .rx-grid { grid-template-columns:1fr; }
         .rx-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
-        .rx-patient-strip { grid-template-columns:1fr; }
     }
     @media (max-width: 767.98px) {
         .rx-stats { grid-template-columns:1fr; }
@@ -58,37 +51,6 @@
     </div>
 
     <div class="rx-grid">
-        <div class="rx-card">
-            <div class="rx-card-body">
-                <div class="rx-head">
-                    <div>
-                        <h5 class="rx-title"><i class="bi bi-lightning-charge me-1"></i> Next Patient To Serve</h5>
-                        <p class="rx-sub">The highest-priority patient currently at the front of the queue.</p>
-                    </div>
-                </div>
-                {% if next_patient %}
-                <div class="rx-patient-strip">
-                    <div class="rx-token-wrap">
-                        <div class="hd-token">{{ next_patient.token }}</div>
-                        <small class="text-muted">Token Number</small>
-                    </div>
-                    <div>
-                        <div class="fw-semibold">Patient #{{ next_patient.patient_id }}</div>
-                        <div class="rx-patient-meta">
-                            <span class="hd-badge {% if next_patient.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ next_patient.priority }}</span>
-                            <small class="text-muted">Doctor: {{ "Not Assigned" if next_patient.doctor_id == -1 else "Dr " ~ next_patient.doctor_id }}</small>
-                        </div>
-                    </div>
-                    <form action="/serve" method="POST">
-                        <button class="hd-btn hd-btn-primary"><i class="bi bi-arrow-right-circle"></i> Serve Patient</button>
-                    </form>
-                </div>
-                {% else %}
-                <div class="rx-empty">No patients are waiting in the queue right now.</div>
-                {% endif %}
-            </div>
-        </div>
-
         <div class="rx-card">
             <div class="rx-card-body">
                 <div class="rx-head">

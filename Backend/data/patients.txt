@@ -1,22 +1,20 @@
-1|Ramesh|45|Male|9876543210|Chennai|Chest pain|New|Urgent|Cardiology
-2|Lakshmi|30|Female|9123456780|Madurai|Fever|New|Normal|General
-3|Arjun|22|Male|9988776655|Coimbatore|Fracture|Emergency|Urgent|Orthopaedics
-4|Divya|27|Female|9871234567|Trichy|Ear pain|New|Normal|ENT
-5|Karthik|50|Male|9090909090|Salem|Headache|Follow-up|Normal|Neurology
-6|Sneha|18|Female|8888888888|Erode|Skin allergy|New|Normal|Dermatology
-7|Rahul|10|Male|7777777777|Vellore|Fever|New|Normal|Pediatrics
-8|Vikram|60|Male|9999999999|Chennai|Heart issue|Emergency|Urgent|Cardiology
-9|Anitha|35|Female|9012345678|Tirunelveli|Cough|Follow-up|Normal|General
-10|Sanjay|40|Male|9345678901|Chennai|Back pain|New|Normal|Orthopaedics
-11|Meera|28|Female|9456789012|Madurai|Migraine|New|Urgent|Neurology
-12|Ravi|55|Male|9567890123|Trichy|Skin rash|New|Normal|Dermatology
-13|Priya|33|Female|9678901234|Salem|Ear infection|Emergency|Urgent|ENT
-14|Kiran|12|Male|9789012345|Erode|Cold|New|Normal|Pediatrics
-15|Manoj|48|Male|9890123456|Vellore|Chest discomfort|Follow-up|Urgent|Cardiology
-16|Deepika|25|Female|9901234567|Chennai|Fever|New|Normal|General
-17|Surya|38|Male|9011122233|Madurai|Joint pain|New|Normal|Orthopaedics
-18|Nisha|29|Female|9122233344|Trichy|Allergy|Follow-up|Normal|Dermatology
-19|Ajay|42|Male|9233344455|Salem|Head injury|Emergency|Urgent|Neurology
-20|Pooja|20|Female|9344455566|Erode|Throat pain|New|Normal|ENT
-21|Shaahir|18|Male|7904515049|A3 24 Lakeside Phase 1, Surapet Main Road|Fever|New|Normal|General
-22|Shireen Fathima|46|Female|9677082707|A3 24 Lakeside Phase 1, Surapet Main Road|Fever|New|Normal|General
+1|Aakash|34|Male|9000000001|Chennai|Chest tightness|New|Urgent|General
+2|Bhavna|52|Female|9000000002|Madurai|Palpitations|Follow-up|Normal|Cardiology
+3|Charan|29|Male|9000000003|Coimbatore|Knee injury|New|Urgent|Orthopaedics
+4|Divya|31|Female|9000000004|Trichy|Ear pain|New|Normal|ENT
+5|Eshan|47|Male|9000000005|Salem|Migraine|Follow-up|Normal|Neurology
+6|Farah|26|Female|9000000006|Erode|Fever and cough|New|Normal|General
+7|Gokul|18|Male|9000000007|Vellore|Skin rash|New|Normal|Dermatology
+8|Harini|9|Female|9000000008|Chennai|Cold and wheeze|New|Normal|Pediatrics
+9|Ishaan|40|Male|9000000009|Tirunelveli|General checkup|Follow-up|Normal|General
+10|Janani|37|Female|9000000010|Chennai|Recurring fever|Follow-up|Normal|General
+11|Karthik|61|Male|9000000011|Madurai|Chest pain review|Emergency|Urgent|Cardiology
+12|Lavanya|24|Female|9000000012|Salem|Severe rash|New|Normal|Dermatology
+13|Mohan|55|Male|9000000013|Erode|Breathlessness|New|Urgent|Cardiology
+14|Nisha|43|Female|9000000014|Chennai|Back pain review|Follow-up|Normal|General
+15|Omkar|33|Male|9000000015|Trichy|Dust allergy|New|Normal|Dermatology
+16|Pavithra|28|Female|9000000016|Coimbatore|Fever and body pain|New|Normal|General
+17|Qadir|12|Male|9000000017|Vellore|Vaccination visit|Follow-up|Normal|Pediatrics
+18|Ritu|45|Female|9000000018|Madurai|Cancelled skin review|Follow-up|Normal|Dermatology
+19|Sanjay|58|Male|9000000019|Salem|Routine heart review|Follow-up|Normal|Cardiology
+20|Tanvi|22|Female|9000000020|Chennai|Acne treatment|Follow-up|Urgent|Dermatology
