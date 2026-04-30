@@ -54,8 +54,8 @@
 <div class="docx-shell">
     <div class="docx-summary">
         <div class="docx-metric">
-            <small>Queue Patients</small>
-            <strong>{{ queue_patients|length }}</strong>
+            <small>Live Queue</small>
+            <strong>{{ live_queue_patients|length }}</strong>
         </div>
         <div class="docx-metric">
             <small>Appointments</small>
@@ -77,8 +77,8 @@
                 <div class="docx-card-body">
                     <div class="docx-head">
                         <div>
-                            <h5 class="docx-title"><i class="bi bi-calendar2-check-fill me-1"></i> My Appointments</h5>
-                            <p class="docx-sub">Appointments that still require diagnosis or completion action.</p>
+                            <h5 class="docx-title"><i class="bi bi-calendar2-check-fill me-1"></i> Upcoming Appointments</h5>
+                            <p class="docx-sub">Future scheduled visits assigned to you. These are not in today's live queue yet.</p>
                         </div>
                     </div>
                     <div class="docx-table-wrap">
@@ -102,20 +102,12 @@
                                     <td>{{ a.time_slot }}</td>
                                     <td><span class="hd-badge {{ a.status|lower|replace('-', '') }}">{{ a.status }}</span></td>
                                     <td>
-                                        <div class="hd-inline-actions">
-                                            <form action="/doctor_complete_consultation" method="POST" class="d-inline">
-                                                <input type="hidden" name="appointment_id" value="{{ a.appointment_id }}">
-                                                <input type="hidden" name="patient_id" value="{{ a.patient_id }}">
-                                                <button class="hd-btn hd-btn-success hd-btn-sm">
-                                                    <i class="bi bi-check-circle"></i> Complete And Diagnose
-                                                </button>
-                                            </form>
-                                        </div>
+                                        <span class="text-muted">Moves to live queue on consultation day</span>
                                     </td>
                                 </tr>
                                 {% endfor %}
                                 {% if not appointments %}
-                                <tr><td colspan="6" class="text-muted text-center py-3">No assigned appointments right now.</td></tr>
+                                <tr><td colspan="6" class="text-muted text-center py-3">No upcoming appointments right now.</td></tr>
                                 {% endif %}
                             </tbody>
                         </table>
@@ -156,8 +148,8 @@
                 <div class="docx-card-body">
                     <div class="docx-head">
                         <div>
-                            <h5 class="docx-title"><i class="bi bi-people-fill me-1"></i> Queue Patients</h5>
-                            <p class="docx-sub">Patients currently waiting under your assigned queue.</p>
+                            <h5 class="docx-title"><i class="bi bi-people-fill me-1"></i> Live Queue</h5>
+                            <p class="docx-sub">Patients waiting right now with a valid consultation for today or an earlier untreated appointment.</p>
                         </div>
                     </div>
                     <div class="docx-table-wrap">
@@ -167,11 +159,12 @@
                                     <th>Token</th>
                                     <th>Patient</th>
                                     <th>Priority</th>
+                                    <th>Appointment</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for q in queue_patients %}
+                                {% for q in live_queue_patients %}
                                 <tr>
                                     <td><strong>{{ q.token }}</strong></td>
                                     <td>
@@ -180,14 +173,22 @@
                                     </td>
                                     <td><span class="hd-badge {% if q.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ q.priority }}</span></td>
                                     <td>
-                                        <a class="hd-btn hd-btn-primary hd-btn-sm" href="/diagnosis?patient_id={{ q.patient_id }}">
-                                            Diagnose
+                                        {% if q.appointment_id %}
+                                        <div>#{{ q.appointment_id }}</div>
+                                        <small class="text-muted">{{ q.appointment_date }}</small>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a class="hd-btn hd-btn-primary hd-btn-sm" href="/diagnosis?patient_id={{ q.patient_id }}&appointment_id={{ q.appointment_id }}">
+                                            Start Consultation
                                         </a>
                                     </td>
                                 </tr>
                                 {% endfor %}
-                                {% if not queue_patients %}
-                                <tr><td colspan="4" class="text-muted text-center py-3">No patients in your queue right now.</td></tr>
+                                {% if not live_queue_patients %}
+                                <tr><td colspan="5" class="text-muted text-center py-3">No patients in your live queue right now.</td></tr>
                                 {% endif %}
                             </tbody>
                         </table>

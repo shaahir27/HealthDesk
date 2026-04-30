@@ -26,7 +26,13 @@
 <div class="hd-alert danger"><i class="bi bi-x-circle-fill me-1"></i> {{ error_message }}</div>
 {% endif %}
 
+{% set diagnosis_status_note = request.args.get("status_note", "") %}
+{% if diagnosis_status_note %}
+<div class="hd-alert info"><i class="bi bi-info-circle me-1"></i> {{ diagnosis_status_note }}</div>
+{% endif %}
+
 <div class="dgx-shell">
+    {% if not patient %}
     <div class="dgx-card">
         <div class="dgx-body">
             <div class="dgx-head">
@@ -48,6 +54,7 @@
             </form>
         </div>
     </div>
+    {% endif %}
 
     {% if patient %}
     <div class="dgx-grid">
@@ -79,14 +86,21 @@
                         <p class="dgx-sub">Record the consultation and continue billing flow automatically.</p>
                     </div>
                 </div>
+                {% if not appointment_id %}
+                <div class="hd-alert info">
+                    <i class="bi bi-info-circle me-1"></i>
+                    This patient has no active appointment assigned to you right now. You can review history here, but consultation completion needs an active appointment or queue assignment.
+                </div>
+                {% endif %}
                 <form action="/add_diagnosis" method="POST">
                     <div class="row g-3">
                         <div class="col-6"><label class="form-label">Patient ID</label><input type="number" name="patient_id" class="form-control" value="{{ patient.id }}" readonly required></div>
                         <div class="col-6"><label class="form-label">Doctor ID</label><input type="number" name="doctor_id" class="form-control" value="{{ current_doctor_id }}" readonly required></div>
+                        <input type="hidden" name="appointment_id" value="{{ appointment_id }}">
                         <div class="col-12"><label class="form-label">Date</label><input type="date" name="date" class="form-control" value="{{ today }}" required></div>
                         <div class="col-12"><label class="form-label">Diagnosis</label><textarea name="diagnosis" class="form-control" rows="4" placeholder="Enter diagnosis details" required></textarea></div>
                         <div class="col-12"><label class="form-label">Prescription</label><textarea name="prescription" class="form-control" rows="4" placeholder="Enter prescription" required></textarea></div>
-                        <div class="col-12"><button class="hd-btn hd-btn-success"><i class="bi bi-check2-circle"></i> Save Diagnosis</button></div>
+                        <div class="col-12"><button class="hd-btn hd-btn-success" {% if not appointment_id %}disabled{% endif %}><i class="bi bi-check2-circle"></i> Save Diagnosis And Complete Consultation</button></div>
                     </div>
                 </form>
             </div>

@@ -31,7 +31,6 @@ struct Patient;
 struct Doctor;
 struct Queue;
 struct Diagnosis;
-struct Billing;
 struct Appointment;
 struct BillingItem;
 
@@ -79,14 +78,6 @@ struct Diagnosis {
     char date[20];
     char diagnosis[MAX_TEXT];
     char prescription[MAX_TEXT];
-};
-
-// Billing
-struct Billing {
-    int bill_id;
-    int patient_id;
-    float total;
-    char status[MAX_SMALL];   // Paid / Pending
 };
 
 // Appointment

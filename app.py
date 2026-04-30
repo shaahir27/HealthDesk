@@ -83,6 +83,25 @@ def read_appointment_file():
         return []
     return sorted(appointments.values(), key=lambda item: item["appointment_id"])
 
+
+def write_appointment_file(appointments):
+    with open(APPOINTMENT_FILE, "w", encoding="utf-8") as f:
+        for appointment in appointments:
+            f.write(
+                f"{int(appointment['appointment_id'])}|{int(appointment['patient_id'])}|"
+                f"{int(appointment['doctor_id'])}|{clean_record_field(appointment['date'])}|"
+                f"{clean_record_field(appointment['time_slot'])}|{clean_record_field(appointment['status'])}\n"
+            )
+
+
+def write_queue_file(rows):
+    with open(QUEUE_FILE, "w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(
+                f"{int(row['token'])}|{int(row['patient_id'])}|{int(row['doctor_id'])}|"
+                f"{clean_record_field(row['priority'])}|{clean_record_field(row['status'])}\n"
+            )
+
 def is_authenticated():
     return session.get("logged_in", False)
 
@@ -722,13 +741,38 @@ def update_waiting_queue_status(patient_id, doctor_id=None, status="Completed"):
     if not changed:
         return False
 
-    with open(QUEUE_FILE, "w", encoding="utf-8") as f:
-        for row in rows:
-            f.write(
-                f"{row['token']}|{row['patient_id']}|{row['doctor_id']}|"
-                f"{clean_record_field(row['priority'])}|{clean_record_field(row['status'])}\n"
-            )
+    write_queue_file(rows)
     return True
+
+
+def reconcile_waiting_queue_entries():
+    queue_rows = read_queue()
+    appointments = read_appointments()
+    latest_by_patient_doctor = {}
+    updated = False
+
+    for appointment in appointments:
+        key = (appointment["patient_id"], appointment["doctor_id"])
+        current = latest_by_patient_doctor.get(key)
+        if current is None or parse_appointment_datetime(appointment) > parse_appointment_datetime(current):
+            latest_by_patient_doctor[key] = appointment
+
+    for row in queue_rows:
+        if row["status"] != "Waiting":
+            continue
+        latest = latest_by_patient_doctor.get((row["patient_id"], row["doctor_id"]))
+        if not latest:
+            continue
+        if latest["status"] in {"Completed", "Cancelled", "Rescheduled", "No-show"}:
+            row["status"] = latest["status"]
+            updated = True
+
+    if not updated:
+        return queue_rows
+
+    write_queue_file(queue_rows)
+
+    return queue_rows
 
 @app.before_request
 def require_login():
@@ -875,6 +919,76 @@ def parse_appointment_datetime(appointment):
         return datetime.min
 
 
+def is_consultation_day_reached(appointment):
+    appointment_day = parse_iso_date(appointment.get("date"))
+    if not appointment_day:
+        return False
+    return appointment_day <= date.today()
+
+
+def is_future_appointment(appointment):
+    appointment_day = parse_iso_date(appointment.get("date"))
+    if not appointment_day:
+        return False
+    return appointment_day > date.today()
+
+
+def expire_stale_consultations():
+    appointments = read_appointments()
+    queue_rows = read_queue()
+    appointments_changed = False
+    queue_changed = False
+    latest_by_patient_doctor = {}
+
+    for appointment in appointments:
+        key = (appointment["patient_id"], appointment["doctor_id"])
+        current = latest_by_patient_doctor.get(key)
+        if current is None or parse_appointment_datetime(appointment) > parse_appointment_datetime(current):
+            latest_by_patient_doctor[key] = appointment
+
+        appointment_day = parse_iso_date(appointment.get("date"))
+        if (
+            appointment_day
+            and appointment_day < date.today()
+            and appointment["status"] == "Booked"
+        ):
+            appointment["status"] = "No-show"
+            appointments_changed = True
+
+            for row in queue_rows:
+                if (
+                    row["patient_id"] == appointment["patient_id"]
+                    and row["doctor_id"] == appointment["doctor_id"]
+                    and row["status"] == "Waiting"
+                ):
+                    row["status"] = "No-show"
+                    queue_changed = True
+
+    for row in queue_rows:
+        if row["status"] != "Waiting":
+            continue
+        latest = latest_by_patient_doctor.get((row["patient_id"], row["doctor_id"]))
+        if not latest:
+            row["status"] = "Cancelled"
+            queue_changed = True
+        elif latest["status"] != "Booked":
+            row["status"] = latest["status"]
+            queue_changed = True
+        elif not is_consultation_day_reached(latest):
+            row["status"] = "Cancelled"
+            queue_changed = True
+
+    if appointments_changed:
+        write_appointment_file(appointments)
+    if queue_changed:
+        write_queue_file(queue_rows)
+
+    return {
+        "appointments_changed": appointments_changed,
+        "queue_changed": queue_changed
+    }
+
+
 def get_latest_patient_appointment(patient_id):
     appointments = [
         appointment for appointment in read_appointments()
@@ -909,6 +1023,34 @@ def find_appointment_by_id(appointment_id):
 
 def doctor_owns_appointment(appointment, doctor_id):
     return bool(appointment) and appointment["doctor_id"] == int(doctor_id)
+
+
+def get_latest_active_patient_appointment(patient_id, doctor_id=None):
+    appointments = [
+        appointment for appointment in read_appointments()
+        if appointment["patient_id"] == int(patient_id)
+        and appointment["status"] in {"Booked", "No-show"}
+        and (doctor_id is None or appointment["doctor_id"] == int(doctor_id))
+    ]
+    if not appointments:
+        return None
+    appointments.sort(key=parse_appointment_datetime, reverse=True)
+    return appointments[0]
+
+
+def resolve_consultation_appointment(patient_id, doctor_id, appointment_id=None):
+    appointment = find_appointment_by_id(appointment_id) if appointment_id else None
+
+    if appointment and (
+        appointment["patient_id"] != int(patient_id)
+        or appointment["doctor_id"] != int(doctor_id)
+    ):
+        return None
+
+    if appointment and appointment["status"] in {"Booked", "No-show", "Completed"}:
+        return appointment
+
+    return get_latest_active_patient_appointment(patient_id, doctor_id=doctor_id)
 
 def doctor_can_access_patient(patient_id, doctor_id):
     patient_id = safe_int(patient_id)
@@ -1053,6 +1195,13 @@ def read_assigned_queue_patients(doctor_id):
             continue
 
         patient = patients.get(item["patient_id"], {})
+        active_appointment = get_latest_active_patient_appointment(item["patient_id"], doctor_id=doctor_id)
+        appointment_for_queue = active_appointment if active_appointment and active_appointment["doctor_id"] == doctor_id else None
+        appointment_date = appointment_for_queue["date"] if appointment_for_queue else ""
+        is_today_queue = bool(appointment_for_queue) and is_consultation_day_reached(appointment_for_queue)
+        if not is_today_queue:
+            continue
+
         assigned.append({
             "token": item["token"],
             "patient_id": item["patient_id"],
@@ -1060,7 +1209,11 @@ def read_assigned_queue_patients(doctor_id):
             "status": item["status"],
             "name": patient.get("name", ""),
             "department": patient.get("department", ""),
-            "symptoms": patient.get("symptoms", "")
+            "symptoms": patient.get("symptoms", ""),
+            "appointment_id": appointment_for_queue["appointment_id"] if appointment_for_queue else 0,
+            "appointment_date": appointment_date,
+            "is_today_queue": is_today_queue,
+            "can_consult": bool(appointment_for_queue) and is_today_queue
         })
 
     assigned.sort(key=lambda x: (x["priority"] != "Urgent", x["token"]))
@@ -1333,7 +1486,8 @@ def reception():
 @app.route("/receptionist_dashboard")
 @require_role("Receptionist")
 def receptionist_dashboard_page():
-    queue = read_queue()
+    expire_stale_consultations()
+    queue = reconcile_waiting_queue_entries()
     queue, next_patient, waiting_count, completed_count = process_queue(queue)
     appointments = read_appointments()
     booked_count = len([a for a in appointments if a["status"] == "Booked"])
@@ -1360,18 +1514,22 @@ def doctor_dashboard():
     billing_doctor_id = request.args.get("doctor_id", str(doctor_id))
     billing_bill_id = request.args.get("bill_id", "")
     status_note = request.args.get("status_note", "")
+    expire_stale_consultations()
+    reconcile_waiting_queue_entries()
     appointments = [
         a for a in read_appointments()
-        if a["doctor_id"] == doctor_id and a["status"] in {"Booked", "No-show"}
+        if a["doctor_id"] == doctor_id and a["status"] == "Booked" and is_future_appointment(a)
     ]
     appointments.sort(key=lambda x: (x["date"], x["time_slot"]))
     queue_patients = read_assigned_queue_patients(doctor_id)
+    live_queue_patients = queue_patients
 
     doctor_info = next((d for d in get_doctors() if d["id"] == doctor_id), None)
     return render_template(
         "doctor_dashboard.html",
         appointments=appointments,
         queue_patients=queue_patients,
+        live_queue_patients=live_queue_patients,
         doctor_info=doctor_info,
         billing_patient_id=billing_patient_id,
         billing_doctor_id=billing_doctor_id,
@@ -1383,7 +1541,8 @@ def doctor_dashboard():
 @require_role("Receptionist")
 def queue_page():
 
-    queue = read_queue()
+    expire_stale_consultations()
+    queue = reconcile_waiting_queue_entries()
     queue, next_patient, waiting_count, completed_count = process_queue(queue)
 
     return render_template("queue.html",queue=queue, next_patient=next_patient, waiting_count=waiting_count, completed_count=completed_count )
@@ -1391,6 +1550,7 @@ def queue_page():
 @app.route("/appointments")
 @require_role("Receptionist")
 def appointments_page():
+    expire_stale_consultations()
     doctors = get_doctors()
     appointments = read_appointments()
     selected_doctor = request.args.get("doctor_id", "")
@@ -1700,30 +1860,32 @@ def doctor_complete_consultation():
         or appointment["status"] not in {"Booked", "No-show"}
     ):
         return redirect("/doctor?status_note=You can only complete your own assigned appointments")
-
-    result = run_appointment_command("complete", appointment_id)
-    if result.returncode == 0:
-        update_waiting_queue_status(patient_id, doctor_id, "Completed")
-    return redirect(f"/diagnosis?patient_id={patient_id}")
+    if not is_consultation_day_reached(appointment):
+        return redirect("/doctor?status_note=Consultation can be started only on or after the appointment date")
+    return redirect(f"/diagnosis?patient_id={patient_id}&appointment_id={appointment_id}")
 @app.route("/diagnosis")
 @require_role("Doctor")
 def diagnosis_page():
     patient_id = request.args.get("patient_id", "").strip()
+    appointment_id = request.args.get("appointment_id", "").strip()
     doctor_id = session.get("doctor_id", "0")
     if patient_id:
         if not doctor_can_access_patient(patient_id, doctor_id):
             return redirect("/doctor?status_note=Patient is not assigned to your consultation list")
+        consultation_appointment = resolve_consultation_appointment(patient_id, doctor_id, appointment_id)
         patient, diagnosis, error_message = get_diagnosis_context(patient_id)
         return render_template(
             "diagnosis.html",
             patient=patient,
             diagnosis=diagnosis,
             error_message=error_message,
+            appointment_id=consultation_appointment["appointment_id"] if consultation_appointment else 0,
             current_doctor_id=session.get("doctor_id", ""),
             today=date.today().isoformat()
         )
     return render_template(
         "diagnosis.html",
+        appointment_id=0,
         current_doctor_id=session.get("doctor_id", ""),
         today=date.today().isoformat()
     )
@@ -1737,6 +1899,7 @@ def diagnosis_history():
     doctor_id = session.get("doctor_id", "0")
     if not doctor_can_access_patient(patient_id, doctor_id):
         return redirect("/doctor?status_note=Patient is not assigned to your consultation list")
+    consultation_appointment = resolve_consultation_appointment(patient_id, doctor_id)
     patient, diagnosis, error_message = get_diagnosis_context(patient_id)
 
     return render_template(
@@ -1744,6 +1907,7 @@ def diagnosis_history():
         patient=patient,
         diagnosis=diagnosis,
         error_message=error_message,
+        appointment_id=consultation_appointment["appointment_id"] if consultation_appointment else 0,
         current_doctor_id=session.get("doctor_id", ""),
         today=date.today().isoformat()
     )
@@ -1755,12 +1919,32 @@ def add_diagnosis():
 
     patient_id = request.form["patient_id"]
     doctor_id = session.get("doctor_id", request.form.get("doctor_id", "0"))
+    appointment_id = safe_int(request.form.get("appointment_id", "0"))
     if not doctor_can_access_patient(patient_id, doctor_id):
         return redirect("/doctor?status_note=Patient is not assigned to your consultation list")
 
     date = clean_record_field(request.form["date"])
     diagnosis_text = clean_record_field(request.form["diagnosis"])
     prescription = clean_record_field(request.form["prescription"])
+    appointment = resolve_consultation_appointment(patient_id, doctor_id, appointment_id)
+
+    if not date:
+        return redirect(f"/diagnosis?patient_id={patient_id}&appointment_id={appointment_id}&status_note=Consultation date is required")
+    if not diagnosis_text:
+        return redirect(f"/diagnosis?patient_id={patient_id}&appointment_id={appointment_id}&status_note=Diagnosis details are required")
+    if not prescription:
+        return redirect(f"/diagnosis?patient_id={patient_id}&appointment_id={appointment_id}&status_note=Prescription is required before completing consultation")
+    if not appointment:
+        return redirect(f"/doctor?status_note=No active consultation was found for this patient")
+    if appointment["status"] == "Completed" and find_bill_by_appointment_id(appointment["appointment_id"]):
+        return redirect(f"/doctor?status_note=This consultation has already been diagnosed and billed")
+
+    if appointment["status"] in {"Booked", "No-show"}:
+        result = run_appointment_command("complete", appointment["appointment_id"])
+        if result.returncode != 0:
+            return redirect(f"/diagnosis?patient_id={patient_id}&appointment_id={appointment['appointment_id']}&status_note=Appointment could not be completed")
+    elif appointment["status"] != "Completed":
+        return redirect(f"/doctor?status_note=Consultation cannot be saved for an inactive appointment")
 
     data_string = f"{patient_id}|{doctor_id}|{date}|{diagnosis_text}|{prescription}"
 
@@ -1773,7 +1957,9 @@ def add_diagnosis():
         cwd=BASE_DIR
     )
 
-    latest_completed = get_latest_completed_patient_appointment(patient_id, doctor_id=doctor_id)
+    update_waiting_queue_status(patient_id, doctor_id, "Completed")
+
+    latest_completed = find_appointment_by_id(appointment["appointment_id"]) or get_latest_completed_patient_appointment(patient_id, doctor_id=doctor_id)
     bill = auto_generate_bill(
         patient_id,
         doctor_id,

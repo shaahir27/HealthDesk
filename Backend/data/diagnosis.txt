@@ -1,2 +1,4 @@
 1|1|2|09-04-2026|Viral Fever|Paracetamol twice daily
 2|2|25210|08-04-2026|arthritis|ibuprofen
+3|2|1|2026-04-30|Fever Headache Vomiting Sensation|Paracetamol, dolo 650
+4|22|8|2026-04-30|fever,cough|paracetamol,ascoril-d

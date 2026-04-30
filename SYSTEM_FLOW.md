@@ -2,49 +2,6 @@
 
 This document explains the HealthDesk workflow from a user perspective. It focuses on what happens on each page and how the receptionist, doctor, queue, diagnosis, appointment, and billing flows connect.
 
-## Quick Mind Map
-
-Use this as the one-screen overview before explaining the detailed flow.
-
-```mermaid
-mindmap
-  root((HealthDesk))
-    Access
-      Login
-      Role Based Dashboard
-        Receptionist
-        Doctor
-    Patient Journey
-      Search or Register
-      Book Appointment
-      Same Day Queue
-      Doctor Consultation
-      Diagnosis and Prescription
-      Billing
-    Receptionist Work
-      Patient Intake
-      Appointment Control
-      Queue Monitoring
-      Doctor Availability
-      Bill Generation
-    Doctor Work
-      View Assigned Patients
-      Complete Consultation
-      Add Medical Notes
-      Update Availability
-    Rules
-      Urgent Before Normal
-      No Double Booking
-      Bill Only After Completion
-      Doctors Access Own Patients
-    Storage
-      Patient Records
-      Appointment Records
-      Queue Records
-      Diagnosis Records
-      Billing Records
-```
-
 ## Big Picture Flow
 
 ```mermaid
@@ -108,11 +65,10 @@ Mark a doctor unavailable, show blocked slots, and show alternative doctors.
 
 When sharing this file, reveal it section by section instead of scrolling all at once:
 
-1. Start with the mind map.
-2. Move to the big picture flow.
-3. Demonstrate the receptionist journey.
-4. Demonstrate the doctor journey.
-5. Finish with billing and data flow.
+1. Start with the big picture flow.
+2. Demonstrate the receptionist journey.
+3. Demonstrate the doctor journey.
+4. Finish with billing and data flow.
 
 This gives the walkthrough a natural "animation" effect even in plain Markdown.
 
