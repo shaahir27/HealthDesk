@@ -42,6 +42,7 @@
                 </div>
             </div>
             <form action="/diagnosis_history" method="POST">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <div class="row g-3 align-items-end">
                     <div class="col-12 col-md-9">
                         <label class="form-label">Patient ID</label>
@@ -93,6 +94,7 @@
                 </div>
                 {% endif %}
                 <form action="/add_diagnosis" method="POST">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <div class="row g-3">
                         <div class="col-6"><label class="form-label">Patient ID</label><input type="number" name="patient_id" class="form-control" value="{{ patient.id }}" readonly required></div>
                         <div class="col-6"><label class="form-label">Doctor ID</label><input type="number" name="doctor_id" class="form-control" value="{{ current_doctor_id }}" readonly required></div>

@@ -1,4 +1,11 @@
 #include "common.h"
+#ifdef _WIN32
+#include <process.h>
+#define HEALTHDESK_GETPID _getpid
+#else
+#include <unistd.h>
+#define HEALTHDESK_GETPID getpid
+#endif
 
 struct DoctorNode {
     struct Doctor data;
@@ -7,6 +14,10 @@ struct DoctorNode {
 };
 
 void freeDoctorTree(struct DoctorNode* root);
+
+void buildDoctorTempPath(char *path, size_t path_size) {
+    snprintf(path, path_size, "Backend/data/doctors.%d.tmp", HEALTHDESK_GETPID());
+}
 
 int parseDoctorLine(char *line, struct Doctor *d) {
     char buffer[MAX_LINE];
@@ -137,8 +148,12 @@ void viewDoctors() {
 
 void updateDoctorStatuses(int doctor_id, char *daily_status, char *current_status) {
     FILE *fp = fopen(DOCTOR_FILE, "r");
-    FILE *temp = fopen("Backend/data/temp.txt", "w");
+    char temp_path[MAX_LINE];
+    FILE *temp;
     char line[MAX_LINE];
+
+    buildDoctorTempPath(temp_path, sizeof(temp_path));
+    temp = fopen(temp_path, "w");
 
     if (fp == NULL || temp == NULL) {
         if (fp != NULL) fclose(fp);
@@ -170,13 +185,17 @@ void updateDoctorStatuses(int doctor_id, char *daily_status, char *current_statu
     fclose(temp);
 
     remove(DOCTOR_FILE);
-    rename("Backend/data/temp.txt", DOCTOR_FILE);
+    rename(temp_path, DOCTOR_FILE);
 }
 
 void updateDailyStatus(int doctor_id, char *status) {
     FILE *fp = fopen(DOCTOR_FILE, "r");
-    FILE *temp = fopen("Backend/data/temp.txt", "w");
+    char temp_path[MAX_LINE];
+    FILE *temp;
     char line[MAX_LINE];
+
+    buildDoctorTempPath(temp_path, sizeof(temp_path));
+    temp = fopen(temp_path, "w");
 
     if (fp == NULL || temp == NULL) {
         if (fp != NULL) fclose(fp);
@@ -207,13 +226,17 @@ void updateDailyStatus(int doctor_id, char *status) {
     fclose(temp);
 
     remove(DOCTOR_FILE);
-    rename("Backend/data/temp.txt", DOCTOR_FILE);
+    rename(temp_path, DOCTOR_FILE);
 }
 
 void updateCurrentStatus(int doctor_id, char *status) {
     FILE *fp = fopen(DOCTOR_FILE, "r");
-    FILE *temp = fopen("Backend/data/temp.txt", "w");
+    char temp_path[MAX_LINE];
+    FILE *temp;
     char line[MAX_LINE];
+
+    buildDoctorTempPath(temp_path, sizeof(temp_path));
+    temp = fopen(temp_path, "w");
 
     if (fp == NULL || temp == NULL) {
         if (fp != NULL) fclose(fp);
@@ -244,7 +267,7 @@ void updateCurrentStatus(int doctor_id, char *status) {
     fclose(temp);
 
     remove(DOCTOR_FILE);
-    rename("Backend/data/temp.txt", DOCTOR_FILE);
+    rename(temp_path, DOCTOR_FILE);
 }
 
 struct DoctorNode* createDoctorNode(struct Doctor data) {
@@ -321,7 +344,7 @@ int findAvailableDoctorInTree(struct DoctorNode* root, char *department) {
 
     if (strcmp(root->data.specialization, department) == 0 &&
         strcmp(root->data.daily_status, "Available") == 0 &&
-        strcmp(root->data.current_status, "Free") == 0) {
+        strcmp(root->data.current_status, "Emergency") != 0) {
         return root->data.id;
     }
 

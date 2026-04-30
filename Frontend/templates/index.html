@@ -79,6 +79,7 @@
             <div class="hd-user-name">{{ current_user }}</div>
             <div class="hd-user-info hd-user-role mt-1">{{ current_role }}</div>
             <form action="/logout" method="POST" class="mt-2">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="hd-btn hd-btn-outline hd-btn-sm hd-logout-btn">
                     <i class="bi bi-box-arrow-left"></i> Logout
                 </button>

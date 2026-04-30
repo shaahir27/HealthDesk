@@ -1,6 +1,7 @@
 #include "common.h"
+#include <time.h>
 
-#define MAX_APPOINTMENTS 2000
+#define MAX_APPOINTMENTS 50000
 #define SLOT_COUNT 8
 
 const char *DEFAULT_SLOTS[SLOT_COUNT] = {
@@ -21,6 +22,19 @@ int validDate(const char *date) {
     char tail;
     if (sscanf(date, "%4d-%2d-%2d%c", &y, &m, &d, &tail) != 3) return 0;
     if (y < 1900 || m < 1 || m > 12 || d < 1 || d > 31) return 0;
+    if ((m == 4 || m == 6 || m == 9 || m == 11) && d > 30) return 0;
+    if (m == 2) {
+        int leap = (y % 400 == 0) || (y % 4 == 0 && y % 100 != 0);
+        if (d > (leap ? 29 : 28)) return 0;
+    }
+
+    time_t now = time(NULL);
+    struct tm *today = localtime(&now);
+    if (today == NULL) return 0;
+
+    if (y < today->tm_year + 1900) return 0;
+    if (y == today->tm_year + 1900 && m < today->tm_mon + 1) return 0;
+    if (y == today->tm_year + 1900 && m == today->tm_mon + 1 && d < today->tm_mday) return 0;
     return 1;
 }
 
@@ -180,30 +194,46 @@ const char* getSlotState(int doctor_id, const char *date, const char *time_slot,
 }
 
 void printSlots(int doctor_id, const char *date) {
-    struct Appointment list[MAX_APPOINTMENTS];
-    int count = loadAppointments(list, MAX_APPOINTMENTS);
+    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    int count;
     int i;
+
+    if (list == NULL) return;
+
+    count = loadAppointments(list, MAX_APPOINTMENTS);
 
     for (i = 0; i < SLOT_COUNT; i++) {
         const char *state = getSlotState(doctor_id, date, DEFAULT_SLOTS[i], list, count);
         printf("SLOT|%s|%s\n", DEFAULT_SLOTS[i], state);
     }
+
+    free(list);
 }
 
 int bookSlot(int patient_id, int doctor_id, const char *date, const char *time_slot) {
-    struct Appointment list[MAX_APPOINTMENTS];
-    int count = loadAppointments(list, MAX_APPOINTMENTS);
-    const char *state = getSlotState(doctor_id, date, time_slot, list, count);
+    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    int count;
+    const char *state;
     FILE *fp;
     int id;
 
+    if (list == NULL) {
+        printf("Error|MemoryAllocationFailed");
+        return 0;
+    }
+
+    count = loadAppointments(list, MAX_APPOINTMENTS);
+    state = getSlotState(doctor_id, date, time_slot, list, count);
+
     if (patient_id <= 0 || doctor_id <= 0 || !validDate(date) || !validSlot(time_slot)) {
         printf("Error|InvalidInput");
+        free(list);
         return 0;
     }
 
     if (strcmp(state, "Available") != 0) {
         printf("Error|SlotNotAvailable");
+        free(list);
         return 0;
     }
 
@@ -212,6 +242,7 @@ int bookSlot(int patient_id, int doctor_id, const char *date, const char *time_s
     fp = fopen(APPOINTMENT_FILE, "a");
     if (!fp) {
         printf("Error|CannotOpenFile");
+        free(list);
         return 0;
     }
 
@@ -219,14 +250,22 @@ int bookSlot(int patient_id, int doctor_id, const char *date, const char *time_s
     fclose(fp);
 
     printf("BOOKED|%d|%d|%d|%s|%s|Booked", id, patient_id, doctor_id, date, time_slot);
+    free(list);
     return 1;
 }
 
 int updateAppointmentStatus(int appointment_id, const char *new_status) {
-    struct Appointment list[MAX_APPOINTMENTS];
-    int count = loadAppointments(list, MAX_APPOINTMENTS);
+    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    int count;
     int i;
     int found = 0;
+
+    if (list == NULL) {
+        printf("Error|MemoryAllocationFailed");
+        return 0;
+    }
+
+    count = loadAppointments(list, MAX_APPOINTMENTS);
 
     for (i = 0; i < count; i++) {
         if (list[i].appointment_id == appointment_id) {
@@ -238,24 +277,34 @@ int updateAppointmentStatus(int appointment_id, const char *new_status) {
 
     if (!found) {
         printf("Error|AppointmentNotFound");
+        free(list);
         return 0;
     }
 
     if (!saveAppointments(list, count)) {
         printf("Error|UpdateFailed");
+        free(list);
         return 0;
     }
 
     printf("UPDATED|%d|%s", appointment_id, new_status);
+    free(list);
     return 1;
 }
 
 int rescheduleAppointment(int appointment_id, const char *new_date, const char *new_time) {
-    struct Appointment list[MAX_APPOINTMENTS];
-    int count = loadAppointments(list, MAX_APPOINTMENTS);
+    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    int count;
     int i;
     int found_index = -1;
     int new_id;
+
+    if (list == NULL) {
+        printf("Error|MemoryAllocationFailed");
+        return 0;
+    }
+
+    count = loadAppointments(list, MAX_APPOINTMENTS);
 
     for (i = 0; i < count; i++) {
         if (list[i].appointment_id == appointment_id) {
@@ -266,11 +315,13 @@ int rescheduleAppointment(int appointment_id, const char *new_date, const char *
 
     if (found_index == -1) {
         printf("Error|AppointmentNotFound");
+        free(list);
         return 0;
     }
 
     if (!validDate(new_date) || !validSlot(new_time)) {
         printf("Error|InvalidInput");
+        free(list);
         return 0;
     }
 
@@ -278,16 +329,19 @@ int rescheduleAppointment(int appointment_id, const char *new_date, const char *
         strcmp(list[found_index].status, "Cancelled") == 0 ||
         strcmp(list[found_index].status, "Rescheduled") == 0) {
         printf("Error|AppointmentNotActive");
+        free(list);
         return 0;
     }
 
     if (count >= MAX_APPOINTMENTS) {
         printf("Error|AppointmentLimitReached");
+        free(list);
         return 0;
     }
 
     if (strcmp(getSlotState(list[found_index].doctor_id, new_date, new_time, list, count), "Available") != 0) {
         printf("Error|NewSlotNotAvailable");
+        free(list);
         return 0;
     }
 
@@ -304,24 +358,38 @@ int rescheduleAppointment(int appointment_id, const char *new_date, const char *
 
     if (!saveAppointments(list, count)) {
         printf("Error|UpdateFailed");
+        free(list);
         return 0;
     }
 
     printf("RESCHEDULED|%d|%d|%s|%s", appointment_id, new_id, new_date, new_time);
+    free(list);
     return 1;
 }
 
 void checkDoctorAvailability(int doctor_id, const char *date, const char *time_slot) {
-    struct Appointment list[MAX_APPOINTMENTS];
-    int count = loadAppointments(list, MAX_APPOINTMENTS);
+    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    int count;
+
+    if (list == NULL) {
+        printf("AVAILABILITY|Blocked");
+        return;
+    }
+
+    count = loadAppointments(list, MAX_APPOINTMENTS);
 
     printf("AVAILABILITY|%s", getSlotState(doctor_id, date, time_slot, list, count));
+    free(list);
 }
 
 void listAppointmentsForDoctorDate(int doctor_id, const char *date) {
-    struct Appointment list[MAX_APPOINTMENTS];
-    int count = loadAppointments(list, MAX_APPOINTMENTS);
+    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    int count;
     int i;
+
+    if (list == NULL) return;
+
+    count = loadAppointments(list, MAX_APPOINTMENTS);
 
     for (i = 0; i < count; i++) {
         if (list[i].doctor_id == doctor_id && strcmp(list[i].date, date) == 0) {
@@ -335,6 +403,8 @@ void listAppointmentsForDoctorDate(int doctor_id, const char *date) {
             );
         }
     }
+
+    free(list);
 }
 
 int main(int argc, char *argv[]) {

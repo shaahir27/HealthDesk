@@ -44,6 +44,7 @@
                     </div>
                 </div>
                 <form action="/reception" method="POST">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="action" value="search">
                     <div class="row g-3 align-items-end">
                         <div class="col-12">
@@ -89,6 +90,7 @@
                     </div>
                 </div>
                 <form action="/reception" method="POST">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="action" value="register">
                     <div class="row g-3">
                         <div class="col-12 col-md-6"><label class="form-label">Full Name</label><input type="text" name="name" class="form-control" required></div>
@@ -198,6 +200,7 @@
                 {% for slot in slots %}
                     {% if slot.state == "Available" %}
                     <form action="/book_appointment" method="POST">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="return_to" value="reception">
                         <input type="hidden" name="patient_id" value="{{ patient.id }}">
                         <input type="hidden" name="doctor_id" value="{{ selected_doctor }}">

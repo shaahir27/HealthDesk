@@ -536,6 +536,7 @@
             </div>
 
             <form action="/generate_bill" method="POST" id="billing-form" class="billx-form">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <div class="billx-stage">
                     <div class="billx-stage-head">
                         <div>

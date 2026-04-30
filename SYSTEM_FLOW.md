@@ -78,7 +78,7 @@ This gives the walkthrough a natural "animation" effect even in plain Markdown.
 
 1. User opens the HealthDesk system.
 2. User enters username and password.
-3. System checks the login account.
+3. System checks the login account in Python and verifies the stored password hash.
 4. If the user is a receptionist, the system opens the receptionist dashboard.
 5. If the user is a doctor, the system opens the doctor dashboard.
 6. If credentials are wrong, login fails and the user remains on the login page.
@@ -136,7 +136,7 @@ flowchart TD
 9. If the selected doctor is unavailable, off, or in emergency status, slots appear blocked.
 10. System suggests alternative doctors from the same department when available.
 11. Receptionist selects an available slot.
-12. Appointment is booked.
+12. Appointment is booked only if the selected date is today or a future date.
 13. If the appointment is for today, the patient is added to the queue.
 14. System shows booking confirmation and queue token if created.
 
@@ -150,12 +150,13 @@ The appointments page is used to view, book, cancel, reschedule, reassign, and m
 4. Available slots can be booked by entering a patient ID.
 5. Booked, completed, cancelled, rescheduled, no-show, and blocked slots are displayed.
 6. If a doctor/date/time slot is already booked, the same slot cannot be booked again.
-7. Receptionist can cancel an appointment.
-8. Receptionist can reschedule an appointment.
-9. Rescheduling marks the old appointment as `Rescheduled` and creates a new `Booked` appointment.
-10. Receptionist can mark appointments as no-show when needed.
-11. Consultation completion is not a receptionist action; it happens when the doctor saves diagnosis and prescription.
-12. If a doctor becomes unavailable, the system checks for alternative doctors in the same department.
+7. Past-date booking and past-date rescheduling are rejected.
+8. Receptionist can cancel an appointment.
+9. Receptionist can reschedule an appointment.
+10. Rescheduling marks the old appointment as `Rescheduled` and creates a new `Booked` appointment.
+11. Receptionist can mark appointments as no-show when needed.
+12. Consultation completion is not a receptionist action; it happens when the doctor saves diagnosis and prescription.
+13. If a doctor becomes unavailable, the system checks for alternative doctors in the same department.
 
 ## 5. Queue Flow
 

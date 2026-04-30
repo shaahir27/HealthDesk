@@ -106,6 +106,7 @@
                     {% for slot in slots %}
                         {% if slot.state == "Available" %}
                         <form action="/book_appointment" method="POST">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="doctor_id" value="{{ selected_doctor }}">
                             <input type="hidden" name="appointment_date" value="{{ selected_date }}">
                             <input type="hidden" name="time_slot" value="{{ slot.time }}">
@@ -163,6 +164,7 @@
                                             <td><span class="hd-badge {{ a.workflow_status|lower|replace('-','') }}">{{ a.workflow_status }}</span></td>
                                             <td>
                                                 <form action="/update_appointment" method="POST" class="hd-table-action-form">
+                                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                                     <input type="hidden" name="appointment_id" value="{{ a.appointment_id }}">
                                                     <input type="hidden" name="patient_id" value="{{ a.patient_id }}">
                                                     <select class="form-select form-select-sm appointment-action-select" name="action" required>

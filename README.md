@@ -68,8 +68,7 @@ HealthDesk/
 |       |-- diagnosis.c / diagnosis.exe
 |       |-- doctor.c / doctor.exe
 |       |-- patient.c / patient.exe
-|       |-- queue.c / queue.exe
-|       `-- serve.c / serve.exe
+|       `-- queue.c / queue.exe
 `-- Frontend/
     |-- static/
     |   |-- css/style.css
@@ -119,6 +118,8 @@ http://127.0.0.1:5000
 
 The application currently ships with one receptionist account and multiple doctor accounts in `Backend/data/users.txt`.
 
+Passwords are shown below for demo login, but `users.txt` stores hashed password values.
+
 | Role | Username | Password |
 |---|---|---|
 | Receptionist | `reception` | `admin123` |
@@ -136,7 +137,7 @@ When a new doctor is added from the Doctors page:
 - the system checks whether a username was provided
 - if no username is entered, a username is generated in the form `dr.<name>`
 - if no password is entered, a password is generated in the form `HDDoc<doctor_id>@<year>`
-- the credentials are stored in `Backend/data/users.txt`
+- the password is hashed before the account is stored in `Backend/data/users.txt`
 - the newly created credentials are shown immediately in the UI so they can be shared with the doctor
 
 This ensures only valid doctor accounts can log in to the doctor dashboard.
@@ -152,6 +153,7 @@ The billing module is designed to reduce manual entry while keeping the bill det
 - If the appointment is not completed, the UI shows a warning and prevents bill generation.
 - Doctor information is automatically pulled from the appointment record.
 - Doctor fee is automatically loaded from the department fee map.
+- Bill IDs, bill lookup, and bill writes are handled through `Backend/c_modules/billing.exe`, while pricing rules, validation, UI, and PDF generation remain in Python.
 - Treatments are chosen from categorized dropdowns based on department.
 - Lab tests are selected from the pricing catalog.
 - Medicines can be added as an amount plus optional notes.
@@ -208,14 +210,14 @@ Important pages in the current application:
 
 - The project currently runs with local text files and does not use a relational database.
 - The included C executables are Windows binaries. If you want to run the project on another platform, you may need to rebuild those modules from the `.c` sources.
-- `Backend/c_modules/serve.exe` still exists in the repo, but the current queue workflow is doctor-driven and reception no longer manually serves the next patient from the UI.
+- Login is handled in Python so passwords are not passed to `auth.exe` through command-line arguments. `auth.c` / `auth.exe` remain in the source tree for reference but are not part of the active login path.
 - `app.py` runs Flask in debug mode by default on port `5000`.
-- The default Flask secret falls back to `healthdesk-dev-secret` if `HEALTHDESK_SECRET` is not set.
+- If `HEALTHDESK_SECRET` is not set, the app generates a temporary development secret at startup. Set `HEALTHDESK_SECRET` for stable sessions.
+- State-changing forms include a CSRF token checked by Flask before processing POST requests.
 
 ## Future Improvements
 
 - Replace text-file storage with SQLite or PostgreSQL
-- Add password hashing instead of storing plain-text passwords
 - Add audit logs for billing and appointment changes
 - Add search, filters, and reports across all modules
 - Add unit and integration tests

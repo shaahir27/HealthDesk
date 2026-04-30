@@ -40,6 +40,7 @@
                     </div>
                 </div>
                 <form action="/add_doctor" method="POST">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <div class="row g-3">
                         <div class="col-12">
                             <label class="form-label">Doctor Name</label>
@@ -115,6 +116,7 @@
                                 </td>
                                 <td>
                                     <form action="/doctor_status" method="POST" class="hd-table-action-form">
+                                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                         <input type="hidden" name="doctor_id" value="{{ d.id }}">
                                         <select name="daily_status" class="form-select form-select-sm" required>
                                             <option value="Available" {% if d.daily_status == "Available" %}selected{% endif %}>Available</option>

@@ -134,6 +134,7 @@
                         </div>
                     </div>
                     <form action="/doctor_my_status" method="POST" class="docx-panel-grid">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         <div>
                             <label class="form-label">Daily Status</label>
                             <select name="daily_status" class="form-select" required>

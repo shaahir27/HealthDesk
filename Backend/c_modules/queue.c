@@ -277,7 +277,7 @@ int findAvailableDoctor(char *department) {
 
         if (strcmp(d.specialization, department) == 0 &&
             strcmp(d.daily_status, "Available") == 0 &&
-            strcmp(d.current_status, "Free") == 0) {
+            strcmp(d.current_status, "Emergency") != 0) {
             fclose(fp);
             return d.id;
         }

@@ -1,13 +1,17 @@
 from flask import Flask, make_response, redirect, render_template, request, session, url_for
+import hmac
 from io import BytesIO
 import json
 import os
 import re
+import secrets
 import subprocess
+import threading
 from datetime import date, datetime, timedelta
 from functools import wraps
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TMPL_DIR = os.path.join(BASE_DIR, "Frontend", "templates")
@@ -20,11 +24,13 @@ PRICING_FILE = os.path.join(DATA_DIR, "pricing_catalog.json")
 APPOINTMENT_FILE = os.path.join(DATA_DIR, "appointment.txt")
 QUEUE_FILE = os.path.join(DATA_DIR, "queue.txt")
 BILLING_EXE = os.path.join(BACKEND_DIR, "c_modules", "billing.exe")
+_appointment_lock = threading.Lock()
+ALLOWED_PAYMENT_STATUSES = {"PENDING", "PAID", "WAIVED"}
 
 app = Flask(__name__,
             template_folder = TMPL_DIR,
             static_folder=STATIC_DIR)
-app.secret_key = os.environ.get("HEALTHDESK_SECRET", "healthdesk-dev-secret")
+app.secret_key = os.environ.get("HEALTHDESK_SECRET") or secrets.token_hex(32)
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax"
@@ -116,21 +122,31 @@ def require_role(*allowed_roles):
         return wrapper
     return decorator
 
+def get_csrf_token():
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+    return token
+
+def password_matches(stored_password, provided_password):
+    if stored_password.startswith(("pbkdf2:", "scrypt:")):
+        try:
+            return check_password_hash(stored_password, provided_password)
+        except ValueError:
+            return False
+    return hmac.compare_digest(stored_password, provided_password)
+
 def authenticate_user(username, password):
-    exe_path = os.path.join(BACKEND_DIR, "c_modules", "auth.exe")
-    result = subprocess.run(
-        [exe_path, username, password],
-        capture_output=True,
-        text=True,
-        cwd=BASE_DIR
-    )
-    data = result.stdout.strip().split("|")
-    if result.returncode == 0 and len(data) >= 3 and data[0] == "OK":
-        return {
-            "username": username,
-            "role": data[1],
-            "doctor_id": data[2]
-        }
+    for account in read_user_accounts():
+        if account["username"] != username:
+            continue
+        if password_matches(account["password"], password):
+            return {
+                "username": account["username"],
+                "role": account["role"],
+                "doctor_id": str(account["doctor_id"])
+            }
     return None
 
 
@@ -182,8 +198,9 @@ def build_doctor_password(doctor_id):
 
 def save_user_account(username, password, role, doctor_id):
     user_id = next_user_id()
+    stored_password = generate_password_hash(password)
     line = (
-        f"{user_id}|{clean_record_field(username)}|{clean_record_field(password)}|"
+        f"{user_id}|{clean_record_field(username)}|{clean_record_field(stored_password, 260)}|"
         f"{clean_record_field(role)}|{int(doctor_id or 0)}"
     )
     append_data_line(USER_FILE, line)
@@ -269,7 +286,7 @@ def generate_bill_id():
 def parse_bill_line(line):
     data = line.strip().split("|")
     if len(data) >= 19:
-        return {
+        bill = {
             "bill_id": int(data[0]),
             "date": data[1],
             "patient_id": int(data[2]),
@@ -290,8 +307,10 @@ def parse_bill_line(line):
             "medicine_notes": data[17],
             "appointment_id": int(data[18] or 0)
         }
+        bill["total"] = recalculate_bill_total(bill)
+        return bill
     if len(data) >= 18:
-        return {
+        bill = {
             "bill_id": int(data[0]),
             "date": data[1],
             "patient_id": int(data[2]),
@@ -312,11 +331,13 @@ def parse_bill_line(line):
             "medicine_notes": data[17],
             "appointment_id": 0
         }
+        bill["total"] = recalculate_bill_total(bill)
+        return bill
     if len(data) >= 13:
         doctor_fee = float(data[8])
         medicine_total = float(data[9])
         lab_total = float(data[10])
-        return {
+        bill = {
             "bill_id": int(data[0]),
             "date": data[1],
             "patient_id": int(data[2]),
@@ -337,7 +358,18 @@ def parse_bill_line(line):
             "medicine_notes": "",
             "appointment_id": 0
         }
+        bill["total"] = recalculate_bill_total(bill)
+        return bill
     return None
+
+
+def recalculate_bill_total(bill):
+    return (
+        float(bill.get("doctor_fee", 0) or 0)
+        + float(bill.get("treatment_total", 0) or 0)
+        + float(bill.get("lab_total", 0) or 0)
+        + float(bill.get("medicine_total", 0) or 0)
+    )
 
 
 def read_bills():
@@ -563,6 +595,9 @@ def create_bill_record(patient, doctor, bill_date, treatment_codes=None, lab_tes
     lab_total = sum(item["price"] for item in selected_lab_tests)
 
     safe_medicine_notes = clean_record_field(medicine_notes)
+    payment_status = clean_record_field(payment_status).upper()
+    if payment_status not in ALLOWED_PAYMENT_STATUSES:
+        payment_status = "PENDING"
 
     return {
         "bill_id": generate_bill_id(),
@@ -619,13 +654,13 @@ def load_appointment_slots(doctor_id, selected_date):
 
 def run_appointment_command(*args):
     exe_path = os.path.join(BACKEND_DIR, "c_modules", "appointment.exe")
-    result = subprocess.run(
-        [exe_path, *[str(arg) for arg in args]],
-        capture_output=True,
-        text=True,
-        cwd=BASE_DIR
-    )
-    return result
+    with _appointment_lock:
+        return subprocess.run(
+            [exe_path, *[str(arg) for arg in args]],
+            capture_output=True,
+            text=True,
+            cwd=BASE_DIR
+        )
 
 def parse_iso_date(date_str):
     try:
@@ -835,6 +870,15 @@ def require_login():
         return redirect(url_for("login"))
 
 @app.before_request
+def verify_csrf_token():
+    if request.method != "POST":
+        return
+    token = session.get("_csrf_token", "")
+    submitted = request.form.get("_csrf_token", "")
+    if not token or not submitted or not hmac.compare_digest(token, submitted):
+        return "Invalid or expired form token.", 400
+
+@app.before_request
 def sync_doctor_statuses_before_request():
     public_endpoints = {"login", "static"}
     if request.endpoint in public_endpoints or not is_authenticated():
@@ -846,7 +890,8 @@ def inject_auth_state():
     return {
         "is_logged_in": is_authenticated(),
         "current_role": session.get("role", ""),
-        "current_user": session.get("username", "")
+        "current_user": session.get("username", ""),
+        "csrf_token": get_csrf_token
     }
 
 
@@ -1299,28 +1344,110 @@ def get_patient_billing_context(patient_id, latest_appointment=None):
         context["warning"] = f"Bill #{existing_bill['bill_id']} already exists for the latest completed appointment."
     return context
 
+
+def get_patient_billing_context_from_cache(patient, appointments, doctor_map, bills_by_appointment):
+    context = {
+        "patient_id": int(patient["id"]),
+        "can_bill": False,
+        "warning": "",
+        "doctor_id": 0,
+        "doctor_name": "",
+        "department": "",
+        "appointment_id": 0,
+        "appointment_status": "",
+        "appointment_date": "",
+        "existing_bill_id": 0
+    }
+    patient_appointments = [
+        appointment for appointment in appointments
+        if appointment["patient_id"] == int(patient["id"])
+    ]
+    if not patient_appointments:
+        context["warning"] = "No appointment found for this patient."
+        return context
+
+    completed = [
+        appointment for appointment in patient_appointments
+        if appointment["status"] == "Completed"
+    ]
+    selected = max(
+        completed or patient_appointments,
+        key=parse_appointment_datetime
+    )
+
+    context["appointment_id"] = selected["appointment_id"]
+    context["appointment_status"] = selected["status"]
+    context["appointment_date"] = selected["date"]
+
+    doctor = doctor_map.get(selected["doctor_id"])
+    if doctor:
+        context["doctor_id"] = doctor["id"]
+        context["doctor_name"] = doctor["name"]
+        context["department"] = doctor["department"]
+
+    existing_bill = bills_by_appointment.get(selected["appointment_id"])
+    if existing_bill:
+        context["existing_bill_id"] = existing_bill["bill_id"]
+
+    if selected["status"] != "Completed":
+        context["warning"] = (
+            f"Billing is available only after completion. Latest appointment status is "
+            f"{selected['status']}."
+        )
+        return context
+
+    if not doctor:
+        context["warning"] = "Completed appointment found, but the linked doctor profile is missing."
+        return context
+
+    context["can_bill"] = True
+    if existing_bill:
+        context["warning"] = f"Bill #{existing_bill['bill_id']} already exists for the latest completed appointment."
+    return context
+
+
+def build_billing_lookup(patients, appointments, doctors, bills):
+    doctor_map = {doctor["id"]: doctor for doctor in doctors}
+    bills_by_appointment = {
+        int(bill.get("appointment_id", 0) or 0): bill
+        for bill in bills
+        if int(bill.get("appointment_id", 0) or 0) > 0
+    }
+    return {
+        str(patient["id"]): get_patient_billing_context_from_cache(
+            patient,
+            appointments,
+            doctor_map,
+            bills_by_appointment
+        )
+        for patient in patients
+    }
+
 def read_patients():
     patients = []
     patient_file = os.path.join(BACKEND_DIR, "data", "patients.txt")
     try:
-        with open(patient_file, "r") as f:
+        with open(patient_file, "r", encoding="utf-8") as f:
             for line in f:
                 data = line.strip().split("|")
-                if len(data) != 10:
+                if len(data) < 10:
                     continue
-                patients.append({
-                    "id": int(data[0]),
-                    "name": data[1],
-                    "age": data[2],
-                    "gender": data[3],
-                    "phone": data[4],
-                    "address": data[5],
-                    "symptoms": data[6],
-                    "visit_type": data[7],
-                    "priority": data[8],
-                    "department": data[9]
-                })
-    except:
+                try:
+                    patients.append({
+                        "id": int(data[0]),
+                        "name": data[1],
+                        "age": data[2],
+                        "gender": data[3],
+                        "phone": data[4],
+                        "address": data[5],
+                        "symptoms": data[6],
+                        "visit_type": data[7],
+                        "priority": data[8],
+                        "department": data[9]
+                    })
+                except ValueError:
+                    continue
+    except FileNotFoundError:
         pass
     return patients
 
@@ -1405,9 +1532,11 @@ def get_diagnosis_context(patient_id):
 
     for line in output:
         data = line.split("|")
+        if not data or not data[0]:
+            continue
         if data[0] == "PatientNotFound":
             error_message = "Patient ID not found."
-        elif data[0] == "PATIENT":
+        elif data[0] == "PATIENT" and len(data) >= 11:
             patient = {
                 "id": data[1],
                 "name": data[2],
@@ -1420,9 +1549,10 @@ def get_diagnosis_context(patient_id):
                 "priority": data[9],
                 "department": data[10]
             }
-        elif data[0] == "DIAGNOSIS":
+        elif data[0] == "DIAGNOSIS" and len(data) >= 7:
             diagnosis.append({
                 "record_id": data[1],
+                "patient_id": data[2],
                 "doctor_id": data[3],
                 "date": data[4],
                 "diagnosis": data[5],
@@ -1578,7 +1708,7 @@ def reception():
 
         elif action == "register":
             name = clean_record_field(request.form["name"])
-            age = request.form["age"]
+            age = request.form["age"].strip()
             gender = clean_record_field(request.form["gender"])
             phone = clean_record_field(request.form["phone"])
             address = clean_record_field(request.form["address"])
@@ -1586,7 +1716,10 @@ def reception():
             visit_type = clean_record_field(request.form["visit_type"])
             priority = clean_record_field(request.form["priority"])
             department = clean_record_field(request.form["department"])
-            if not is_valid_phone(phone):
+            if not all([name, age, gender, phone, address, symptoms, visit_type, priority, department]):
+                show_registration = True
+                message = "All patient registration fields are required."
+            elif not is_valid_phone(phone):
                 show_registration = True
                 message = "Phone must be 10 digits."
             elif not is_valid_age(age):
@@ -1791,6 +1924,14 @@ def book_appointment():
             )
         return redirect(f"/appointments?doctor_id={doctor_id}&date={appointment_date}")
 
+    parsed_appt_date = parse_iso_date(appointment_date)
+    if not parsed_appt_date or parsed_appt_date < date.today():
+        if return_to == "reception":
+            return redirect(
+                f"/reception?patient_id={patient_id}&doctor_id={doctor_id}&date={appointment_date}&booking_status=failed"
+            )
+        return redirect(f"/appointments?doctor_id={doctor_id}&date={appointment_date}&status_note=Cannot book an appointment for a past date")
+
     slot_available = any(
         slot["time"] == time_slot and slot["state"] == "Available"
         for slot in load_appointment_slots(doctor_id, appointment_date)
@@ -1841,6 +1982,9 @@ def reschedule():
     new_date = request.form["new_date"]
     new_time = request.form["new_time"]
     appointment = find_appointment_by_id(appointment_id)
+    parsed_new_date = parse_iso_date(new_date)
+    if not parsed_new_date or parsed_new_date < date.today():
+        return redirect("/appointments?status_note=Cannot reschedule to a past date")
     result = run_appointment_command("reschedule", appointment_id, new_date, new_time)
     if result.returncode == 0 and appointment:
         update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "Rescheduled")
@@ -1875,6 +2019,9 @@ def update_appointment():
         new_time = request.form["new_time"]
         if not new_date or not new_time:
             return redirect("/appointments?status_note=Provide new date and time for reschedule")
+        parsed_new_date = parse_iso_date(new_date)
+        if not parsed_new_date or parsed_new_date < date.today():
+            return redirect("/appointments?status_note=Cannot reschedule to a past date")
         result = run_appointment_command("reschedule", appointment_id, new_date, new_time)
         if result.returncode == 0:
             update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "Rescheduled")
@@ -1899,6 +2046,9 @@ def update_appointment():
         patient_id = request.form["patient_id"]
         if not new_doctor_id or not new_date or not new_time:
             return redirect("/appointments?status_note=Doctor, date and slot are required for reassignment")
+        parsed_new_date = parse_iso_date(new_date)
+        if not parsed_new_date or parsed_new_date < date.today():
+            return redirect("/appointments?status_note=Cannot reassign to a past date")
         cancel_result = run_appointment_command("cancel", appointment_id)
         book_result = run_appointment_command("book", patient_id, new_doctor_id, new_date, new_time)
         if cancel_result.returncode == 0:
@@ -1910,12 +2060,6 @@ def update_appointment():
         return redirect("/doctor")
     return redirect("/appointments")
 
-
-# Serve next patient
-@app.route("/serve", methods=["POST"])
-@require_role("Receptionist")
-def serve():
-    return redirect("/queue?status_note=Queue movement is now doctor-driven. Patients leave the queue automatically after diagnosis is saved.")
 
 @app.route("/doctors")
 @require_role("Receptionist")
@@ -2094,12 +2238,12 @@ def add_diagnosis():
     if not doctor_can_access_patient(patient_id, doctor_id):
         return redirect("/doctor?status_note=Patient is not assigned to your consultation list")
 
-    date = clean_record_field(request.form["date"])
+    consult_date = clean_record_field(request.form["date"])
     diagnosis_text = clean_record_field(request.form["diagnosis"])
     prescription = clean_record_field(request.form["prescription"])
     appointment = resolve_consultation_appointment(patient_id, doctor_id, appointment_id)
 
-    if not date:
+    if not consult_date:
         return redirect(f"/diagnosis?patient_id={patient_id}&appointment_id={appointment_id}&status_note=Consultation date is required")
     if not diagnosis_text:
         return redirect(f"/diagnosis?patient_id={patient_id}&appointment_id={appointment_id}&status_note=Diagnosis details are required")
@@ -2117,7 +2261,7 @@ def add_diagnosis():
     elif appointment["status"] != "Completed":
         return redirect(f"/doctor?status_note=Consultation cannot be saved for an inactive appointment")
 
-    data_string = f"{patient_id}|{doctor_id}|{date}|{diagnosis_text}|{prescription}"
+    data_string = f"{patient_id}|{doctor_id}|{consult_date}|{diagnosis_text}|{prescription}"
 
     exe_path = os.path.join(BACKEND_DIR, "c_modules", "diagnosis.exe")
 
@@ -2134,7 +2278,7 @@ def add_diagnosis():
     bill = auto_generate_bill(
         patient_id,
         doctor_id,
-        date,
+        consult_date,
         appointment_id=latest_completed["appointment_id"] if latest_completed else None
     )
     if bill:
@@ -2149,16 +2293,19 @@ def add_diagnosis():
 def billing_page():
     bills = read_bills()
     patients = read_patients()
+    appointments = read_appointments()
+    doctors = get_doctors()
     patient_id = request.args.get("patient_id", "")
     preview_bill_id = request.args.get("preview_bill_id", "")
     status_note = request.args.get("status_note", "")
     bill_preview = ""
     preview_bill = find_bill_by_id(preview_bill_id) if preview_bill_id else None
-    billing_context = get_patient_billing_context(patient_id) if patient_id else None
-    billing_lookup = {
-        str(patient["id"]): get_patient_billing_context(patient["id"])
-        for patient in patients
-    }
+    billing_lookup = build_billing_lookup(patients, appointments, doctors, bills)
+    billing_context = (
+        billing_lookup.get(str(patient_id))
+        if patient_id
+        else None
+    )
     billing_ready_patients = []
     for patient in patients:
         context = billing_lookup.get(str(patient["id"]))
@@ -2205,7 +2352,9 @@ def billing_page():
 def generate_bill():
     patient_id = request.form["patient_id"].strip()
     bill_date = request.form["date"].strip()
-    payment_status = request.form["payment_status"].strip()
+    payment_status = request.form["payment_status"].strip().upper()
+    if payment_status not in ALLOWED_PAYMENT_STATUSES:
+        payment_status = "PENDING"
     patient = find_patient_by_id(patient_id) if patient_id else None
     billing_context = get_patient_billing_context(patient_id) if patient_id else None
 
