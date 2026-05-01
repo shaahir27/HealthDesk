@@ -51,6 +51,8 @@ The current version includes role-based login for receptionists and doctors, aut
 HealthDesk/
 |-- app.py
 |-- README.md
+|-- SYSTEM_FLOW.md
+|-- PROJECT_WALKTHROUGH.md
 |-- Backend/
 |   |-- data/
 |   |   |-- appointment.txt
