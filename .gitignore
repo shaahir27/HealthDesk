@@ -24,6 +24,8 @@ Thumbs.db
 *.tmp
 *.temp
 *.log
+tmp*/
 
-changes.html
+changes.md
 Claude review check.zip
+Customer support claude review.zip

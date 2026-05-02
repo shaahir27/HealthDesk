@@ -1,4 +1,5 @@
-from flask import Flask, make_response, redirect, render_template, request, session, url_for
+from flask import Flask, jsonify, make_response, redirect, render_template, request, session, url_for
+import hashlib
 import hmac
 from io import BytesIO
 import json
@@ -11,6 +12,8 @@ from datetime import date, datetime, timedelta
 from functools import wraps
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+from payment_service import create_payment_order, get_razorpay_key_id, payments_configured, verify_webhook_signature
+from sms_service import get_last_sms_error, send_sms
 from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,9 +26,22 @@ BILLING_FILE = os.path.join(DATA_DIR, "billing.txt")
 PRICING_FILE = os.path.join(DATA_DIR, "pricing_catalog.json")
 APPOINTMENT_FILE = os.path.join(DATA_DIR, "appointment.txt")
 QUEUE_FILE = os.path.join(DATA_DIR, "queue.txt")
+DIAGNOSIS_FILE = os.path.join(DATA_DIR, "diagnosis.txt")
+PENDING_APPOINTMENTS_FILE = os.path.join(DATA_DIR, "pending_appointments.txt")
+NEW_PATIENT_REQUESTS_FILE = os.path.join(DATA_DIR, "new_patient_requests.txt")
 BILLING_EXE = os.path.join(BACKEND_DIR, "c_modules", "billing.exe")
+PENDING_REQUEST_EXE = os.path.join(BACKEND_DIR, "c_modules", "pending_request.exe")
 _appointment_lock = threading.Lock()
-ALLOWED_PAYMENT_STATUSES = {"PENDING", "PAID", "WAIVED"}
+_pending_appointment_lock = threading.Lock()
+_new_patient_request_lock = threading.Lock()
+_billing_lock = threading.Lock()
+_otp_lock = threading.Lock()
+_otp_store = {}
+ALLOWED_PAYMENT_STATUSES = {"PENDING", "INITIATED", "PAID", "WAIVED", "REFUNDED"}
+OTP_EXPIRY_SECONDS = 5 * 60
+OTP_MAX_ATTEMPTS = 3
+PENDING_REQUEST_EXPIRY_HOURS = 2
+DEFAULT_CLINIC_PHONE = "+91 XXXXX XXXXX"
 
 app = Flask(__name__,
             template_folder = TMPL_DIR,
@@ -148,6 +164,96 @@ def authenticate_user(username, password):
                 "doctor_id": str(account["doctor_id"])
             }
     return None
+
+def normalize_phone(phone):
+    return re.sub(r"\D", "", str(phone or ""))
+
+
+def is_valid_patient_phone(phone):
+    return bool(re.fullmatch(r"\d{10}", str(phone or "")))
+
+
+def mask_phone(phone):
+    phone = normalize_phone(phone)
+    if len(phone) != 10:
+        return phone
+    return f"{phone[:2]}XXXXX{phone[-3:]}"
+
+
+def hash_otp(otp):
+    return hashlib.sha256(str(otp).encode("utf-8")).hexdigest()
+
+
+def find_registered_patient_by_phone(phone):
+    normalized = normalize_phone(phone)
+    for patient in read_patients():
+        if normalize_phone(patient.get("phone", "")) == normalized:
+            return patient
+    return None
+
+
+def send_patient_otp(phone, otp):
+    return send_sms(phone, f"Your HealthDesk OTP is {otp}. Valid 5 min. Do not share.")
+
+
+def send_sms_notice(phone, message):
+    sent = send_sms(phone, message)
+    if not sent:
+        detail = get_last_sms_error()
+        suffix = f": {detail}" if detail else ""
+        print(f"[HealthDesk SMS] notice not delivered to {mask_phone(phone)}{suffix}")
+    return sent
+
+
+def notify_receptionists(message):
+    receptionist_phone = os.environ.get("RECEPTIONIST_PHONE", "")
+    if not receptionist_phone:
+        return False
+    return send_sms_notice(receptionist_phone, message)
+
+
+def generate_otp(phone):
+    normalized = normalize_phone(phone)
+    otp = f"{secrets.randbelow(900000) + 100000:06d}"
+    expires_at = datetime.now() + timedelta(seconds=OTP_EXPIRY_SECONDS)
+    with _otp_lock:
+        _otp_store[normalized] = {
+            "hash": hash_otp(otp),
+            "expires_at": expires_at,
+            "attempts": 0
+        }
+    if not send_patient_otp(normalized, otp):
+        with _otp_lock:
+            _otp_store.pop(normalized, None)
+        return False
+    return True
+
+
+def verify_otp(phone, entered):
+    normalized = normalize_phone(phone)
+    entered = normalize_phone(entered)
+    if not is_valid_patient_phone(normalized):
+        return False, "Please request a new OTP.", 0
+    if not re.fullmatch(r"\d{6}", entered or ""):
+        return False, "Enter the 6-digit OTP sent to your phone.", OTP_MAX_ATTEMPTS
+
+    with _otp_lock:
+        record = _otp_store.get(normalized)
+        if not record:
+            return False, "No OTP was requested. Please start again.", 0
+        if datetime.now() > record["expires_at"]:
+            _otp_store.pop(normalized, None)
+            return False, "OTP expired. Please request a new one.", 0
+        if hmac.compare_digest(record["hash"], hash_otp(entered)):
+            _otp_store.pop(normalized, None)
+            return True, "OTP verified.", OTP_MAX_ATTEMPTS - record["attempts"]
+
+        record["attempts"] += 1
+        attempts_left = OTP_MAX_ATTEMPTS - record["attempts"]
+        if attempts_left <= 0:
+            _otp_store.pop(normalized, None)
+            return False, "Too many incorrect attempts. Request a new OTP.", 0
+        return False, f"Incorrect OTP. {attempts_left} attempt(s) left.", attempts_left
 
 
 def read_user_accounts():
@@ -305,7 +411,12 @@ def parse_bill_line(line):
             "treatments": build_bill_items(data[15]),
             "lab_tests": build_bill_items(data[16]),
             "medicine_notes": data[17],
-            "appointment_id": int(data[18] or 0)
+            "appointment_id": int(data[18] or 0),
+            "razorpay_order_id": data[19] if len(data) > 19 else "",
+            "razorpay_payment_id": data[20] if len(data) > 20 else "",
+            "payment_method": data[21] if len(data) > 21 else "",
+            "paid_at": data[22] if len(data) > 22 else "",
+            "initiated_at": data[23] if len(data) > 23 else (data[22] if len(data) > 22 and data[13] == "INITIATED" else "")
         }
         bill["total"] = recalculate_bill_total(bill)
         return bill
@@ -329,7 +440,12 @@ def parse_bill_line(line):
             "treatments": build_bill_items(data[15]),
             "lab_tests": build_bill_items(data[16]),
             "medicine_notes": data[17],
-            "appointment_id": 0
+            "appointment_id": 0,
+            "razorpay_order_id": "",
+            "razorpay_payment_id": "",
+            "payment_method": "",
+            "paid_at": "",
+            "initiated_at": ""
         }
         bill["total"] = recalculate_bill_total(bill)
         return bill
@@ -356,7 +472,12 @@ def parse_bill_line(line):
             "treatments": [],
             "lab_tests": [{"name": "Lab Tests", "price": lab_total}] if lab_total else [],
             "medicine_notes": "",
-            "appointment_id": 0
+            "appointment_id": 0,
+            "razorpay_order_id": "",
+            "razorpay_payment_id": "",
+            "payment_method": "",
+            "paid_at": "",
+            "initiated_at": ""
         }
         bill["total"] = recalculate_bill_total(bill)
         return bill
@@ -406,9 +527,12 @@ def find_bill_by_appointment_id(appointment_id):
         None
     )
 
+def patient_owns_bill(bill, patient_id):
+    return bool(bill) and int(bill.get("patient_id", 0) or 0) == int(patient_id)
 
-def save_bill_record(bill):
-    line = "|".join([
+
+def serialize_bill_record(bill):
+    return "|".join([
         str(int(bill["bill_id"])),
         clean_record_field(bill["date"]),
         str(int(bill["patient_id"])),
@@ -427,11 +551,57 @@ def save_bill_record(bill):
         serialize_bill_items(bill.get("treatments", [])),
         serialize_bill_items(bill.get("lab_tests", [])),
         clean_record_field(bill.get("medicine_notes", "")),
-        str(int(bill.get("appointment_id", 0) or 0))
+        str(int(bill.get("appointment_id", 0) or 0)),
+        clean_record_field(bill.get("razorpay_order_id", ""), 80),
+        clean_record_field(bill.get("razorpay_payment_id", ""), 80),
+        clean_record_field(bill.get("payment_method", ""), 40),
+        clean_record_field(bill.get("paid_at", ""), 40),
+        clean_record_field(bill.get("initiated_at", ""), 40)
     ])
-    result = run_billing_command("save", line)
-    if not result or result.returncode != 0:
-        save_bill_line_fallback(line)
+
+
+def save_bill_record(bill):
+    line = serialize_bill_record(bill)
+    with _billing_lock:
+        result = run_billing_command("save", line)
+        if not result or result.returncode != 0:
+            save_bill_line_fallback(line)
+
+
+def _write_all_bill_records_unlocked(bills):
+    os.makedirs(os.path.dirname(BILLING_FILE), exist_ok=True)
+    with open(BILLING_FILE, "w", encoding="utf-8") as f:
+        for bill in bills:
+            f.write(f"{serialize_bill_record(bill)}\n")
+
+
+def write_all_bill_records(bills):
+    with _billing_lock:
+        _write_all_bill_records_unlocked(bills)
+
+
+def update_bill_record(updated_bill):
+    with _billing_lock:
+        bills = read_bills()
+        changed = False
+        for index, bill in enumerate(bills):
+            if int(bill["bill_id"]) == int(updated_bill["bill_id"]):
+                bills[index] = updated_bill
+                changed = True
+                break
+        if changed:
+            _write_all_bill_records_unlocked(bills)
+        return changed
+
+
+def find_bill_by_razorpay_order_id(order_id):
+    order_id = str(order_id or "").strip()
+    if not order_id:
+        return None
+    return next(
+        (bill for bill in read_bills() if bill.get("razorpay_order_id") == order_id),
+        None
+    )
 
 
 def build_bill_preview_text(bill):
@@ -480,6 +650,12 @@ def build_bill_preview_text(bill):
         "---------------------------------------------------------",
         f"Payment Status: {bill['status']}"
     ])
+    if str(bill.get("status", "")).upper() == "PAID":
+        lines.append(f"Payment Method: {payment_method_label(bill.get('payment_method'))}")
+        if bill.get("razorpay_payment_id"):
+            lines.append(f"Payment Reference: {bill['razorpay_payment_id']}")
+        if bill.get("paid_at"):
+            lines.append(f"Paid On: {payment_timestamp_label(bill.get('paid_at'))}")
     if bill["medicine_notes"]:
         lines.append(f"Medicine Notes : {bill['medicine_notes']}")
     lines.extend([
@@ -556,6 +732,12 @@ def build_bill_pdf(bill):
     rule()
     text_line(f"Total: Rs {bill['total']:.0f}", size=12, bold=True, gap=18)
     text_line(f"Payment Status: {bill['status']}", bold=True)
+    if str(bill.get("status", "")).upper() == "PAID":
+        text_line(f"Payment Method: {payment_method_label(bill.get('payment_method'))}")
+        if bill.get("razorpay_payment_id"):
+            text_line(f"Payment Reference: {bill['razorpay_payment_id']}")
+        if bill.get("paid_at"):
+            text_line(f"Paid On: {payment_timestamp_label(bill.get('paid_at'))}")
     if bill["medicine_notes"]:
         text_line("Medicine Notes:", bold=True)
         for note_line in re.findall(r".{1,85}(?:\s+|$)", bill["medicine_notes"]) or [bill["medicine_notes"]]:
@@ -618,7 +800,12 @@ def create_bill_record(patient, doctor, bill_date, treatment_codes=None, lab_tes
         "treatments": selected_treatments,
         "lab_tests": selected_lab_tests,
         "medicine_notes": safe_medicine_notes,
-        "appointment_id": int(appointment_id or 0)
+        "appointment_id": int(appointment_id or 0),
+        "razorpay_order_id": "",
+        "razorpay_payment_id": "",
+        "payment_method": "counter" if payment_status == "PAID" else "",
+        "paid_at": iso_now() if payment_status == "PAID" else "",
+        "initiated_at": ""
     }
 
 def is_valid_phone(phone):
@@ -652,6 +839,13 @@ def load_appointment_slots(doctor_id, selected_date):
 
     return slots
 
+
+def slot_is_available(doctor_id, selected_date, time_slot):
+    return any(
+        slot["time"] == time_slot and slot["state"] == "Available"
+        for slot in load_appointment_slots(doctor_id, selected_date)
+    )
+
 def run_appointment_command(*args):
     exe_path = os.path.join(BACKEND_DIR, "c_modules", "appointment.exe")
     with _appointment_lock:
@@ -673,6 +867,137 @@ def is_future_or_today(date_str):
     if not parsed:
         return False
     return parsed >= date.today()
+
+
+def format_human_date(date_str):
+    parsed = parse_iso_date(date_str)
+    if not parsed:
+        return date_str or ""
+    return parsed.strftime("%A, %d %B %Y")
+
+
+def format_human_datetime(value):
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        parsed = None
+        for pattern in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M"):
+            try:
+                parsed = datetime.strptime(str(value or ""), pattern)
+                break
+            except ValueError:
+                continue
+    if not parsed:
+        return value or ""
+    return parsed.strftime("%A, %d %B %Y at %I:%M %p").replace(" 0", " ")
+
+
+def format_amount(amount):
+    try:
+        return f"Rs {float(amount):,.0f}"
+    except (TypeError, ValueError):
+        return "Rs 0"
+
+
+def payment_method_label(method):
+    labels = {
+        "upi": "Paid via UPI",
+        "card": "Paid by Card",
+        "netbanking": "Paid by Netbanking",
+        "wallet": "Paid by Wallet",
+        "counter": "Paid at counter",
+        "razorpay": "Paid online"
+    }
+    method = str(method or "").lower()
+    return labels.get(method, method.replace("_", " ").title() if method else "Payment recorded")
+
+
+def payment_timestamp_label(value):
+    return format_human_datetime(value) if value else ""
+
+
+def preview_text(value, length=80):
+    text = str(value or "").strip()
+    if len(text) <= length:
+        return text
+    return f"{text[:length].rstrip()}..."
+
+
+def remaining_time_label(expires_at):
+    if isinstance(expires_at, datetime):
+        expiry = expires_at
+    else:
+        expiry = None
+        for pattern in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M"):
+            try:
+                expiry = datetime.strptime(str(expires_at or ""), pattern)
+                break
+            except ValueError:
+                continue
+    if not expiry:
+        return ""
+    remaining = expiry - datetime.now()
+    if remaining.total_seconds() <= 0:
+        return "Expired"
+    minutes = int(remaining.total_seconds() // 60)
+    hours, mins = divmod(minutes, 60)
+    if hours:
+        return f"Expires in {hours}h {mins}m"
+    return f"Expires in {mins}m"
+
+
+def parse_iso_datetime(value):
+    if isinstance(value, datetime):
+        return value
+    for pattern in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M"):
+        try:
+            return datetime.strptime(str(value or ""), pattern)
+        except ValueError:
+            continue
+    return None
+
+
+def iso_now():
+    return datetime.now().replace(microsecond=0).isoformat()
+
+
+def revert_stale_initiated_payments():
+    with _billing_lock:
+        rows = read_bills()
+        now = datetime.now()
+        changed = False
+        for bill in rows:
+            if str(bill.get("status", "")).upper() != "INITIATED":
+                continue
+            started_at = parse_iso_datetime(bill.get("initiated_at") or bill.get("paid_at"))
+            if started_at and now - started_at <= timedelta(minutes=30):
+                continue
+            bill["status"] = "PENDING"
+            bill["razorpay_order_id"] = ""
+            bill["razorpay_payment_id"] = ""
+            bill["payment_method"] = ""
+            bill["paid_at"] = ""
+            bill["initiated_at"] = ""
+            changed = True
+        if changed:
+            _write_all_bill_records_unlocked(rows)
+        return changed
+
+
+def parse_booked_appointment_id(result):
+    if not result or result.returncode != 0:
+        return 0
+    data = result.stdout.strip().split("|")
+    if len(data) >= 2 and data[0] == "BOOKED":
+        return safe_int(data[1])
+    return 0
+
+
+def is_clinic_hours_now():
+    start_hour = safe_int(os.environ.get("CLINIC_HOURS_START", "9"), 9)
+    end_hour = safe_int(os.environ.get("CLINIC_HOURS_END", "18"), 18)
+    current_hour = datetime.now().hour
+    return start_hour <= current_hour < end_hour
 
 
 def get_alternative_doctor_for_slot(department, appointment_date, time_slot, excluded_doctor_id):
@@ -863,14 +1188,18 @@ def reconcile_waiting_queue_entries():
 
 @app.before_request
 def require_login():
-    public_endpoints = {"login", "static"}
+    public_endpoints = {"dashboard", "login", "patient_login", "patient_request_otp", "patient_verify_otp", "new_patient_request", "new_patient_slots", "new_patient_submit", "payment_webhook", "static"}
     if request.endpoint in public_endpoints:
         return
     if not is_authenticated():
+        if request.endpoint and request.endpoint.startswith("patient_"):
+            return redirect(url_for("patient_login"))
         return redirect(url_for("login"))
 
 @app.before_request
 def verify_csrf_token():
+    if request.endpoint == "payment_webhook":
+        return
     if request.method != "POST":
         return
     token = session.get("_csrf_token", "")
@@ -880,7 +1209,7 @@ def verify_csrf_token():
 
 @app.before_request
 def sync_doctor_statuses_before_request():
-    public_endpoints = {"login", "static"}
+    public_endpoints = {"login", "patient_login", "patient_request_otp", "patient_verify_otp", "new_patient_request", "new_patient_slots", "new_patient_submit", "payment_webhook", "static"}
     if request.endpoint in public_endpoints or not is_authenticated():
         return
     sync_doctor_busy_statuses()
@@ -891,7 +1220,8 @@ def inject_auth_state():
         "is_logged_in": is_authenticated(),
         "current_role": session.get("role", ""),
         "current_user": session.get("username", ""),
-        "csrf_token": get_csrf_token
+        "csrf_token": get_csrf_token,
+        "payment_method_label": payment_method_label
     }
 
 
@@ -1287,6 +1617,653 @@ def get_doctor_by_id(doctor_id):
     return next((doctor for doctor in get_doctors() if doctor["id"] == int(doctor_id)), None)
 
 
+def read_diagnosis_for_patient(patient_id):
+    patient_id = int(patient_id)
+    doctor_map = {doctor["id"]: doctor for doctor in get_doctors()}
+    records = []
+    try:
+        with open(DIAGNOSIS_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                data = line.strip().split("|")
+                if len(data) < 6:
+                    continue
+                try:
+                    record_patient_id = int(data[1])
+                    doctor_id = int(data[2])
+                except ValueError:
+                    continue
+                if record_patient_id != patient_id:
+                    continue
+                doctor = doctor_map.get(doctor_id, {})
+                records.append({
+                    "record_id": safe_int(data[0]),
+                    "patient_id": record_patient_id,
+                    "doctor_id": doctor_id,
+                    "date": data[3],
+                    "human_date": format_human_date(data[3]),
+                    "doctor_name": doctor.get("name", "Doctor"),
+                    "department": doctor.get("department", ""),
+                    "diagnosis": data[4],
+                    "diagnosis_preview": preview_text(data[4]),
+                    "prescription": data[5]
+                })
+    except FileNotFoundError:
+        pass
+    records.sort(key=lambda item: parse_iso_date(item["date"]) or date.min, reverse=True)
+    return records
+
+
+def parse_pending_request_line(line):
+    data = line.strip().split("|")
+    if len(data) < 12:
+        return None
+    try:
+        return {
+            "request_id": int(data[0]),
+            "patient_id": int(data[1]),
+            "doctor_id": int(data[2]),
+            "requested_date": data[3],
+            "requested_slot": data[4],
+            "reason": data[5],
+            "visit_type": data[6],
+            "status": data[7],
+            "submitted_at": data[8],
+            "expires_at": data[9],
+            "receptionist_note": data[10],
+            "appointment_id": int(data[11] or 0)
+        }
+    except ValueError:
+        return None
+
+
+def run_pending_request_command(*args):
+    return subprocess.run(
+        [PENDING_REQUEST_EXE, *[str(arg) for arg in args]],
+        capture_output=True,
+        text=True,
+        cwd=BASE_DIR
+    )
+
+
+def serialize_pending_request(request_row):
+    return "|".join([
+        str(int(request_row["request_id"])),
+        str(int(request_row["patient_id"])),
+        str(int(request_row["doctor_id"])),
+        clean_record_field(request_row["requested_date"]),
+        clean_record_field(request_row["requested_slot"]),
+        clean_record_field(request_row.get("reason", ""), 220),
+        clean_record_field(request_row.get("visit_type", "New")),
+        clean_record_field(request_row.get("status", "Pending")),
+        clean_record_field(request_row.get("submitted_at", "")),
+        clean_record_field(request_row.get("expires_at", "")),
+        clean_record_field(request_row.get("receptionist_note", ""), 220),
+        str(int(request_row.get("appointment_id", 0) or 0))
+    ])
+
+
+def read_all_pending_requests():
+    rows = []
+    result = run_pending_request_command("list-existing")
+    if result.returncode != 0:
+        print(f"[HealthDesk Pending C] list-existing failed: {result.stderr or result.stdout}")
+        return rows
+    for line in result.stdout.splitlines():
+        pending = parse_pending_request_line(line)
+        if pending:
+            rows.append(pending)
+    return rows
+
+
+def write_all_pending_requests(rows):
+    # Pending request persistence is owned by pending_request.exe.
+    # Keep this fallback helper only for legacy callers during migration.
+    os.makedirs(os.path.dirname(PENDING_APPOINTMENTS_FILE), exist_ok=True)
+    with _pending_appointment_lock:
+        with open(PENDING_APPOINTMENTS_FILE, "w", encoding="utf-8") as f:
+            for row in rows:
+                f.write(f"{serialize_pending_request(row)}\n")
+
+
+def next_pending_request_id():
+    return max((row["request_id"] for row in read_all_pending_requests()), default=0) + 1
+
+
+def create_pending_request(patient_id, doctor_id, requested_date, requested_slot, reason, visit_type, status="Pending", appointment_id=0, note=""):
+    result = run_pending_request_command(
+        "add-existing",
+        int(patient_id),
+        int(doctor_id),
+        clean_record_field(requested_date),
+        clean_record_field(requested_slot),
+        clean_record_field(reason, 220),
+        visit_type if visit_type in {"New", "Follow-up"} else "New",
+        clean_record_field(status),
+        clean_record_field(note, 220),
+        int(appointment_id or 0)
+    )
+    if result.returncode != 0 or not result.stdout.startswith("ADDED|"):
+        raise RuntimeError(f"pending_request.exe add-existing failed: {result.stderr or result.stdout}")
+    return parse_pending_request_line(result.stdout.split("|", 1)[1])
+
+
+def update_pending_status(request_id, status, receptionist_note="", appointment_id=None):
+    result = run_pending_request_command(
+        "update-existing",
+        int(request_id),
+        clean_record_field(status),
+        clean_record_field(receptionist_note, 220),
+        int(appointment_id or 0)
+    )
+    if result.returncode != 0:
+        print(f"[HealthDesk Pending C] update-existing failed: {result.stderr or result.stdout}")
+        return None
+    if not result.stdout.startswith("UPDATED|"):
+        return None
+    return parse_pending_request_line(result.stdout.split("|", 1)[1])
+
+
+def decorate_pending_request(pending, doctor_map=None, patient_map=None):
+    doctor_map = doctor_map or {doctor["id"]: doctor for doctor in get_doctors()}
+    patient_map = patient_map or {patient["id"]: patient for patient in read_patients()}
+    doctor = doctor_map.get(pending["doctor_id"], {})
+    patient = patient_map.get(pending["patient_id"], {})
+    status_class = pending["status"].lower().replace("-", "")
+    return {
+        **pending,
+        "patient_name": patient.get("name", ""),
+        "patient_age": patient.get("age", ""),
+        "patient_gender": patient.get("gender", ""),
+        "patient_phone": patient.get("phone", ""),
+        "doctor_name": doctor.get("name", "Doctor"),
+        "department": doctor.get("department", ""),
+        "human_date": format_human_date(pending["requested_date"]),
+        "time_label": pending["requested_slot"],
+        "time_remaining": remaining_time_label(pending["expires_at"]),
+        "status_label": "Pending Confirmation" if pending["status"] == "Pending" else pending["status"],
+        "status_class": status_class
+    }
+
+
+def read_pending_requests_for_patient(patient_id):
+    patient_id = int(patient_id)
+    doctor_map = {doctor["id"]: doctor for doctor in get_doctors()}
+    requests = []
+    for pending in read_all_pending_requests():
+        if pending["patient_id"] != patient_id:
+            continue
+        requests.append(decorate_pending_request(pending, doctor_map=doctor_map))
+    requests.sort(
+        key=lambda item: (
+            parse_iso_date(item["requested_date"]) or date.min,
+            item["requested_slot"]
+        )
+    )
+    return requests
+
+
+def read_pending_requests_for_reception():
+    doctor_map = {doctor["id"]: doctor for doctor in get_doctors()}
+    patient_map = {patient["id"]: patient for patient in read_patients()}
+    rows = [
+        decorate_pending_request(row, doctor_map=doctor_map, patient_map=patient_map)
+        for row in read_all_pending_requests()
+        if row["status"] == "Pending"
+    ]
+    rows.sort(key=lambda item: parse_iso_datetime(item["submitted_at"]) or datetime.min)
+    return rows
+
+
+def pending_slot_exists(doctor_id, requested_date, requested_slot):
+    result = run_pending_request_command(
+        "soft-lock-exists",
+        int(doctor_id),
+        clean_record_field(requested_date),
+        clean_record_field(requested_slot)
+    )
+    if result.returncode != 0:
+        print(f"[HealthDesk Pending C] soft-lock check failed: {result.stderr or result.stdout}")
+        return False
+    return result.stdout.strip() == "EXISTS"
+
+
+def parse_new_patient_request_line(line):
+    data = line.strip().split("|")
+    if len(data) < 19:
+        return None
+    try:
+        return {
+            "request_id": int(data[0]),
+            "name": data[1],
+            "age": data[2],
+            "gender": data[3],
+            "phone": data[4],
+            "address": data[5],
+            "department": data[6],
+            "doctor_id": int(data[7]),
+            "requested_date": data[8],
+            "requested_slot": data[9],
+            "reason": data[10],
+            "visit_type": data[11],
+            "priority": data[12],
+            "status": data[13],
+            "submitted_at": data[14],
+            "expires_at": data[15],
+            "receptionist_note": data[16],
+            "patient_id": int(data[17] or 0),
+            "appointment_id": int(data[18] or 0)
+        }
+    except ValueError:
+        return None
+
+
+def serialize_new_patient_request(row):
+    return "|".join([
+        str(int(row["request_id"])),
+        clean_record_field(row.get("name", "")),
+        clean_record_field(row.get("age", "")),
+        clean_record_field(row.get("gender", "")),
+        clean_record_field(row.get("phone", "")),
+        clean_record_field(row.get("address", "")),
+        clean_record_field(row.get("department", "")),
+        str(int(row.get("doctor_id", 0) or 0)),
+        clean_record_field(row.get("requested_date", "")),
+        clean_record_field(row.get("requested_slot", "")),
+        clean_record_field(row.get("reason", ""), 220),
+        clean_record_field(row.get("visit_type", "New")),
+        clean_record_field(row.get("priority", "Normal")),
+        clean_record_field(row.get("status", "Pending")),
+        clean_record_field(row.get("submitted_at", "")),
+        clean_record_field(row.get("expires_at", "")),
+        clean_record_field(row.get("receptionist_note", ""), 220),
+        str(int(row.get("patient_id", 0) or 0)),
+        str(int(row.get("appointment_id", 0) or 0))
+    ])
+
+
+def read_all_new_patient_requests():
+    rows = []
+    result = run_pending_request_command("list-new")
+    if result.returncode != 0:
+        print(f"[HealthDesk Pending C] list-new failed: {result.stderr or result.stdout}")
+        return rows
+    for line in result.stdout.splitlines():
+        row = parse_new_patient_request_line(line)
+        if row:
+            rows.append(row)
+    return rows
+
+
+def write_all_new_patient_requests(rows):
+    # Pending request persistence is owned by pending_request.exe.
+    # Keep this fallback helper only for legacy callers during migration.
+    os.makedirs(os.path.dirname(NEW_PATIENT_REQUESTS_FILE), exist_ok=True)
+    with _new_patient_request_lock:
+        with open(NEW_PATIENT_REQUESTS_FILE, "w", encoding="utf-8") as f:
+            for row in rows:
+                f.write(f"{serialize_new_patient_request(row)}\n")
+
+
+def next_new_patient_request_id():
+    return max((row["request_id"] for row in read_all_new_patient_requests()), default=0) + 1
+
+
+def create_new_patient_request(form):
+    result = run_pending_request_command(
+        "add-new",
+        clean_record_field(form.get("name", "")),
+        clean_record_field(form.get("age", "")),
+        clean_record_field(form.get("gender", "")),
+        normalize_phone(form.get("phone", "")),
+        clean_record_field(form.get("address", ""), 220),
+        clean_record_field(form.get("department", "")),
+        safe_int(form.get("doctor_id", "0")),
+        clean_record_field(form.get("requested_date", "")),
+        clean_record_field(form.get("requested_slot", "")),
+        clean_record_field(form.get("reason", ""), 220),
+        clean_record_field(form.get("visit_type", "New")) or "New",
+        "Normal"
+    )
+    if result.returncode != 0 or not result.stdout.startswith("ADDED|"):
+        raise RuntimeError(f"pending_request.exe add-new failed: {result.stderr or result.stdout}")
+    return parse_new_patient_request_line(result.stdout.split("|", 1)[1])
+
+
+def update_new_patient_request_status(request_id, status, receptionist_note="", patient_id=None, appointment_id=None):
+    result = run_pending_request_command(
+        "update-new",
+        int(request_id),
+        clean_record_field(status),
+        clean_record_field(receptionist_note, 220),
+        int(patient_id or 0),
+        int(appointment_id or 0)
+    )
+    if result.returncode != 0:
+        print(f"[HealthDesk Pending C] update-new failed: {result.stderr or result.stdout}")
+        return None
+    if not result.stdout.startswith("UPDATED|"):
+        return None
+    return parse_new_patient_request_line(result.stdout.split("|", 1)[1])
+
+
+def decorate_new_patient_request(row, doctor_map=None):
+    doctor_map = doctor_map or {doctor["id"]: doctor for doctor in get_doctors()}
+    doctor = doctor_map.get(row["doctor_id"], {})
+    return {
+        **row,
+        "doctor_name": doctor.get("name", "Doctor"),
+        "human_date": format_human_date(row["requested_date"]),
+        "time_label": row["requested_slot"],
+        "time_remaining": remaining_time_label(row["expires_at"]),
+        "status_class": row["status"].lower()
+    }
+
+
+def read_new_patient_requests_for_reception():
+    doctor_map = {doctor["id"]: doctor for doctor in get_doctors()}
+    rows = [
+        decorate_new_patient_request(row, doctor_map=doctor_map)
+        for row in read_all_new_patient_requests()
+        if row["status"] == "Pending"
+    ]
+    rows.sort(key=lambda item: parse_iso_datetime(item["submitted_at"]) or datetime.min)
+    return rows
+
+
+def run_expiry_check():
+    pending_changed = False
+    new_changed = False
+    result = run_pending_request_command("expire")
+    if result.returncode != 0:
+        print(f"[HealthDesk Pending C] expire failed: {result.stderr or result.stdout}")
+        return {"pending_changed": False, "new_changed": False}
+
+    for line in result.stdout.splitlines():
+        if line.startswith("EXPIRED_EXISTING|"):
+            row = parse_pending_request_line(line.split("|", 1)[1])
+            if not row:
+                continue
+            pending_changed = True
+            patient = find_patient_by_id(row["patient_id"])
+            if patient:
+                send_sms_notice(patient["phone"], f"Your request for {format_human_date(row['requested_date'])}, {row['requested_slot']} expired before confirmation. Log in to rebook.")
+                notify_receptionists(f"Booking request from {patient['name']} expired unreviewed.")
+        elif line.startswith("EXPIRED_NEW|"):
+            row = parse_new_patient_request_line(line.split("|", 1)[1])
+            if not row:
+                continue
+            new_changed = True
+            send_sms_notice(row["phone"], f"Your first-time request for {format_human_date(row['requested_date'])}, {row['requested_slot']} expired before confirmation. Please submit again or call the clinic.")
+            notify_receptionists(f"First-time booking request from {row['name']} expired unreviewed.")
+
+    return {"pending_changed": pending_changed, "new_changed": new_changed}
+
+
+def triage_booking_request(doctor_id, requested_date, visit_type):
+    doctor = get_doctor_by_id(doctor_id)
+    reasons = []
+    if not is_clinic_hours_now():
+        reasons.append("Submitted outside clinic review hours.")
+    if not doctor or doctor.get("daily_status") != "Available" or doctor.get("current_status") not in {"Free", "Busy"}:
+        reasons.append("Doctor availability needs receptionist review.")
+    if visit_type != "New":
+        reasons.append("Follow-up visits need receptionist review.")
+    return ("exception" if reasons else "auto"), reasons
+
+
+def auto_approve_booking(patient, doctor_id, requested_date, requested_slot, reason, visit_type):
+    if pending_slot_exists(doctor_id, requested_date, requested_slot):
+        return False, "This slot is being processed for another request. Please choose another slot.", None
+    if not slot_is_available(doctor_id, requested_date, requested_slot):
+        return False, "This slot is no longer available. Please choose another slot.", None
+    result = run_appointment_command("book", patient["id"], doctor_id, requested_date, requested_slot)
+    appointment_id = parse_booked_appointment_id(result)
+    if not appointment_id:
+        return False, "The appointment could not be booked. Please choose another slot.", None
+    audit_row = create_pending_request(
+        patient["id"],
+        doctor_id,
+        requested_date,
+        requested_slot,
+        reason,
+        visit_type,
+        status="Approved",
+        appointment_id=appointment_id,
+        note="Auto-approved by triage"
+    )
+    doctor = get_doctor_by_id(doctor_id) or {}
+    send_sms_notice(
+        patient["phone"],
+        f"Confirmed! {doctor.get('name', 'Doctor')}, {format_human_date(requested_date)}, {requested_slot}. Please arrive 10 min early."
+    )
+    return True, "Your appointment is confirmed.", audit_row
+
+
+def exception_queue_booking(patient, doctor_id, requested_date, requested_slot, reason, visit_type, triage_reasons=None):
+    if pending_slot_exists(doctor_id, requested_date, requested_slot):
+        return False, "This slot is already being reviewed for another patient. Please choose another slot.", None
+    if not slot_is_available(doctor_id, requested_date, requested_slot):
+        return False, "This slot is no longer available. Please choose another slot.", None
+    note = "; ".join(triage_reasons or [])
+    row = create_pending_request(
+        patient["id"],
+        doctor_id,
+        requested_date,
+        requested_slot,
+        reason,
+        visit_type,
+        status="Pending",
+        note=note
+    )
+    doctor = get_doctor_by_id(doctor_id) or {}
+    send_sms_notice(patient["phone"], f"Request for {doctor.get('name', 'Doctor')} on {format_human_date(requested_date)}, {requested_slot} received. Confirming within 2 hours during clinic hours.")
+    notify_receptionists(f"New request from {patient['name']} ({patient['phone']}) for {doctor.get('name', 'Doctor')}, {format_human_date(requested_date)}, {requested_slot}. Review dashboard.")
+    return True, "Your request has been sent for receptionist review.", row
+
+
+def doctor_options_for_department(department):
+    return [
+        doctor for doctor in get_doctors()
+        if not department or doctor["department"] == department
+    ]
+
+
+def choose_any_available_doctor(department, requested_date, requested_slot):
+    for doctor in doctor_options_for_department(department):
+        if slot_is_available(doctor["id"], requested_date, requested_slot) and not pending_slot_exists(doctor["id"], requested_date, requested_slot):
+            return doctor
+    return None
+
+
+def build_patient_slot_payload(department, doctor_id, requested_date):
+    slots_by_time = {}
+    doctors = doctor_options_for_department(department)
+    if doctor_id and str(doctor_id) != "any":
+        doctors = [doctor for doctor in doctors if str(doctor["id"]) == str(doctor_id)]
+
+    for doctor in doctors:
+        for slot in load_appointment_slots(doctor["id"], requested_date):
+            state = slot["state"]
+            if state == "Available" and pending_slot_exists(doctor["id"], requested_date, slot["time"]):
+                state = "Pending"
+            existing = slots_by_time.get(slot["time"])
+            candidate = {
+                "time": slot["time"],
+                "state": state,
+                "doctor_id": doctor["id"],
+                "doctor_name": doctor["name"]
+            }
+            if not existing:
+                slots_by_time[slot["time"]] = candidate
+            elif existing["state"] != "Available" and state == "Available":
+                slots_by_time[slot["time"]] = candidate
+
+    return [slots_by_time[key] for key in sorted(slots_by_time.keys(), key=lambda value: parse_slot_time(value))]
+
+
+def parse_slot_time(value):
+    try:
+        return datetime.strptime(value, "%I:%M %p").time()
+    except ValueError:
+        return datetime.min.time()
+
+
+def register_patient_from_request(row):
+    existing = find_patient_by_phone(row["phone"])
+    if existing:
+        return existing
+    exe_path = os.path.join(BACKEND_DIR, "c_modules", "patient.exe")
+    data_string = "|".join([
+        clean_record_field(row["name"]),
+        clean_record_field(row["age"]),
+        clean_record_field(row["gender"]),
+        clean_record_field(row["phone"]),
+        clean_record_field(row["address"]),
+        clean_record_field(row["reason"] or "First-time online request"),
+        "New",
+        clean_record_field(row.get("priority", "Normal") or "Normal"),
+        clean_record_field(row["department"])
+    ])
+    result = subprocess.run(
+        [exe_path, data_string],
+        capture_output=True,
+        text=True,
+        cwd=BASE_DIR
+    )
+    data = result.stdout.strip().split("|")
+    if result.returncode == 0 and data and safe_int(data[0]):
+        return find_patient_by_id(data[0])
+    return None
+
+
+def status_label_for_patient(status):
+    labels = {
+        "Booked": "Confirmed",
+        "Pending": "Pending Confirmation",
+        "Cancelled": "Cancelled",
+        "Completed": "Visit completed",
+        "No-show": "Appointment not attended",
+        "Rescheduled": "Rescheduled"
+    }
+    return labels.get(status, status or "Unknown")
+
+
+def status_sentence_for_patient(appointment, doctor_name):
+    status = appointment.get("status", "")
+    when = f"{format_human_date(appointment.get('date'))} at {appointment.get('time_slot', '')}"
+    if status == "Booked":
+        return f"Confirmed with {doctor_name} on {when}."
+    if status == "Completed":
+        return f"Visit completed on {format_human_date(appointment.get('date'))}."
+    if status == "Cancelled":
+        return f"This appointment was cancelled."
+    if status == "No-show":
+        return f"Appointment on {when} was not attended."
+    if status == "Rescheduled":
+        return "This appointment was rescheduled by the clinic."
+    return status_label_for_patient(status)
+
+
+def decorate_patient_appointments(patient_id):
+    doctor_map = {doctor["id"]: doctor for doctor in get_doctors()}
+    rows = []
+    for appointment in read_appointments():
+        if appointment["patient_id"] != int(patient_id):
+            continue
+        doctor = doctor_map.get(appointment["doctor_id"], {})
+        appointment_dt = parse_appointment_datetime(appointment)
+        is_upcoming = appointment["status"] == "Booked" and appointment_dt >= datetime.now()
+        can_cancel_online = is_upcoming and (appointment_dt - datetime.now()) > timedelta(hours=24)
+        doctor_name = doctor.get("name", "Doctor")
+        rows.append({
+            **appointment,
+            "doctor_name": doctor_name,
+            "department": doctor.get("department", ""),
+            "human_date": format_human_date(appointment["date"]),
+            "time_label": appointment["time_slot"],
+            "status_label": status_label_for_patient(appointment["status"]),
+            "status_class": appointment["status"].lower().replace("-", ""),
+            "status_sentence": status_sentence_for_patient(appointment, doctor_name),
+            "is_upcoming": is_upcoming,
+            "can_cancel_online": can_cancel_online,
+            "cancel_note": (
+                "You can cancel this appointment online."
+                if can_cancel_online
+                else "To cancel within 24 hours, please call the clinic."
+            )
+        })
+    rows.sort(key=parse_appointment_datetime)
+    upcoming = [row for row in rows if row["is_upcoming"]]
+    history = [row for row in rows if not row["is_upcoming"]]
+    history.sort(key=parse_appointment_datetime, reverse=True)
+    return upcoming, history
+
+
+def display_name_for_catalog_item(code_or_name, catalog_map):
+    item = catalog_map.get(code_or_name)
+    if item:
+        return item.get("name", code_or_name)
+    return str(code_or_name or "").replace("_", " ").strip().title()
+
+
+def decorate_bill_for_patient(bill, treatment_map, lab_map):
+    line_items = []
+    if bill.get("doctor_fee"):
+        line_items.append({
+            "label": "Doctor consultation fee",
+            "amount": format_amount(bill["doctor_fee"])
+        })
+    for item in bill.get("treatments", []):
+        line_items.append({
+            "label": display_name_for_catalog_item(item.get("name"), treatment_map),
+            "amount": format_amount(item.get("price", 0))
+        })
+    for item in bill.get("lab_tests", []):
+        line_items.append({
+            "label": display_name_for_catalog_item(item.get("name"), lab_map),
+            "amount": format_amount(item.get("price", 0))
+        })
+    if bill.get("medicine_total"):
+        label = "Medicines"
+        if bill.get("medicine_notes"):
+            label = f"Medicines: {bill['medicine_notes']}"
+        line_items.append({
+            "label": label,
+            "amount": format_amount(bill["medicine_total"])
+        })
+    status = str(bill.get("status", "")).upper()
+    status_label = status.title() if status else "Pending"
+    if status == "INITIATED":
+        status_label = "Payment Processing"
+    if status == "PAID" and bill.get("payment_method") and bill.get("payment_method") != "counter":
+        status_label = "Paid Online"
+    return {
+        **bill,
+        "human_date": format_human_date(bill.get("date")),
+        "total_label": format_amount(bill.get("total", 0)),
+        "status_label": status_label,
+        "status_class": status.lower(),
+        "line_items": line_items,
+        "payment_method_label": payment_method_label(bill.get("payment_method")),
+        "paid_at_label": payment_timestamp_label(bill.get("paid_at"))
+    }
+
+
+def read_bills_for_patient(patient_id):
+    revert_stale_initiated_payments()
+    _catalog, treatment_map, lab_map = get_pricing_maps()
+    bills = [
+        decorate_bill_for_patient(bill, treatment_map, lab_map)
+        for bill in read_bills()
+        if int(bill.get("patient_id", 0) or 0) == int(patient_id)
+    ]
+    pending = [bill for bill in bills if str(bill.get("status", "")).upper() in {"PENDING", "INITIATED"}]
+    others = [bill for bill in bills if str(bill.get("status", "")).upper() not in {"PENDING", "INITIATED"}]
+    pending.sort(key=lambda bill: parse_iso_date(bill.get("date")) or date.min, reverse=True)
+    others.sort(key=lambda bill: parse_iso_date(bill.get("date")) or date.min, reverse=True)
+    return pending + others
+
+
 def get_patient_billing_context(patient_id, latest_appointment=None):
     patient = find_patient_by_id(patient_id)
     context = {
@@ -1605,12 +2582,395 @@ def auto_generate_bill(patient_id, doctor_id, bill_date, appointment_id=None):
 
 @app.route("/")
 def dashboard():
+    if not is_authenticated():
+        return render_template("landing.html")
     role = session.get("role")
     if role == "Receptionist":
         return redirect("/receptionist_dashboard")
     if role == "Doctor":
         return redirect("/doctor")
+    if role == "Patient":
+        return redirect("/patient/dashboard")
     return redirect("/login")
+
+@app.route("/patient/login", methods=["GET"])
+def patient_login():
+    if session.get("role") == "Patient":
+        return redirect(url_for("patient_dashboard"))
+    return render_template(
+        "patient_login.html",
+        step="phone",
+        phone="",
+        masked_phone="",
+        error=None,
+        message=None
+    )
+
+@app.route("/patient/request-otp", methods=["POST"])
+def patient_request_otp():
+    phone = normalize_phone(request.form.get("phone", ""))
+    wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+    def respond_error(error):
+        if wants_json:
+            return jsonify({"ok": False, "error": error}), 400
+        return render_template(
+            "patient_login.html",
+            step="phone",
+            phone=phone,
+            masked_phone="",
+            error=error,
+            message=None
+        ), 400
+
+    if not is_valid_patient_phone(phone):
+        return respond_error("Enter a valid 10-digit phone number.")
+
+    patient = find_registered_patient_by_phone(phone)
+    if not patient:
+        return respond_error("This phone number is not registered with us. Please visit the clinic to register.")
+
+    if not generate_otp(phone):
+        detail = get_last_sms_error()
+        if detail:
+            print(f"[HealthDesk OTP] SMS provider detail: {detail}")
+        return respond_error("OTP could not be sent. Please check the Fast2SMS setup or try again.")
+    masked = mask_phone(phone)
+    message = "OTP sent to your registered phone number."
+    if wants_json:
+        return jsonify({"ok": True, "phone": phone, "masked_phone": masked, "message": message})
+    return render_template(
+        "patient_login.html",
+        step="otp",
+        phone=phone,
+        masked_phone=masked,
+        error=None,
+        message=message
+    )
+
+@app.route("/patient/verify-otp", methods=["POST"])
+def patient_verify_otp():
+    phone = normalize_phone(request.form.get("phone", ""))
+    entered_otp = request.form.get("otp", "")
+    verified, message, _attempts_left = verify_otp(phone, entered_otp)
+    if not verified:
+        restart = "No OTP was requested" in message or "expired" in message.lower() or "Too many" in message
+        return render_template(
+            "patient_login.html",
+            step="phone" if restart else "otp",
+            phone=phone,
+            masked_phone=mask_phone(phone),
+            error=message,
+            message=None
+        ), 400
+
+    patient = find_registered_patient_by_phone(phone)
+    if not patient:
+        return render_template(
+            "patient_login.html",
+            step="phone",
+            phone=phone,
+            masked_phone="",
+            error="Patient record could not be found. Please contact the clinic.",
+            message=None
+        ), 400
+
+    session.clear()
+    session["logged_in"] = True
+    session["role"] = "Patient"
+    session["username"] = patient["name"]
+    session["patient_id"] = patient["id"]
+    session["patient_name"] = patient["name"]
+    session["patient_phone"] = phone
+    return redirect(url_for("patient_dashboard"))
+
+@app.route("/patient/logout", methods=["POST"])
+@require_role("Patient")
+def patient_logout():
+    session.clear()
+    return redirect(url_for("patient_login"))
+
+@app.route("/patient/dashboard")
+@require_role("Patient")
+def patient_dashboard():
+    patient_id = session["patient_id"]
+    run_expiry_check()
+    patient = find_patient_by_id(patient_id)
+    upcoming_appointments, appointment_history = decorate_patient_appointments(patient_id)
+    pending_requests = read_pending_requests_for_patient(patient_id)
+    medical_records = read_diagnosis_for_patient(patient_id)
+    bills = read_bills_for_patient(patient_id)
+    return render_template(
+        "patient_dashboard.html",
+        patient=patient,
+        upcoming_appointments=upcoming_appointments,
+        pending_requests=pending_requests,
+        appointment_history=appointment_history,
+        medical_records=medical_records,
+        bills=bills,
+        status_note=request.args.get("status_note", ""),
+        clinic_phone=os.environ.get("CLINIC_PHONE", DEFAULT_CLINIC_PHONE),
+        masked_phone=mask_phone(session.get("patient_phone", patient.get("phone", "") if patient else ""))
+    )
+
+@app.route("/patient/bills/<int:bill_id>/pdf")
+@require_role("Patient")
+def patient_bill_pdf(bill_id):
+    bill = find_bill_by_id(bill_id)
+    if not patient_owns_bill(bill, session["patient_id"]):
+        return "Bill not found", 404
+
+    response = make_response(build_bill_pdf(bill))
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = f"attachment; filename=healthdesk-bill-{bill_id}.pdf"
+    return response
+
+@app.route("/patient/payment/create-order", methods=["POST"])
+@require_role("Patient")
+def patient_payment_create_order():
+    if not payments_configured():
+        return jsonify({"ok": False, "error": "Payments are not configured yet."}), 503
+
+    revert_stale_initiated_payments()
+    bill_id = safe_int(request.form.get("bill_id", "0"))
+    bill = find_bill_by_id(bill_id)
+    if not patient_owns_bill(bill, session["patient_id"]):
+        return jsonify({"ok": False, "error": "Bill not found."}), 404
+
+    status = str(bill.get("status", "")).upper()
+    if status not in {"PENDING", "INITIATED"}:
+        return jsonify({"ok": False, "error": "This bill is not payable online."}), 409
+    if float(bill.get("total", 0) or 0) <= 0:
+        return jsonify({"ok": False, "error": "This bill has no payable amount."}), 400
+
+    if status == "INITIATED" and bill.get("razorpay_order_id"):
+        if not bill.get("initiated_at") and bill.get("paid_at"):
+            bill["initiated_at"] = bill["paid_at"]
+            bill["paid_at"] = ""
+            update_bill_record(bill)
+        order = {
+            "id": bill["razorpay_order_id"],
+            "amount": int(round(float(bill["total"]) * 100)),
+            "currency": "INR"
+        }
+    else:
+        ok, error, order = create_payment_order(
+            bill["total"],
+            receipt=f"HDBILL{bill['bill_id']}",
+            notes={
+                "bill_id": str(bill["bill_id"]),
+                "patient_id": str(bill["patient_id"]),
+                "appointment_id": str(bill.get("appointment_id", 0) or 0)
+            }
+        )
+        if not ok:
+            print(f"[HealthDesk Payment] order creation failed: {error}")
+            return jsonify({"ok": False, "error": "Could not start payment. Please try again or pay at the counter."}), 503
+        bill["status"] = "INITIATED"
+        bill["razorpay_order_id"] = order.get("id", "")
+        bill["razorpay_payment_id"] = ""
+        bill["payment_method"] = "razorpay"
+        bill["paid_at"] = ""
+        bill["initiated_at"] = iso_now()
+        update_bill_record(bill)
+
+    return jsonify({
+        "ok": True,
+        "key": get_razorpay_key_id(),
+        "order_id": order.get("id"),
+        "amount": order.get("amount"),
+        "currency": order.get("currency", "INR"),
+        "clinic_name": "HealthDesk Clinic",
+        "description": f"Bill #{bill['bill_id']}",
+        "patient_name": bill.get("name", session.get("patient_name", "")),
+        "patient_phone": session.get("patient_phone", ""),
+        "bill_id": bill["bill_id"]
+    })
+
+@app.route("/payment/webhook", methods=["POST"])
+def payment_webhook():
+    raw_body = request.get_data()
+    signature = request.headers.get("X-Razorpay-Signature", "")
+    if not verify_webhook_signature(raw_body, signature):
+        return "Invalid signature", 400
+
+    try:
+        payload = json.loads(raw_body.decode("utf-8"))
+    except ValueError:
+        return "Invalid payload", 400
+
+    event = payload.get("event", "")
+    payment = payload.get("payload", {}).get("payment", {}).get("entity", {})
+    order_id = payment.get("order_id", "")
+    bill = find_bill_by_razorpay_order_id(order_id)
+    if not bill:
+        print(f"[HealthDesk Payment] webhook ignored: no bill for order {order_id}")
+        return jsonify({"ok": True})
+
+    patient = find_patient_by_id(bill.get("patient_id"))
+    method = payment.get("method") or "razorpay"
+    payment_id = payment.get("id", "")
+
+    if event == "payment.captured":
+        if str(bill.get("status", "")).upper() != "PAID":
+            bill["status"] = "PAID"
+            bill["razorpay_payment_id"] = payment_id
+            bill["payment_method"] = method
+            bill["paid_at"] = iso_now()
+            bill["initiated_at"] = ""
+            update_bill_record(bill)
+            if patient:
+                send_sms_notice(patient["phone"], f"Payment of {format_amount(bill['total'])} received for your {format_human_date(bill['date'])} visit. Bill available in your portal.")
+    elif event == "payment.failed":
+        bill["status"] = "PENDING"
+        bill["razorpay_payment_id"] = payment_id
+        bill["payment_method"] = method
+        bill["paid_at"] = ""
+        bill["initiated_at"] = ""
+        update_bill_record(bill)
+        if patient:
+            send_sms_notice(patient["phone"], "Payment failed. Please retry in your portal or pay at the counter.")
+
+    return jsonify({"ok": True})
+
+@app.route("/patient/book")
+@require_role("Patient")
+def patient_book():
+    patient = find_patient_by_id(session["patient_id"])
+    departments = sorted({doctor["department"] for doctor in get_doctors()})
+    doctors = get_doctors()
+    week_dates = [(date.today() + timedelta(days=offset)).isoformat() for offset in range(1, 8)]
+    status_note = request.args.get("status_note", "")
+    return render_template(
+        "patient_book.html",
+        patient=patient,
+        departments=departments,
+        doctors=doctors,
+        week_dates=week_dates,
+        status_note=status_note,
+        is_new_patient=False
+    )
+
+@app.route("/patient/book/slots")
+@require_role("Patient")
+def patient_book_slots():
+    return patient_slots_response()
+
+@app.route("/patient/new/slots")
+def new_patient_slots():
+    return patient_slots_response()
+
+def patient_slots_response():
+    department = clean_record_field(request.args.get("department", ""))
+    doctor_id = request.args.get("doctor_id", "any")
+    requested_date = clean_record_field(request.args.get("date", ""))
+    parsed_date = parse_iso_date(requested_date)
+    if not department or not parsed_date or parsed_date <= date.today():
+        return jsonify({"ok": False, "error": "Choose a valid future date."}), 400
+    slots = build_patient_slot_payload(department, doctor_id, requested_date)
+    return jsonify({"ok": True, "slots": slots})
+
+@app.route("/patient/new")
+def new_patient_request():
+    departments = sorted({doctor["department"] for doctor in get_doctors()})
+    doctors = get_doctors()
+    week_dates = [(date.today() + timedelta(days=offset)).isoformat() for offset in range(1, 8)]
+    return render_template(
+        "patient_book.html",
+        patient=None,
+        departments=departments,
+        doctors=doctors,
+        week_dates=week_dates,
+        status_note=request.args.get("status_note", ""),
+        is_new_patient=True
+    )
+
+@app.route("/patient/new/submit", methods=["POST"])
+def new_patient_submit():
+    required = ["name", "age", "gender", "phone", "address", "department", "doctor_id", "requested_date", "requested_slot", "reason"]
+    if any(not str(request.form.get(field, "")).strip() for field in required):
+        return redirect(url_for("new_patient_request", status_note="Please complete all required details."))
+    phone = normalize_phone(request.form.get("phone", ""))
+    if not is_valid_patient_phone(phone):
+        return redirect(url_for("new_patient_request", status_note="Enter a valid 10-digit phone number."))
+    if not is_valid_age(request.form.get("age", "")):
+        return redirect(url_for("new_patient_request", status_note="Enter an age between 1 and 120."))
+    if find_registered_patient_by_phone(phone):
+        return redirect(url_for("patient_login", status_note="This phone number is already registered. Please login with OTP."))
+    requested_date = clean_record_field(request.form.get("requested_date", ""))
+    requested_slot = clean_record_field(request.form.get("requested_slot", ""))
+    parsed_date = parse_iso_date(requested_date)
+    if not parsed_date or parsed_date <= date.today():
+        return redirect(url_for("new_patient_request", status_note="Choose a future appointment date."))
+    doctor = get_doctor_by_id(safe_int(request.form.get("doctor_id", "0")))
+    if not doctor or doctor["department"] != request.form.get("department", ""):
+        return redirect(url_for("new_patient_request", status_note="Choose a valid doctor and department."))
+    if pending_slot_exists(doctor["id"], requested_date, requested_slot) or not slot_is_available(doctor["id"], requested_date, requested_slot):
+        return redirect(url_for("new_patient_request", status_note="That slot is no longer available. Please choose another."))
+    row = create_new_patient_request(request.form)
+    send_sms_notice(phone, f"Your first-time appointment request for {format_human_date(requested_date)}, {requested_slot} has been sent. Reception will verify and confirm within 2 hours.")
+    notify_receptionists(f"New first-time request from {row['name']} ({row['phone']}) for {doctor['name']}, {format_human_date(requested_date)}, {requested_slot}. Review dashboard.")
+    return render_template("new_patient_request_submitted.html", request_row=decorate_new_patient_request(row), clinic_phone=os.environ.get("CLINIC_PHONE", DEFAULT_CLINIC_PHONE))
+
+@app.route("/patient/book/submit", methods=["POST"])
+@require_role("Patient")
+def patient_book_submit():
+    patient = find_patient_by_id(session["patient_id"])
+    if not patient:
+        return redirect(url_for("patient_dashboard"))
+    department = clean_record_field(request.form.get("department", ""))
+    doctor_id_raw = request.form.get("doctor_id", "")
+    requested_date = clean_record_field(request.form.get("requested_date", ""))
+    requested_slot = clean_record_field(request.form.get("requested_slot", ""))
+    reason = clean_record_field(request.form.get("reason", ""), 220)
+    visit_type = clean_record_field(request.form.get("visit_type", "New"))
+    if visit_type not in {"New", "Follow-up"}:
+        visit_type = "New"
+    parsed_date = parse_iso_date(requested_date)
+    if not department or not parsed_date or parsed_date <= date.today() or not requested_slot:
+        return redirect(url_for("patient_book", status_note="Choose a department, future date, and available slot."))
+
+    if doctor_id_raw == "any":
+        doctor = choose_any_available_doctor(department, requested_date, requested_slot)
+        if not doctor:
+            return redirect(url_for("patient_book", status_note="No doctor is available for that slot. Please choose another time."))
+        doctor_id = doctor["id"]
+    else:
+        doctor_id = safe_int(doctor_id_raw)
+        doctor = get_doctor_by_id(doctor_id)
+        if not doctor or doctor["department"] != department:
+            return redirect(url_for("patient_book", status_note="Choose a valid doctor for this department."))
+        if not slot_is_available(doctor_id, requested_date, requested_slot):
+            return redirect(url_for("patient_book", status_note="That slot is no longer available. Please choose another."))
+
+    triage, reasons = triage_booking_request(doctor_id, requested_date, visit_type)
+    if triage == "auto":
+        ok, message, _row = auto_approve_booking(patient, doctor_id, requested_date, requested_slot, reason, visit_type)
+    else:
+        ok, message, _row = exception_queue_booking(patient, doctor_id, requested_date, requested_slot, reason, visit_type, reasons)
+    return redirect(url_for("patient_dashboard", status_note=message if ok else message))
+
+@app.route("/patient/cancel", methods=["POST"])
+@require_role("Patient")
+def patient_cancel_appointment():
+    appointment_id = safe_int(request.form.get("appointment_id", "0"))
+    appointment = find_appointment_by_id(appointment_id)
+    if not appointment or appointment["patient_id"] != int(session["patient_id"]):
+        return redirect(url_for("patient_dashboard", status_note="Appointment not found."))
+    appointment_dt = parse_appointment_datetime(appointment)
+    if appointment["status"] != "Booked":
+        return redirect(url_for("patient_dashboard", status_note="Only confirmed upcoming appointments can be cancelled."))
+    if appointment_dt - datetime.now() <= timedelta(hours=24):
+        return redirect(url_for("patient_dashboard", status_note="To cancel within 24 hours, please call the clinic."))
+    result = run_appointment_command("cancel", appointment_id)
+    if result.returncode == 0:
+        update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "Cancelled")
+        patient = find_patient_by_id(appointment["patient_id"])
+        doctor = get_doctor_by_id(appointment["doctor_id"]) or {}
+        if patient:
+            send_sms_notice(patient["phone"], f"Your appointment with {doctor.get('name', 'the doctor')} on {format_human_date(appointment['date'])} has been cancelled.")
+        return redirect(url_for("patient_dashboard", status_note="Your appointment was cancelled."))
+    return redirect(url_for("patient_dashboard", status_note="Could not cancel the appointment. Please call the clinic."))
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -1790,6 +3150,7 @@ def reception():
 @require_role("Receptionist")
 def receptionist_dashboard_page():
     expire_stale_consultations()
+    run_expiry_check()
     queue = reconcile_waiting_queue_entries()
     queue, next_patient, waiting_count, completed_count = process_queue(queue)
     appointments = read_appointments()
@@ -1806,8 +3167,75 @@ def receptionist_dashboard_page():
         cancelled_count=cancelled_count,
         available_doctors=available_doctors,
         next_patient=next_patient,
-        today=today_str
+        today=today_str,
+        pending_patient_requests=read_pending_requests_for_reception(),
+        pending_new_patient_requests=read_new_patient_requests_for_reception(),
+        status_note=request.args.get("status_note", "")
     )
+
+@app.route("/reception/pending")
+@require_role("Receptionist")
+def reception_pending():
+    return redirect(url_for("receptionist_dashboard_page"))
+
+@app.route("/reception/approve", methods=["POST"])
+@require_role("Receptionist")
+def reception_approve_request():
+    request_type = request.form.get("request_type", "existing")
+    request_id = safe_int(request.form.get("request_id", "0"))
+    if request_type == "new":
+        row = next((item for item in read_all_new_patient_requests() if item["request_id"] == request_id), None)
+        if not row or row["status"] != "Pending":
+            return redirect(url_for("receptionist_dashboard_page", status_note="Request is no longer pending."))
+        if not slot_is_available(row["doctor_id"], row["requested_date"], row["requested_slot"]):
+            return redirect(url_for("receptionist_dashboard_page", status_note="This slot was booked while the request was pending. Reject it and ask the patient to choose another slot."))
+        patient = register_patient_from_request(row)
+        if not patient:
+            return redirect(url_for("receptionist_dashboard_page", status_note="Could not create the patient record. Please review the request details."))
+        result = run_appointment_command("book", patient["id"], row["doctor_id"], row["requested_date"], row["requested_slot"])
+        appointment_id = parse_booked_appointment_id(result)
+        if not appointment_id:
+            return redirect(url_for("receptionist_dashboard_page", status_note="Could not book the slot. It may have just been taken."))
+        update_new_patient_request_status(request_id, "Approved", "Registered and approved by reception", patient_id=patient["id"], appointment_id=appointment_id)
+        doctor = get_doctor_by_id(row["doctor_id"]) or {}
+        send_sms_notice(row["phone"], f"Confirmed! {doctor.get('name', 'Doctor')}, {format_human_date(row['requested_date'])}, {row['requested_slot']}. Please arrive 10 min early.")
+        return redirect(url_for("receptionist_dashboard_page", status_note="First-time patient request approved and appointment booked."))
+
+    row = next((item for item in read_all_pending_requests() if item["request_id"] == request_id), None)
+    if not row or row["status"] != "Pending":
+        return redirect(url_for("receptionist_dashboard_page", status_note="Request is no longer pending."))
+    if not slot_is_available(row["doctor_id"], row["requested_date"], row["requested_slot"]):
+        return redirect(url_for("receptionist_dashboard_page", status_note="This slot was booked while the request was pending. Reject it and ask the patient to choose another slot."))
+    result = run_appointment_command("book", row["patient_id"], row["doctor_id"], row["requested_date"], row["requested_slot"])
+    appointment_id = parse_booked_appointment_id(result)
+    if not appointment_id:
+        return redirect(url_for("receptionist_dashboard_page", status_note="Could not book the slot. It may have just been taken."))
+    update_pending_status(request_id, "Approved", "Approved by reception", appointment_id=appointment_id)
+    patient = find_patient_by_id(row["patient_id"])
+    doctor = get_doctor_by_id(row["doctor_id"]) or {}
+    if patient:
+        send_sms_notice(patient["phone"], f"Confirmed! {doctor.get('name', 'Doctor')}, {format_human_date(row['requested_date'])}, {row['requested_slot']}. Please arrive 10 min early.")
+    return redirect(url_for("receptionist_dashboard_page", status_note="Patient request approved and appointment booked."))
+
+@app.route("/reception/reject", methods=["POST"])
+@require_role("Receptionist")
+def reception_reject_request():
+    request_type = request.form.get("request_type", "existing")
+    request_id = safe_int(request.form.get("request_id", "0"))
+    reason = clean_record_field(request.form.get("receptionist_note", ""), 220)
+    if not reason:
+        return redirect(url_for("receptionist_dashboard_page", status_note="A rejection reason is required."))
+    if request_type == "new":
+        row = update_new_patient_request_status(request_id, "Rejected", reason)
+        if row:
+            send_sms_notice(row["phone"], f"Request not confirmed. Reason: {reason}. Please submit again or call the clinic.")
+        return redirect(url_for("receptionist_dashboard_page", status_note="First-time patient request rejected."))
+    row = update_pending_status(request_id, "Rejected", reason)
+    if row:
+        patient = find_patient_by_id(row["patient_id"])
+        if patient:
+            send_sms_notice(patient["phone"], f"Request not confirmed. Reason: {reason}. Log in to rebook.")
+    return redirect(url_for("receptionist_dashboard_page", status_note="Patient request rejected."))
 
 @app.route("/doctor")
 @require_role("Doctor")

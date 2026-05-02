@@ -1,0 +1,5 @@
+flask
+reportlab
+requests
+python-dotenv
+razorpay

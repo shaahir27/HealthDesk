@@ -27,8 +27,22 @@
     .rx-action-row .bi-arrow-right { color:#9aacbd; }
     .rx-action-row:hover small, .rx-action-row:focus small { color:#52677a; }
     .rx-action-row:hover .rx-action-icon, .rx-action-row:focus .rx-action-icon { background:#dcecf7; color:#123d5e; }
+    .rx-alert { padding:14px 16px; border-radius:18px; background:#eff7fc; border:1px solid #d8eaf5; color:#31526b; font-weight:700; }
+    .rx-pending-list { display:grid; gap:14px; }
+    .rx-request { padding:16px; border:1px solid #e4ebf1; border-radius:18px; background:#fbfdff; }
+    .rx-request-top { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px; }
+    .rx-request-title { margin:0 0 4px; font-weight:800; color:#19324b; }
+    .rx-request-meta { margin:0; color:#728598; font-size:.88rem; }
+    .rx-request-note { margin:10px 0 0; padding:11px 12px; border-radius:14px; background:#fff8e8; color:#7c5700; border:1px solid #f0ddb1; }
+    .rx-request-actions { display:grid; grid-template-columns:auto minmax(220px,1fr) auto; gap:10px; align-items:center; margin-top:12px; }
+    .rx-request-actions form { margin:0; }
+    .rx-reject-form { display:none; }
+    .rx-reject-form.open { display:grid; gap:10px; grid-template-columns:minmax(220px,1fr) auto; align-items:center; margin-top:10px; }
+    .rx-reject-toggle { cursor:pointer; }
     @media (max-width: 991.98px) {
         .rx-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
+        .rx-request-actions { grid-template-columns:1fr; }
+        .rx-reject-form.open { grid-template-columns:1fr; }
     }
     @media (max-width: 767.98px) {
         .rx-stats { grid-template-columns:1fr; }
@@ -42,6 +56,85 @@
         <h4>Reception Command Center</h4>
         <p>A focused front-desk view for patient intake, queue movement, appointments, doctor coordination, and billing.</p>
     </div>
+
+    {% if status_note %}
+    <div class="rx-alert">{{ status_note }}</div>
+    {% endif %}
+
+    {% if pending_patient_requests or pending_new_patient_requests %}
+    <div class="rx-card">
+        <div class="rx-card-body">
+            <div class="rx-head">
+                <div>
+                    <h5 class="rx-title"><i class="bi bi-hourglass-split me-1"></i> Pending Patient Portal Requests</h5>
+                    <p class="rx-sub">Approve after rechecking the slot, or reject with a clear reason for the patient.</p>
+                </div>
+            </div>
+            <div class="rx-pending-list">
+                {% for req in pending_patient_requests %}
+                <div class="rx-request">
+                    <div class="rx-request-top">
+                        <div>
+                            <h6 class="rx-request-title">{{ req.patient_name }}{% if req.patient_age %}, {{ req.patient_age }}{% endif %} {% if req.patient_gender %}({{ req.patient_gender }}){% endif %}</h6>
+                            <p class="rx-request-meta">{{ req.doctor_name }} | {{ req.department }} | {{ req.human_date }} at {{ req.time_label }}</p>
+                            <p class="rx-request-meta">{{ req.visit_type }} visit | {{ req.time_remaining }}</p>
+                        </div>
+                        <span class="hd-badge urgent">Existing Patient</span>
+                    </div>
+                    {% if req.reason %}<div class="rx-request-note">{{ req.reason }}</div>{% endif %}
+                    <div class="rx-request-actions">
+                        <form method="POST" action="/reception/approve">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="request_type" value="existing">
+                            <input type="hidden" name="request_id" value="{{ req.request_id }}">
+                            <button class="hd-btn hd-btn-primary hd-btn-sm">Approve</button>
+                        </form>
+                        <button type="button" class="hd-btn hd-btn-outline hd-btn-sm rx-reject-toggle">Reject</button>
+                        <form method="POST" action="/reception/reject" class="rx-reject-form">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="request_type" value="existing">
+                            <input type="hidden" name="request_id" value="{{ req.request_id }}">
+                            <input class="form-control form-control-sm" name="receptionist_note" placeholder="Reason required to reject" required>
+                            <button class="hd-btn hd-btn-outline hd-btn-sm">Confirm Reject</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+
+                {% for req in pending_new_patient_requests %}
+                <div class="rx-request">
+                    <div class="rx-request-top">
+                        <div>
+                            <h6 class="rx-request-title">{{ req.name }}, {{ req.age }} ({{ req.gender }})</h6>
+                            <p class="rx-request-meta">{{ req.phone }} | {{ req.address }}</p>
+                            <p class="rx-request-meta">{{ req.doctor_name }} | {{ req.department }} | {{ req.human_date }} at {{ req.time_label }}</p>
+                            <p class="rx-request-meta">First-time request | {{ req.time_remaining }}</p>
+                        </div>
+                        <span class="hd-badge waiting">New Patient</span>
+                    </div>
+                    {% if req.reason %}<div class="rx-request-note">{{ req.reason }}</div>{% endif %}
+                    <div class="rx-request-actions">
+                        <form method="POST" action="/reception/approve">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="request_type" value="new">
+                            <input type="hidden" name="request_id" value="{{ req.request_id }}">
+                            <button class="hd-btn hd-btn-primary hd-btn-sm">Register And Approve</button>
+                        </form>
+                        <button type="button" class="hd-btn hd-btn-outline hd-btn-sm rx-reject-toggle">Reject</button>
+                        <form method="POST" action="/reception/reject" class="rx-reject-form">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="request_type" value="new">
+                            <input type="hidden" name="request_id" value="{{ req.request_id }}">
+                            <input class="form-control form-control-sm" name="receptionist_note" placeholder="Reason required to reject" required>
+                            <button class="hd-btn hd-btn-outline hd-btn-sm">Confirm Reject</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <div class="rx-stats">
         <div class="rx-stat"><small>Waiting Queue</small><strong>{{ waiting_count }}</strong></div>
@@ -90,5 +183,16 @@
         </div>
     </div>
 </div>
+
+<script>
+    document.querySelectorAll(".rx-reject-toggle").forEach(function(btn) {
+        btn.addEventListener("click", function() {
+            var form = this.nextElementSibling;
+            var isOpen = form.classList.toggle("open");
+            this.style.display = isOpen ? "none" : "";
+            if (isOpen) form.querySelector("input[name='receptionist_note']").focus();
+        });
+    });
+</script>
 
 {% endblock %}

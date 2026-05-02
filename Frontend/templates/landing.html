@@ -1,0 +1,201 @@
+{% extends "index.html" %}
+
+{% block head_extra %}
+<style>
+    .hd-topbar,
+    .hd-overlay {
+        display: none !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<style>
+    .landing-shell {
+        min-height: calc(100vh - 56px);
+        display: grid;
+        place-items: center;
+        padding: clamp(12px, 3vw, 28px) 0;
+    }
+    .landing-card {
+        width: min(100%, 1120px);
+        overflow: hidden;
+        border-radius: 24px;
+        background: var(--hd-surface);
+        border: 1px solid rgba(27, 79, 114, 0.1);
+        box-shadow: var(--hd-shadow-hover);
+    }
+    .landing-hero {
+        padding: clamp(26px, 4vw, 42px);
+        color: #fff;
+        background:
+            radial-gradient(circle at 85% 20%, rgba(255, 255, 255, 0.16), transparent 28%),
+            linear-gradient(135deg, var(--hd-primary-dark), var(--hd-primary));
+    }
+    .landing-kicker {
+        margin-bottom: 10px;
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 1.8px;
+        text-transform: uppercase;
+    }
+    .landing-hero h1 {
+        margin: 0 0 8px;
+        max-width: 760px;
+        font-size: clamp(2rem, 4.5vw, 3.25rem);
+        line-height: 1.05;
+        letter-spacing: -0.04em;
+    }
+    .landing-hero p {
+        margin: 0;
+        max-width: 720px;
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 1rem;
+        line-height: 1.55;
+    }
+    .landing-options {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        padding: clamp(16px, 3vw, 24px);
+    }
+    .landing-option {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 12px;
+        min-height: 220px;
+        padding: clamp(18px, 2.4vw, 24px);
+        border-radius: 18px;
+        border: 1px solid var(--hd-border);
+        color: var(--hd-text);
+        text-decoration: none;
+        background: var(--hd-surface);
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .landing-option:hover,
+    .landing-option:focus {
+        color: var(--hd-primary-dark);
+        transform: translateY(-3px);
+        border-color: var(--hd-primary);
+        box-shadow: var(--hd-shadow-hover);
+    }
+    .landing-option:focus-visible {
+        outline: 3px solid rgba(46,134,193,0.32);
+        outline-offset: 3px;
+    }
+    .landing-icon {
+        width: 52px;
+        height: 52px;
+        display: grid;
+        place-items: center;
+        border-radius: 14px;
+        color: #fff;
+        font-size: 1.4rem;
+        background: linear-gradient(135deg, var(--hd-primary), var(--hd-primary-dark));
+    }
+    .patient .landing-icon {
+        background: linear-gradient(135deg, var(--hd-primary), var(--hd-primary-dark));
+    }
+    .landing-option strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 1.2rem;
+    }
+    .landing-option span {
+        color: var(--hd-text-muted);
+        line-height: 1.45;
+    }
+    .landing-cta {
+        align-self: end;
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        color: var(--hd-primary);
+        font-weight: 700;
+    }
+    .landing-cta::after {
+        content: "\F138";
+        margin-left: 8px;
+        font-family: "bootstrap-icons";
+        font-size: 0.95rem;
+    }
+    @media (max-width: 991.98px) {
+        .landing-options {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .landing-option:first-child {
+            grid-column: 1 / -1;
+            min-height: 170px;
+        }
+    }
+    @media (max-width: 767.98px) {
+        .landing-shell {
+            min-height: auto;
+            place-items: start center;
+            padding: 0;
+        }
+        .landing-card {
+            border-radius: 18px;
+        }
+        .landing-options {
+            grid-template-columns: 1fr;
+            padding: 14px;
+        }
+        .landing-option,
+        .landing-option:first-child {
+            grid-column: auto;
+            min-height: 0;
+            padding: 18px;
+        }
+        .landing-hero {
+            padding: 26px 20px;
+        }
+    }
+    @media (max-width: 420px) {
+        .landing-hero h1 {
+            font-size: 1.85rem;
+        }
+        .landing-icon {
+            width: 46px;
+            height: 46px;
+        }
+    }
+</style>
+
+<div class="landing-shell">
+    <section class="landing-card">
+        <div class="landing-hero">
+            <div class="landing-kicker">HealthDesk Access</div>
+            <h1>Choose how you want to sign in</h1>
+            <p>Staff can continue with username and password. Existing patients can use phone OTP, and first-time patients can request an appointment for receptionist verification.</p>
+        </div>
+        <div class="landing-options">
+            <a class="landing-option" href="/login">
+                <div class="landing-icon"><i class="bi bi-hospital"></i></div>
+                <div>
+                    <strong>Clinical Staff</strong>
+                    <span>Receptionists and doctors sign in here to manage appointments, queue, diagnosis, and billing.</span>
+                </div>
+                <div class="landing-cta">Open staff login</div>
+            </a>
+            <a class="landing-option patient" href="/patient/login">
+                <div class="landing-icon"><i class="bi bi-heart-pulse"></i></div>
+                <div>
+                    <strong>Patient Portal</strong>
+                    <span>Patients sign in with their registered phone number. No password needed.</span>
+                </div>
+                <div class="landing-cta">Open patient login</div>
+            </a>
+            <a class="landing-option patient" href="/patient/new">
+                <div class="landing-icon"><i class="bi bi-person-plus"></i></div>
+                <div>
+                    <strong>First-Time Patient</strong>
+                    <span>Send a request online. Reception verifies your details before creating the official record.</span>
+                </div>
+                <div class="landing-cta">Request appointment</div>
+            </a>
+        </div>
+    </section>
+</div>
+{% endblock %}

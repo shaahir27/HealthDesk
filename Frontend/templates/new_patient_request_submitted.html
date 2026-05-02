@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HealthDesk - Request Submitted</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { min-height:100vh; margin:0; display:grid; place-items:center; padding:20px; font-family:"Poppins",sans-serif; color:#2C3E50; background:#f0f2f5; }
+        .card { width:min(100%,560px); padding:34px; border-radius:22px; background:#fff; border:1px solid #e2e8f0; box-shadow:0 4px 16px rgba(0,0,0,.06); }
+        h1 { margin:0 0 10px; font-size:clamp(2rem,8vw,3.2rem); letter-spacing:-.05em; }
+        p { color:#52677a; line-height:1.55; }
+        .summary { margin:18px 0; padding:16px; border-radius:14px; background:#eaf3fb; border:1px solid #b7dcf2; }
+        a { min-height:46px; display:inline-flex; align-items:center; border-radius:14px; padding:12px 18px; color:white; background:linear-gradient(135deg,#2E86C1,#1B4F72); font-weight:700; text-decoration:none; }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <h1>Request sent</h1>
+        <p>Reception will verify your details before creating your official patient record. You should receive confirmation within 2 hours during clinic hours.</p>
+        <div class="summary">
+            <strong>{{ request_row.doctor_name }}</strong><br>
+            {{ request_row.human_date }} at {{ request_row.time_label }}<br>
+            {{ request_row.time_remaining }}
+        </div>
+        <p>If your request is urgent, please call {{ clinic_phone }}.</p>
+        <a href="/">Back to HealthDesk</a>
+    </main>
+</body>
+</html>

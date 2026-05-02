@@ -35,9 +35,12 @@ Python owns:
 - authentication
 - sessions
 - CSRF checks
+- patient OTP login
 - workflow decisions
 - business validation
 - billing rules
+- online payment coordination
+- SMS notification coordination
 - PDF generation
 - UI context building
 - data reconciliation between files
@@ -84,8 +87,14 @@ BILLING_FILE
 PRICING_FILE
 APPOINTMENT_FILE
 QUEUE_FILE
+DIAGNOSIS_FILE
+PENDING_APPOINTMENTS_FILE
+NEW_PATIENT_REQUESTS_FILE
 BILLING_EXE
 ALLOWED_PAYMENT_STATUSES
+OTP_EXPIRY_SECONDS
+OTP_MAX_ATTEMPTS
+PENDING_REQUEST_EXPIRY_HOURS
 ```
 
 Important Python data structures used:
@@ -94,8 +103,9 @@ Important Python data structures used:
 - `list`: collections of patients, doctors, queue rows, appointments, bills, treatments, lab tests.
 - `set`: allowed roles, allowed statuses, payment statuses, status comparisons.
 - `tuple`: grouping keys such as `(patient_id, doctor_id)`.
-- `threading.Lock`: `_appointment_lock` protects Python calls to `appointment.exe` so two requests do not book the same slot at the same time inside one Flask process.
-- Flask `session`: stores `logged_in`, `username`, `role`, `doctor_id`, and `_csrf_token`.
+- `threading.Lock`: `_appointment_lock`, `_pending_appointment_lock`, `_new_patient_request_lock`, and `_billing_lock` protect text-file writes inside one Flask process.
+- Flask `session`: stores `logged_in`, `username`, `role`, `doctor_id`, patient identity fields, and `_csrf_token`.
+- In-memory OTP store: keeps hashed patient OTPs, expiry time, and attempt count.
 - `BytesIO`: holds generated PDF bytes in memory before returning the response.
 
 Important helper areas:
@@ -108,6 +118,8 @@ Important helper areas:
 - Doctor helpers: read doctors, write doctor file, status synchronization, suggestion, reassignment.
 - Billing helpers: read bills through `billing.exe`, parse multiple bill formats, recalculate totals, create bill records, save bills, build PDF.
 - Diagnosis helpers: get patient history through `diagnosis.exe`, save diagnosis, complete appointment, close queue, auto-generate bill.
+- Patient portal helpers: phone normalization, OTP generation/verification, dashboard data loading, request decoration, and C helper subprocess wrappers.
+- Payment helpers: create Razorpay orders, verify webhooks, update payment state, and enrich paid bill output.
 
 Main routes:
 
@@ -115,9 +127,27 @@ Main routes:
 /                         -> role-based redirect
 /login                    -> login page and authentication
 /logout                   -> clears session
+/patient/login            -> existing patient phone OTP login
+/patient/request-otp      -> generate and send patient OTP
+/patient/verify-otp       -> verify OTP and create patient session
+/patient/logout           -> clear patient session
+/patient/dashboard        -> patient appointments, records, bills, profile
+/patient/book             -> existing patient appointment request form
+/patient/book/slots       -> authenticated patient slot availability lookup
+/patient/book/submit      -> triage booking request
+/patient/cancel           -> patient cancellation with 24-hour rule
+/patient/bills/<id>/pdf   -> ownership-checked patient bill PDF
+/patient/payment/create-order -> create Razorpay order from server-side bill total
+/patient/new              -> first-time appointment request form
+/patient/new/slots        -> public slot lookup for first-time request form
+/patient/new/submit       -> save first-time request for receptionist review
+/payment/webhook          -> Razorpay webhook, HMAC verified and CSRF-exempt
 /receptionist             -> redirects to receptionist dashboard
 /reception                -> patient search, registration, appointment selection
 /receptionist_dashboard   -> receptionist summary cards
+/reception/pending        -> redirects to dashboard pending section
+/reception/approve        -> approve portal request, book appointment
+/reception/reject         -> reject portal request with required reason
 /doctor                   -> doctor dashboard
 /queue                    -> receptionist queue page grouped by doctor
 /appointments             -> appointment slot board and grouped appointment actions
@@ -144,6 +174,7 @@ Important workflow rules in `app.py`:
 - Login is handled in Python, not by `auth.exe`, so passwords are not exposed in OS process arguments.
 - Passwords in `users.txt` are stored as hashes and checked with Werkzeug.
 - Every POST form must include `_csrf_token`.
+- Razorpay webhook is the only CSRF-exempt POST route because it is server-to-server.
 - Reception cannot manually complete consultations.
 - Doctor completion is not final until diagnosis and prescription are saved.
 - Diagnosis requires patient, doctor, appointment, date, diagnosis text, and prescription.
@@ -151,7 +182,37 @@ Important workflow rules in `app.py`:
 - Billing is allowed only for completed appointments.
 - Duplicate billing is blocked by appointment ID.
 - Bill totals are recalculated from stored components when parsed.
+- Patient payment order creation reads the bill amount from `billing.txt`; browser input never supplies the amount.
+- Bills are marked paid only from a verified Razorpay webhook, not from the browser checkout callback.
+- Existing patient booking requests are stored in `pending_appointments.txt` unless auto-approved.
+- First-time appointment requests are stored in `new_patient_requests.txt`; a patient record is created only after receptionist approval.
+- Pending request add/list/update/expiry/soft-lock operations are delegated to `pending_request.exe`.
+- Patient cancellation is allowed only for appointments owned by the patient and more than 24 hours away.
 - Past-date appointment booking and rescheduling are rejected.
+
+### `sms_service.py`
+
+SMS abstraction used by patient OTP, booking notifications, expiry notices, rejection reasons, and payment notices.
+
+Behavior:
+
+- Loads `.env` through `python-dotenv` when available.
+- Uses Fast2SMS when `FAST2SMS_API_KEY` is configured.
+- Prints SMS content to the console in development when the API key is missing.
+- Normalizes comma-separated or list-based phone numbers.
+- Catches provider/network failures internally and returns `False` instead of crashing the app.
+
+### `payment_service.py`
+
+Razorpay integration boundary.
+
+Behavior:
+
+- Loads Razorpay credentials from environment variables.
+- Creates INR orders using server-side bill totals.
+- Returns structured success/error results to `app.py`.
+- Verifies webhook signatures with HMAC-SHA256 and `RAZORPAY_WEBHOOK_SECRET`.
+- Never exposes `RAZORPAY_KEY_SECRET` or webhook secret to browser code.
 
 ### `README.md`
 
@@ -187,6 +248,7 @@ It explains:
 - doctor dashboard
 - diagnosis flow
 - billing flow
+- patient portal OTP, dashboard, booking, cancellation, and payment flow
 - end-to-end patient journey
 - doctor unavailable/reassignment flow
 - cancellation/reschedule/no-show flows
@@ -194,13 +256,13 @@ It explains:
 
 This is useful for demos and viva-style explanation.
 
-### `changes.html`
+### `changes.md`
 
-A project review report file.
+A patient portal architecture and change checklist file.
 
 It is not used by the running application.
 
-It lists review issues, priorities, test cases, and suggested fixes. We used it as the checklist for recent fixes.
+It documents the patient portal phases, receptionist-side changes, data schemas, environment variables, route list, UX rules, and security checklist.
 
 ### `Claude review check.zip`
 
@@ -769,6 +831,54 @@ Workflow contribution:
 - Python keeps billing business logic, pricing, validation, UI context, and PDF generation.
 - This matches the current architecture split.
 
+### `Backend/c_modules/pending_request.c`
+
+Handles patient portal request file operations.
+
+Active executable:
+
+```text
+Backend/c_modules/pending_request.exe
+```
+
+Called from Python:
+
+- `run_pending_request_command()`
+- `read_all_pending_requests()`
+- `read_all_new_patient_requests()`
+- `create_pending_request()`
+- `create_new_patient_request()`
+- `update_pending_status()`
+- `update_new_patient_request_status()`
+- `pending_slot_exists()`
+- `run_expiry_check()`
+
+Commands:
+
+```text
+pending_request.exe list-existing
+pending_request.exe list-new
+pending_request.exe add-existing ...
+pending_request.exe add-new ...
+pending_request.exe update-existing ...
+pending_request.exe update-new ...
+pending_request.exe soft-lock-exists ...
+pending_request.exe expire
+```
+
+Data structures:
+
+- `PendingAppointmentRequest` struct for existing patient requests.
+- `NewPatientRequest` struct for first-time patient requests.
+- Singly linked lists for loading, scanning, updating, expiring, and rewriting records.
+
+Workflow contribution:
+
+- C owns raw request persistence for `pending_appointments.txt` and `new_patient_requests.txt`.
+- C checks whether a pending request is soft-locking a doctor/date/slot.
+- C updates expired requests and reports which rows changed.
+- Python still owns route access, triage decisions, appointment booking, patient registration, SMS notifications, and template rendering.
+
 ### `Backend/c_modules/auth.c`
 
 Legacy authentication helper.
@@ -1027,16 +1137,16 @@ Important rule:
 
 Stores bills.
 
-Current 19-field format:
+Current 24-field format:
 
 ```text
-bill_id|date|patient_id|name|age|gender|doctor|department|doctor_fee|treatment_total|lab_total|medicine_total|total|status|doctor_id|treatments|lab_tests|medicine_notes|appointment_id
+bill_id|date|patient_id|name|age|gender|doctor|department|doctor_fee|treatment_total|lab_total|medicine_total|total|status|doctor_id|treatments|lab_tests|medicine_notes|appointment_id|razorpay_order_id|razorpay_payment_id|payment_method|paid_at|initiated_at
 ```
 
 Example:
 
 ```text
-1003|2026-04-30|15|Omkar|33|Male|Dr. Priya Sharma|Dermatology|700|0|0|200|900|PENDING|6|||Cetirizine and moisturizer|15
+1003|2026-04-30|15|Omkar|33|Male|Dr. Priya Sharma|Dermatology|700|0|0|200|900|PENDING|6|||Cetirizine and moisturizer|15|||||
 ```
 
 Fields:
@@ -1046,11 +1156,16 @@ Fields:
 - patient fields: ID, name, age, gender.
 - doctor fields: name, department, doctor ID.
 - billing totals: doctor fee, treatment total, lab total, medicine total, total.
-- `status`: `PENDING`, `PAID`, or `WAIVED`.
+- `status`: `PENDING`, `INITIATED`, `PAID`, `WAIVED`, or `REFUNDED`.
 - `treatments`: serialized with `^` between items and `~` between name and price.
 - `lab_tests`: same item serialization.
 - `medicine_notes`: free text sanitized by Python.
 - `appointment_id`: links bill to completed appointment.
+- `razorpay_order_id`: set when online payment is started.
+- `razorpay_payment_id`: set after Razorpay reports a captured or failed payment.
+- `payment_method`: `upi`, `card`, `netbanking`, `wallet`, `razorpay`, or `counter`.
+- `paid_at`: ISO timestamp for online capture or counter payment.
+- `initiated_at`: ISO timestamp for Razorpay order creation; used only to expire stale `INITIATED` payments.
 
 Used by:
 
@@ -1061,6 +1176,52 @@ Important rule:
 
 - Python recalculates total from component values after parsing.
 - Duplicate billing is prevented by appointment ID.
+- Older 13-field, 18-field, 19-field, and 23-field bill records are still parsed for compatibility.
+- Browser payment requests never provide the amount; Python reads the bill total before creating a Razorpay order.
+- Bills are marked paid only after the Razorpay webhook signature is verified.
+
+### `Backend/data/pending_appointments.txt`
+
+Stores existing patient portal booking requests before receptionist approval, plus approved/rejected/expired audit records.
+
+Format:
+
+```text
+request_id|patient_id|doctor_id|requested_date|requested_slot|reason|visit_type|status|submitted_at|expires_at|receptionist_note|appointment_id
+```
+
+Used by:
+
+- Patient dashboard pending/rejected/expired request display.
+- Patient booking slot soft-lock checks.
+- Receptionist dashboard pending request cards.
+- Receptionist approve/reject routes.
+- Expiry checks on patient and receptionist dashboard loads.
+
+Important rule:
+
+- Patient requests are not written directly to `appointment.txt` unless auto-approved or approved by reception.
+
+### `Backend/data/new_patient_requests.txt`
+
+Stores first-time appointment requests submitted from `/patient/new`.
+
+Format:
+
+```text
+request_id|name|age|gender|phone|address|department|doctor_id|requested_date|requested_slot|reason|visit_type|priority|status|submitted_at|expires_at|receptionist_note|patient_id|appointment_id
+```
+
+Used by:
+
+- Public first-time appointment request page.
+- Receptionist dashboard first-time request cards.
+- Receptionist register-and-approve workflow.
+- Slot soft-lock checks so first-time requests can reserve a pending slot during the review window.
+
+Important rule:
+
+- Submitting this form does not create an official patient record. The patient is created only after receptionist approval.
 
 ### `Backend/data/pricing_catalog.json`
 
@@ -1799,6 +1960,7 @@ gcc Backend\c_modules\appointment.c -o Backend\c_modules\appointment.exe
 gcc Backend\c_modules\doctor.c -o Backend\c_modules\doctor.exe
 gcc Backend\c_modules\queue.c -o Backend\c_modules\queue.exe
 gcc Backend\c_modules\billing.c -o Backend\c_modules\billing.exe
+gcc Backend\c_modules\pending_request.c -o Backend\c_modules\pending_request.exe
 gcc Backend\c_modules\patient.c -o Backend\c_modules\patient.exe
 gcc Backend\c_modules\diagnosis.c -o Backend\c_modules\diagnosis.exe
 ```
@@ -1836,10 +1998,28 @@ PROJECT_WALKTHROUGH.md
 This full technical walkthrough.
 
 ```text
-changes.html
+changes.md
 ```
 
-Review report/checklist, not runtime code.
+Patient portal architecture and implementation checklist, not runtime code.
+
+```text
+sms_service.py
+```
+
+Fast2SMS abstraction with console dev mode and non-crashing failure handling.
+
+```text
+payment_service.py
+```
+
+Razorpay order creation and webhook signature verification.
+
+```text
+requirements.txt
+```
+
+Python package list, including Flask, ReportLab, requests, python-dotenv, and Razorpay.
 
 ```text
 Claude review check.zip
@@ -1890,6 +2070,12 @@ Backend/c_modules/billing.c / billing.exe
 Bill file helper for IDs, listing, finding, and saving.
 
 ```text
+Backend/c_modules/pending_request.c / pending_request.exe
+```
+
+Patient portal request helper using linked lists for pending and first-time request records.
+
+```text
 Backend/c_modules/auth.c / auth.exe
 ```
 
@@ -1935,7 +2121,19 @@ Diagnosis and prescription history.
 Backend/data/billing.txt
 ```
 
-Bill records linked to completed appointments.
+Bill records linked to completed appointments, including online payment fields.
+
+```text
+Backend/data/pending_appointments.txt
+```
+
+Existing patient portal booking request audit trail.
+
+```text
+Backend/data/new_patient_requests.txt
+```
+
+First-time appointment request audit trail before receptionist registration.
 
 ```text
 Backend/data/pricing_catalog.json
@@ -1953,7 +2151,37 @@ Base authenticated layout and sidebar.
 Frontend/templates/login.html
 ```
 
-Login screen.
+Staff login screen.
+
+```text
+Frontend/templates/landing.html
+```
+
+Public access page for staff login, patient login, and first-time appointment requests.
+
+```text
+Frontend/templates/patient_login.html
+```
+
+Existing patient phone OTP login.
+
+```text
+Frontend/templates/patient_dashboard.html
+```
+
+Patient appointments, medical records, bills, payments, and read-only profile.
+
+```text
+Frontend/templates/patient_book.html
+```
+
+Existing patient booking form and first-time request form.
+
+```text
+Frontend/templates/new_patient_request_submitted.html
+```
+
+First-time request confirmation screen.
 
 ```text
 Frontend/templates/receptionist_dashboard.html

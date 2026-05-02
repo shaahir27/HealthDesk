@@ -16,6 +16,8 @@
 #define MAX_TEXT 200
 #define MAX_SMALL 20
 #define MAX_LINE 500
+#define MAX_REASON 221
+#define MAX_TIMESTAMP 40
 
 // File paths
 #define DOCTOR_FILE "Backend/data/doctors.txt"
@@ -24,6 +26,8 @@
 #define DIAGNOSIS_FILE "Backend/data/diagnosis.txt"
 #define BILLING_FILE "Backend/data/billing.txt"
 #define APPOINTMENT_FILE "Backend/data/appointment.txt"
+#define PENDING_APPOINTMENTS_FILE "Backend/data/pending_appointments.txt"
+#define NEW_PATIENT_REQUESTS_FILE "Backend/data/new_patient_requests.txt"
 #define USER_FILE "Backend/data/users.txt"
 // STRUCT DECLARATIONS
 
@@ -33,6 +37,8 @@ struct Queue;
 struct Diagnosis;
 struct Appointment;
 struct BillingItem;
+struct PendingAppointmentRequest;
+struct NewPatientRequest;
 
 // STRUCT DEFINITIONS
 
@@ -95,5 +101,46 @@ struct BillingItem {
     char description[MAX_NAME];
     float amount;
 };
+
+// Existing patient portal appointment request
+typedef struct PendingAppointmentRequest {
+    int request_id;
+    int patient_id;
+    int doctor_id;
+    char requested_date[20];
+    char requested_slot[32];
+    char reason[MAX_REASON];
+    char visit_type[32];
+    char status[32];
+    char submitted_at[MAX_TIMESTAMP];
+    char expires_at[MAX_TIMESTAMP];
+    char receptionist_note[MAX_REASON];
+    int appointment_id;
+    struct PendingAppointmentRequest *next;
+} PendingAppointmentRequest;
+
+// First-time patient portal appointment request
+typedef struct NewPatientRequest {
+    int request_id;
+    char name[100];
+    char age[8];
+    char gender[24];
+    char phone[20];
+    char address[MAX_REASON];
+    char department[80];
+    int doctor_id;
+    char requested_date[20];
+    char requested_slot[32];
+    char reason[MAX_REASON];
+    char visit_type[32];
+    char priority[32];
+    char status[32];
+    char submitted_at[MAX_TIMESTAMP];
+    char expires_at[MAX_TIMESTAMP];
+    char receptionist_note[MAX_REASON];
+    int patient_id;
+    int appointment_id;
+    struct NewPatientRequest *next;
+} NewPatientRequest;
 
 #endif

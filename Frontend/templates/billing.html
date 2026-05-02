@@ -763,8 +763,15 @@
                                 <strong>#{{ b.bill_id }} - {{ b.name }}</strong>
                                 <small>{{ b.date }}</small>
                             </div>
-                            <span class="hd-badge {% if b.status == 'PAID' %}completed{% else %}urgent{% endif %}">{{ b.status }}</span>
+                            <span class="hd-badge {% if b.status == 'PAID' %}completed{% elif b.status == 'INITIATED' %}warning{% else %}urgent{% endif %}">
+                                {% if b.status == 'PAID' and b.payment_method and b.payment_method != 'counter' %}PAID ONLINE{% else %}{{ b.status }}{% endif %}
+                            </span>
                         </div>
+                        {% if b.status == 'PAID' and b.payment_method %}
+                        <small class="text-muted">{{ payment_method_label(b.payment_method) }}{% if b.razorpay_payment_id %} | {{ b.razorpay_payment_id }}{% endif %}</small>
+                        {% elif b.status == 'INITIATED' %}
+                        <small class="text-muted">Online payment started, waiting for webhook confirmation.</small>
+                        {% endif %}
                         <div class="d-flex justify-content-between align-items-center gap-2">
                             <small class="text-muted">Total Amount</small>
                             <strong>Rs {{ b.total|int }}</strong>

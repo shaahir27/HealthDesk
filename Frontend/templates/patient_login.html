@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HealthDesk - Patient Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Satisfy&family=MonteCarlo&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #2C3E50;
+            --muted: #52677a;
+            --primary: #2E86C1;
+            --primary-dark: #1B4F72;
+            --accent: #27ae60;
+            --paper: #ffffff;
+            --line: #e2e8f0;
+            --danger: #e74c3c;
+            --danger-bg: #fdedec;
+            --success-bg: #e8f8ef;
+            --info-bg: #eaf4fb;
+        }
+        * { box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            margin: 0;
+            display: grid;
+            place-items: center;
+            padding: 20px;
+            font-family: "Poppins", sans-serif;
+            color: var(--ink);
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 50%, #1a6fa0 100%);
+        }
+        .shell {
+            width: 100%;
+            max-width: 460px;
+        }
+        .card {
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            border-radius: 18px;
+            padding: 34px;
+            background: rgba(255,255,255,0.97);
+            box-shadow: 0 16px 48px rgba(0,0,0,0.2);
+        }
+        .card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            height: 7px;
+            background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 26px;
+        }
+        .mark {
+            width: 52px;
+            height: 52px;
+            display: grid;
+            place-items: center;
+            border-radius: 50%;
+            color: white;
+            font-size: 1.35rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            box-shadow: 0 12px 28px rgba(27,79,114,0.24);
+        }
+        .wordmark {
+            line-height: 1;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+        .wordmark .health {
+            font-family: "Satisfy", cursive;
+            font-size: 1.8rem;
+            color: var(--primary);
+            font-weight: 400;
+        }
+        .wordmark .desk {
+            font-family: "MonteCarlo", cursive;
+            font-size: 2rem;
+            background: linear-gradient(45deg, var(--primary), var(--primary-dark));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 400;
+            margin-left: 2px;
+        }
+        h1 {
+            margin: 0 0 8px;
+            font-size: clamp(1.85rem, 8vw, 2.5rem);
+            letter-spacing: -0.04em;
+        }
+        .lede {
+            margin: 0 0 26px;
+            color: var(--muted);
+            font-size: 1rem;
+            line-height: 1.55;
+        }
+        .field {
+            margin-bottom: 18px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #375463;
+            font-size: 0.92rem;
+            font-weight: 600;
+        }
+        input {
+            width: 100%;
+            min-height: 52px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 13px 15px;
+            color: var(--ink);
+            background: white;
+            font: inherit;
+            font-size: 1.06rem;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(46,134,193,0.12);
+        }
+        .otp-input {
+            text-align: center;
+            letter-spacing: 0.42em;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        .btn {
+            width: 100%;
+            min-height: 52px;
+            border: 0;
+            border-radius: 10px;
+            padding: 13px 18px;
+            color: white;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(27,79,114,0.24);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(27,79,114,0.3);
+        }
+        .ghost {
+            margin-top: 10px;
+            color: var(--primary);
+            background: transparent;
+            box-shadow: none;
+            border: 1px solid rgba(46,134,193,0.24);
+        }
+        .alert {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            margin: 0 0 18px;
+            border-radius: 16px;
+            padding: 12px 14px;
+            font-size: 0.94rem;
+            line-height: 1.4;
+        }
+        .alert-error {
+            color: var(--danger);
+            background: var(--danger-bg);
+            border: 1px solid rgba(180, 35, 24, 0.14);
+        }
+        .alert-success {
+            color: #146c43;
+            background: var(--success-bg);
+            border: 1px solid rgba(20, 108, 67, 0.14);
+        }
+        .alert-info {
+            color: var(--primary-dark);
+            background: var(--info-bg);
+            border: 1px solid rgba(46, 134, 193, 0.18);
+        }
+        .btn:disabled {
+            cursor: wait;
+            opacity: 0.78;
+            transform: none;
+            box-shadow: none;
+        }
+        .hint {
+            margin: 14px 0 0;
+            color: var(--muted);
+            font-size: 0.91rem;
+            line-height: 1.45;
+        }
+        .patient-link {
+            display: block;
+            margin-top: 18px;
+            color: var(--muted);
+            text-align: center;
+            text-decoration: none;
+            font-size: 0.92rem;
+        }
+        .patient-link strong {
+            color: var(--primary);
+        }
+        .hidden { display: none; }
+        @media (max-width: 480px) {
+            body { padding: 14px; }
+            .card { padding: 28px 22px; border-radius: 24px; }
+            .brand { margin-bottom: 22px; }
+        }
+    </style>
+</head>
+<body>
+    <main class="shell">
+        <section class="card">
+            <div class="brand">
+                <div class="mark"><i class="bi bi-heart-pulse"></i></div>
+                <div class="wordmark">
+                    <span class="health">Health</span><span class="desk">Desk</span>
+                    <div>Patient Portal</div>
+                </div>
+            </div>
+
+            <h1>Login with your phone</h1>
+            <p class="lede">No password needed. Enter the phone number registered at the clinic and we will send a 6-digit OTP.</p>
+
+            <div id="messageBox" aria-live="polite">
+                {% if error %}
+                <div class="alert alert-error"><i class="bi bi-exclamation-circle"></i><span>{{ error }}</span></div>
+                {% elif message %}
+                <div class="alert alert-success"><i class="bi bi-check-circle"></i><span>{{ message }}</span></div>
+                {% endif %}
+            </div>
+
+            <form id="phoneForm" method="POST" action="/patient/request-otp" class="{% if step == 'otp' %}hidden{% endif %}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <div class="field">
+                    <label for="phone">Registered phone number</label>
+                    <input id="phone" name="phone" type="tel" inputmode="numeric" maxlength="10" pattern="[0-9]{10}" autocomplete="tel" value="{{ phone }}" required>
+                </div>
+                <button id="sendOtpBtn" class="btn" type="submit">Send OTP</button>
+                <p class="hint">SMS delivery works only when this registered patient number is a real reachable 10-digit mobile number.</p>
+            </form>
+
+            <form id="otpForm" method="POST" action="/patient/verify-otp" class="{% if step != 'otp' %}hidden{% endif %}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <input id="otpPhone" type="hidden" name="phone" value="{{ phone }}">
+                <div class="field">
+                    <label for="otp">OTP sent to <span id="maskedPhone">{{ masked_phone }}</span></label>
+                    <input id="otp" class="otp-input" name="otp" type="text" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code" required>
+                </div>
+                <button class="btn" type="submit">Verify and continue</button>
+                <button id="changePhone" class="btn ghost" type="button">Use a different number</button>
+                <p class="hint">The OTP expires in 5 minutes. After 3 incorrect attempts, you will need to request a new one.</p>
+            </form>
+
+            <a class="patient-link" href="/login">Clinic staff? <strong>Use staff login</strong></a>
+            <a class="patient-link" href="/patient/new">First visit? <strong>Request an appointment</strong></a>
+            <a class="patient-link" href="/" style="margin-top:6px;"><i class="bi bi-arrow-left" style="margin-right:6px;"></i>Back to home</a>
+        </section>
+    </main>
+
+    <script>
+        const phoneForm = document.getElementById("phoneForm");
+        const otpForm = document.getElementById("otpForm");
+        const otpInput = document.getElementById("otp");
+        const otpPhone = document.getElementById("otpPhone");
+        const maskedPhone = document.getElementById("maskedPhone");
+        const messageBox = document.getElementById("messageBox");
+        const changePhone = document.getElementById("changePhone");
+        const sendOtpBtn = document.getElementById("sendOtpBtn");
+        const phoneInput = document.getElementById("phone");
+
+        function showMessage(text, type) {
+            const icon = type === "success" ? "bi-check-circle" : type === "info" ? "bi-info-circle" : "bi-exclamation-circle";
+            const alert = document.createElement("div");
+            const iconEl = document.createElement("i");
+            const textEl = document.createElement("span");
+            alert.className = `alert alert-${type}`;
+            iconEl.className = `bi ${icon}`;
+            textEl.textContent = text;
+            alert.append(iconEl, textEl);
+            messageBox.replaceChildren(alert);
+        }
+
+        function setSendingOtp(isSending) {
+            sendOtpBtn.disabled = isSending;
+            phoneInput.readOnly = isSending;
+            sendOtpBtn.textContent = isSending ? "Sending OTP..." : "Send OTP";
+        }
+
+        function showOtpStep(phone, masked, message) {
+            otpPhone.value = phone;
+            maskedPhone.textContent = masked;
+            phoneForm.classList.add("hidden");
+            otpForm.classList.remove("hidden");
+            showMessage(message, "success");
+            otpInput.focus();
+        }
+
+        phoneForm.addEventListener("submit", async (event) => {
+            if (!window.fetch) {
+                return;
+            }
+            event.preventDefault();
+            setSendingOtp(true);
+            showMessage("Sending OTP to your registered phone...", "info");
+            try {
+                const response = await fetch(phoneForm.action, {
+                    method: "POST",
+                    body: new FormData(phoneForm),
+                    headers: { "X-Requested-With": "XMLHttpRequest" }
+                });
+                const contentType = response.headers.get("content-type") || "";
+                const data = contentType.includes("application/json") ? await response.json() : {};
+                if (!response.ok || !data.ok) {
+                    showMessage(data.error || "Could not send OTP. Please try again.", "error");
+                    return;
+                }
+                showOtpStep(data.phone, data.masked_phone, data.message);
+            } catch (error) {
+                showMessage("Could not reach the server. Please check Flask is running and try again.", "error");
+            } finally {
+                setSendingOtp(false);
+            }
+        });
+
+        otpInput.addEventListener("input", () => {
+            otpInput.value = otpInput.value.replace(/\D/g, "").slice(0, 6);
+            if (otpInput.value.length === 6) {
+                otpForm.requestSubmit();
+            }
+        });
+
+        changePhone.addEventListener("click", () => {
+            otpForm.classList.add("hidden");
+            phoneForm.classList.remove("hidden");
+            messageBox.innerHTML = "";
+            document.getElementById("phone").focus();
+        });
+    </script>
+</body>
+</html>
