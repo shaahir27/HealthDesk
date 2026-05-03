@@ -1,12 +1,20 @@
 # HealthDesk Project Walkthrough
 
-This document explains how every important file in the HealthDesk project contributes to the system, what data structures it uses, and how the workflow moves through the frontend, Flask, C helper executables, and text files.
+Last updated: May 2026
+
+This document is the detailed technical walkthrough of the current HealthDesk project. It explains how the major files contribute to the system, what each module is responsible for, how data moves through Flask and the C executables, and how the receptionist, doctor, patient portal, queue, diagnosis, billing, SMS, and payment flows fit together.
+
+It is intentionally more detailed than `README.md`, but still smaller and more current than the older oversized walkthrough.
 
 ## 1. Big Picture
 
-HealthDesk is a clinic front-desk and doctor workflow system.
+HealthDesk is a clinic workflow system built around three active user journeys:
 
-The active architecture is:
+- receptionist operations,
+- doctor operations,
+- patient portal operations.
+
+The project still uses flat files instead of a database. The running system is a hybrid architecture:
 
 ```text
 Browser / Frontend templates
@@ -14,67 +22,73 @@ Browser / Frontend templates
         v
 Flask app.py routes and validation
         |
-        v
-subprocess call to C executable when low-level file operation is needed
+        +--> direct text/JSON reads and writes where Python owns the logic
+        |
+        +--> subprocess calls to Backend/c_modules/*.exe for record operations
+        |
+        +--> SMS adapter (sms_service.py)
+        |
+        +--> payment adapter (payment_service.py)
         |
         v
-C helper reads/writes Backend/data/*.txt
+Backend/data/*.txt and *.json
         |
         v
-Flask parses output, builds page context
+Flask builds page context
         |
         v
 Frontend renders updated workflow
 ```
 
-The project intentionally uses flat text files instead of a database.
+The architecture split is now:
 
-Python owns:
+### Python owns
 
-- web routes
-- authentication
-- sessions
-- CSRF checks
-- patient OTP login
-- workflow decisions
-- business validation
-- billing rules
-- online payment coordination
-- SMS notification coordination
-- PDF generation
-- UI context building
-- data reconciliation between files
+- routing,
+- authentication,
+- role checks,
+- sessions,
+- CSRF,
+- patient OTP login,
+- slot triage,
+- workflow rules,
+- cross-file consistency,
+- queue reconciliation,
+- stale cleanup,
+- billing calculations,
+- PDF generation,
+- SMS coordination,
+- Razorpay integration.
 
-C owns:
+### C owns
 
-- low-level record operations for patient, doctor, appointment, queue, diagnosis, and billing files
-- fixed-format parsing and printing for subprocess communication
-- some module-specific data structures like linked lists, stacks, binary trees, and dynamic arrays
+- low-level record operations for patient, doctor, appointment, queue, diagnosis, billing, and pending requests,
+- file parsing and rewriting for those modules,
+- some module-specific data structures such as linked lists, arrays, stacks, and trees.
 
-## 2. Root Files
+## 2. Top-Level Files
 
 ### `app.py`
 
-This is the main Flask application and the center of the system.
+This is the main Flask application and the center of the runtime.
 
-It connects all pages, templates, C executables, and data files.
+It is responsible for:
 
-Main responsibilities:
+- starting Flask with `Frontend/templates` and `Frontend/static`,
+- defining all routes,
+- enforcing authentication and roles,
+- validating CSRF tokens,
+- authenticating staff users from `Backend/data/users.txt`,
+- storing patient OTP state in memory,
+- calling the C executables,
+- parsing the text files into Python records,
+- coordinating reception, queue, doctor, diagnosis, billing, and portal workflows,
+- generating bill previews and PDFs,
+- keeping queue, appointment, and doctor states in sync,
+- verifying Razorpay webhooks,
+- sending SMS notifications.
 
-- Starts Flask using `Frontend/templates` and `Frontend/static`.
-- Defines all URL routes.
-- Enforces login and role checks.
-- Verifies CSRF tokens for every POST request.
-- Authenticates users from `Backend/data/users.txt`.
-- Calls C executables through `subprocess.run`.
-- Parses text files into Python dictionaries and lists.
-- Controls appointment, queue, doctor, diagnosis, and billing workflows.
-- Generates bill preview text and PDF files.
-- Auto-cleans stale appointments and queues.
-- Auto-resets doctor `Busy` status when no live workload exists.
-- Auto-reassigns future appointments when a doctor becomes unavailable, off, or emergency.
-
-Important constants:
+Important runtime constants in `app.py` include:
 
 ```text
 BASE_DIR
@@ -90,6 +104,7 @@ QUEUE_FILE
 DIAGNOSIS_FILE
 PENDING_APPOINTMENTS_FILE
 NEW_PATIENT_REQUESTS_FILE
+DOCTOR_STATUS_META_FILE
 BILLING_EXE
 ALLOWED_PAYMENT_STATUSES
 OTP_EXPIRY_SECONDS
@@ -97,300 +112,289 @@ OTP_MAX_ATTEMPTS
 PENDING_REQUEST_EXPIRY_HOURS
 ```
 
-Important Python data structures used:
+Important in-memory structures include:
 
-- `dict`: patient records, doctor records, appointment records, billing records, page context, lookup maps.
-- `list`: collections of patients, doctors, queue rows, appointments, bills, treatments, lab tests.
-- `set`: allowed roles, allowed statuses, payment statuses, status comparisons.
-- `tuple`: grouping keys such as `(patient_id, doctor_id)`.
-- `threading.Lock`: `_appointment_lock`, `_pending_appointment_lock`, `_new_patient_request_lock`, and `_billing_lock` protect text-file writes inside one Flask process.
-- Flask `session`: stores `logged_in`, `username`, `role`, `doctor_id`, patient identity fields, and `_csrf_token`.
-- In-memory OTP store: keeps hashed patient OTPs, expiry time, and attempt count.
-- `BytesIO`: holds generated PDF bytes in memory before returning the response.
-
-Important helper areas:
-
-- `append_data_line()`: safely appends a new line to a text file.
-- `clean_record_field()`: removes pipe delimiters and newlines from user-controlled text before writing to pipe-separated files.
-- `safe_int()`: safely converts values to integers.
-- Appointment helpers: parse, read, write, complete, cancel, reschedule, stale cleanup.
-- Queue helpers: read, write, group by doctor, complete/cancel/reschedule rows.
-- Doctor helpers: read doctors, write doctor file, status synchronization, suggestion, reassignment.
-- Billing helpers: read bills through `billing.exe`, parse multiple bill formats, recalculate totals, create bill records, save bills, build PDF.
-- Diagnosis helpers: get patient history through `diagnosis.exe`, save diagnosis, complete appointment, close queue, auto-generate bill.
-- Patient portal helpers: phone normalization, OTP generation/verification, dashboard data loading, request decoration, and C helper subprocess wrappers.
-- Payment helpers: create Razorpay orders, verify webhooks, update payment state, and enrich paid bill output.
-
-Main routes:
-
-```text
-/                         -> role-based redirect
-/login                    -> login page and authentication
-/logout                   -> clears session
-/patient/login            -> existing patient phone OTP login
-/patient/request-otp      -> generate and send patient OTP
-/patient/verify-otp       -> verify OTP and create patient session
-/patient/logout           -> clear patient session
-/patient/dashboard        -> patient appointments, records, bills, profile
-/patient/book             -> existing patient appointment request form
-/patient/book/slots       -> authenticated patient slot availability lookup
-/patient/book/submit      -> triage booking request
-/patient/cancel           -> patient cancellation with 24-hour rule
-/patient/bills/<id>/pdf   -> ownership-checked patient bill PDF
-/patient/payment/create-order -> create Razorpay order from server-side bill total
-/patient/new              -> first-time appointment request form
-/patient/new/slots        -> public slot lookup for first-time request form
-/patient/new/submit       -> save first-time request for receptionist review
-/payment/webhook          -> Razorpay webhook, HMAC verified and CSRF-exempt
-/receptionist             -> redirects to receptionist dashboard
-/reception                -> patient search, registration, appointment selection
-/receptionist_dashboard   -> receptionist summary cards
-/reception/pending        -> redirects to dashboard pending section
-/reception/approve        -> approve portal request, book appointment
-/reception/reject         -> reject portal request with required reason
-/doctor                   -> doctor dashboard
-/queue                    -> receptionist queue page grouped by doctor
-/appointments             -> appointment slot board and grouped appointment actions
-/book_appointment         -> create appointment, optionally queue same-day patient
-/cancel_appointment       -> cancel appointment and queue row
-/reschedule               -> reschedule appointment and queue row
-/update_appointment       -> cancel, reschedule, reassign, no-show; doctor completion guard
-/doctors                  -> doctor management page
-/add_doctor               -> create doctor profile and login account
-/toggle_doctor            -> legacy daily-status update route
-/doctor_status            -> receptionist updates doctor status
-/doctor_my_status         -> doctor updates own status
-/doctor_complete_consultation -> opens diagnosis for assigned active appointment
-/diagnosis                -> diagnosis page
-/diagnosis_history        -> loads diagnosis history by patient ID
-/add_diagnosis            -> saves diagnosis, completes appointment, closes queue, creates bill
-/billing                  -> billing page, completed patient follow-up, bill preview
-/generate_bill            -> manual receptionist bill generation after completed appointment
-/billing/download/<id>    -> PDF download
-```
-
-Important workflow rules in `app.py`:
-
-- Login is handled in Python, not by `auth.exe`, so passwords are not exposed in OS process arguments.
-- Passwords in `users.txt` are stored as hashes and checked with Werkzeug.
-- Every POST form must include `_csrf_token`.
-- Razorpay webhook is the only CSRF-exempt POST route because it is server-to-server.
-- Reception cannot manually complete consultations.
-- Doctor completion is not final until diagnosis and prescription are saved.
-- Diagnosis requires patient, doctor, appointment, date, diagnosis text, and prescription.
-- Saving diagnosis completes the appointment and marks the queue row completed.
-- Billing is allowed only for completed appointments.
-- Duplicate billing is blocked by appointment ID.
-- Bill totals are recalculated from stored components when parsed.
-- Patient payment order creation reads the bill amount from `billing.txt`; browser input never supplies the amount.
-- Bills are marked paid only from a verified Razorpay webhook, not from the browser checkout callback.
-- Existing patient booking requests are stored in `pending_appointments.txt` unless auto-approved.
-- First-time appointment requests are stored in `new_patient_requests.txt`; a patient record is created only after receptionist approval.
-- Pending request add/list/update/expiry/soft-lock operations are delegated to `pending_request.exe`.
-- Patient cancellation is allowed only for appointments owned by the patient and more than 24 hours away.
-- Past-date appointment booking and rescheduling are rejected.
+- `dict` for patient, doctor, appointment, billing, and page-context records,
+- `list` for collections of records,
+- `set` for allowed statuses and role checks,
+- `tuple` keys such as `(patient_id, doctor_id)`,
+- `threading.Lock` for text-file write protection inside one Flask process,
+- Flask `session` for current login state,
+- `_otp_store` for patient OTP hashes, expiry, and attempt count,
+- `BytesIO` for generated PDF bytes.
 
 ### `sms_service.py`
 
-SMS abstraction used by patient OTP, booking notifications, expiry notices, rejection reasons, and payment notices.
+This module is the SMS boundary for the app.
+
+It is used for:
+
+- patient OTP delivery,
+- appointment confirmation messages,
+- rejection messages,
+- request expiry messages,
+- payment success and failure messages,
+- receptionist notifications.
 
 Behavior:
 
-- Loads `.env` through `python-dotenv` when available.
-- Uses Fast2SMS when `FAST2SMS_API_KEY` is configured.
-- Prints SMS content to the console in development when the API key is missing.
-- Normalizes comma-separated or list-based phone numbers.
-- Catches provider/network failures internally and returns `False` instead of crashing the app.
+- loads environment variables through `python-dotenv` when available,
+- sends through Fast2SMS when `FAST2SMS_API_KEY` is configured,
+- falls back to console logging in development when the API key is missing,
+- normalizes phone numbers before sending,
+- captures provider errors and exposes them through `get_last_sms_error()`.
 
 ### `payment_service.py`
 
-Razorpay integration boundary.
+This module is the Razorpay integration boundary.
 
-Behavior:
+It is responsible for:
 
-- Loads Razorpay credentials from environment variables.
-- Creates INR orders using server-side bill totals.
-- Returns structured success/error results to `app.py`.
-- Verifies webhook signatures with HMAC-SHA256 and `RAZORPAY_WEBHOOK_SECRET`.
-- Never exposes `RAZORPAY_KEY_SECRET` or webhook secret to browser code.
+- checking whether payment credentials are configured,
+- exposing the publishable Razorpay key ID to the Flask layer,
+- creating INR payment orders from server-side bill totals,
+- verifying webhook signatures using `RAZORPAY_WEBHOOK_SECRET`.
+
+Important rule:
+
+- the bill amount comes from the server-side bill record, not from the browser.
 
 ### `README.md`
 
-High-level project README.
-
-It explains:
-
-- project purpose
-- technology stack
-- folder structure
-- setup/run command
-- demo credentials
-- doctor account creation
-- billing workflow
-- data storage files
-- UI pages
-- notes and future improvements
-
-This is for quick onboarding.
+This is the short project overview and setup guide. It is useful for first contact with the repository, but it does not cover the full runtime details.
 
 ### `SYSTEM_FLOW.md`
 
-User-facing workflow explanation.
-
-It explains:
-
-- login flow
-- receptionist dashboard
-- reception page
-- appointment flow
-- queue flow
-- doctors page
-- doctor dashboard
-- diagnosis flow
-- billing flow
-- patient portal OTP, dashboard, booking, cancellation, and payment flow
-- end-to-end patient journey
-- doctor unavailable/reassignment flow
-- cancellation/reschedule/no-show flows
-- data file update flow
-
-This is useful for demos and viva-style explanation.
+This is the user-facing and demo-facing system explanation. It focuses on page flow, user actions, and the operational sequence between reception, doctor, queue, and billing.
 
 ### `changes.md`
 
-A patient portal architecture and change checklist file.
+This is a historical architecture and change-tracking document for the portal expansion. It is not part of the runtime.
 
-It is not used by the running application.
+### `.env`
 
-It documents the patient portal phases, receptionist-side changes, data schemas, environment variables, route list, UX rules, and security checklist.
+This file provides optional runtime configuration such as:
 
-### `Claude review check.zip`
-
-A zip artifact in the root folder.
-
-It is not part of the active runtime unless manually opened. Treat it as supporting review material.
+- Flask secret configuration,
+- Fast2SMS credentials,
+- Razorpay credentials,
+- clinic phone numbers.
 
 ### `__pycache__/app.cpython-313.pyc`
 
-Generated Python bytecode cache.
+This is generated Python bytecode. It is not source code and should not be edited manually.
 
-It is not source code and should not be edited manually. Python can recreate it when `app.py` is imported or compiled.
+## 3. Backend Data Files
 
-## 3. Backend C Module Header
+The project uses flat files in `Backend/data/` as the system of record.
+
+### `Backend/data/users.txt`
+
+Purpose:
+
+- stores staff accounts,
+- supports receptionist and doctor login.
+
+Owned by:
+
+- Python login helpers in `app.py`.
+
+Important note:
+
+- current staff authentication is handled in Python, not `auth.exe`.
+
+### `Backend/data/doctors.txt`
+
+Purpose:
+
+- stores doctor profile data and status fields.
+
+Typical fields:
+
+```text
+id|name|department|experience|daily_status|current_status
+```
+
+Used by:
+
+- doctor dashboard,
+- doctors page,
+- appointment slot blocking,
+- alternative doctor suggestions,
+- reassignment logic.
+
+### `Backend/data/patients.txt`
+
+Purpose:
+
+- stores patient master records.
+
+Typical fields:
+
+```text
+id|name|age|gender|phone|address|symptoms|visit_type|priority|department
+```
+
+Used by:
+
+- receptionist search and registration,
+- patient OTP login lookup,
+- diagnosis context,
+- billing context,
+- patient dashboard.
+
+### `Backend/data/appointment.txt`
+
+Purpose:
+
+- stores appointment records and appointment statuses.
+
+Typical fields:
+
+```text
+appointment_id|patient_id|doctor_id|date|time_slot|status
+```
+
+Statuses used in the running app:
+
+- `Booked`
+- `Completed`
+- `Cancelled`
+- `Rescheduled`
+- `No-show`
+
+### `Backend/data/queue.txt`
+
+Purpose:
+
+- stores same-day waiting and completed queue rows.
+
+Typical fields:
+
+```text
+token|patient_id|doctor_id|priority|status
+```
+
+Used by:
+
+- receptionist queue page,
+- doctor live queue list,
+- queue reconciliation helpers.
+
+### `Backend/data/diagnosis.txt`
+
+Purpose:
+
+- stores diagnosis history and prescriptions.
+
+Used by:
+
+- diagnosis page,
+- doctor history lookup,
+- patient dashboard medical-record section.
+
+### `Backend/data/billing.txt`
+
+Purpose:
+
+- stores bill records,
+- connects bills to appointments and patients,
+- stores payment status and payment metadata.
+
+Billing records are richer than the simpler text files and include fields such as:
+
+- appointment linkage,
+- doctor and patient labels,
+- treatments,
+- lab tests,
+- medicine amount,
+- bill total,
+- payment status,
+- Razorpay order ID,
+- Razorpay payment ID,
+- payment method,
+- paid timestamp,
+- initiated timestamp.
+
+### `Backend/data/pending_appointments.txt`
+
+Purpose:
+
+- stores existing-patient portal booking requests,
+- acts as the pending-review queue and audit trail for those requests.
+
+Typical fields:
+
+```text
+request_id|patient_id|doctor_id|requested_date|requested_slot|reason|visit_type|status|submitted_at|expires_at|receptionist_note|appointment_id
+```
+
+### `Backend/data/new_patient_requests.txt`
+
+Purpose:
+
+- stores first-time online appointment requests before a patient record exists.
+
+Typical fields:
+
+```text
+request_id|name|age|gender|phone|address|department|doctor_id|requested_date|requested_slot|reason|visit_type|priority|status|submitted_at|expires_at|receptionist_note|patient_id|appointment_id
+```
+
+### `Backend/data/pricing_catalog.json`
+
+Purpose:
+
+- stores doctor fees,
+- treatment prices,
+- treatment categories,
+- department restrictions,
+- lab-test pricing.
+
+This file is owned by Python and loaded by the billing flow.
+
+### `Backend/data/doctor_status_meta.json`
+
+Purpose:
+
+- stores the effective end date for doctor status overrides,
+- lets Python block dates beyond today for `Unavailable`, `Off`, or `Emergency` status cases.
+
+This file is created by Python when needed. It is part of the current runtime even though it is generated dynamically.
+
+## 4. Shared C Header
 
 ### `Backend/c_modules/common.h`
 
-Shared C header used by all C modules.
+This file defines the shared C constants, file paths, and structs used by the C modules.
 
-It defines:
+It includes:
 
-- standard includes: `stdio.h`, `stdlib.h`, `string.h`
-- buffer limits
-- file paths
-- shared structs
+- buffer-size constants such as `MAX_NAME`, `MAX_TEXT`, `MAX_LINE`, and `MAX_TIMESTAMP`,
+- file path constants for all major data files,
+- shared record structs for patient, doctor, queue, diagnosis, appointment, billing, pending existing-patient requests, and first-time requests.
 
-Buffer constants:
+Important struct coverage:
 
-```c
-#define MAX_NAME 50
-#define MAX_PHONE 20
-#define MAX_ADDRESS 200
-#define MAX_TEXT 200
-#define MAX_SMALL 20
-#define MAX_LINE 500
-```
+- `struct Patient`
+- `struct Doctor`
+- `struct QueueNode`
+- `struct Diagnosis`
+- `struct Appointment`
+- `struct BillingItem`
+- `PendingAppointmentRequest`
+- `NewPatientRequest`
 
-File path constants:
+This file keeps the C side consistent and ensures every helper points to the same record layout and file paths.
 
-```c
-DOCTOR_FILE
-PATIENT_FILE
-QUEUE_FILE
-DIAGNOSIS_FILE
-BILLING_FILE
-APPOINTMENT_FILE
-USER_FILE
-```
-
-C structs:
-
-```c
-struct Patient {
-    int id;
-    char name[MAX_NAME];
-    int age;
-    char gender[MAX_SMALL];
-    char phone[MAX_PHONE];
-    char address[MAX_ADDRESS];
-    char symptoms[MAX_TEXT];
-    char visit_type[MAX_SMALL];
-    char priority[MAX_SMALL];
-    char department[MAX_NAME];
-};
-```
-
-```c
-struct Doctor {
-    int id;
-    char name[MAX_NAME];
-    char specialization[MAX_NAME];
-    int experience;
-    char daily_status[MAX_SMALL];
-    char current_status[MAX_SMALL];
-};
-```
-
-```c
-struct QueueNode {
-    int token;
-    int patient_id;
-    int doctor_id;
-    char priority[MAX_SMALL];
-    char status[MAX_SMALL];
-    struct QueueNode* next;
-};
-```
-
-```c
-struct Diagnosis {
-    int record_id;
-    int patient_id;
-    int doctor_id;
-    char date[20];
-    char diagnosis[MAX_TEXT];
-    char prescription[MAX_TEXT];
-};
-```
-
-```c
-struct Appointment {
-    int appointment_id;
-    int patient_id;
-    int doctor_id;
-    char date[20];
-    char time_slot[20];
-    char status[MAX_SMALL];
-};
-```
-
-```c
-struct BillingItem {
-    char description[MAX_NAME];
-    float amount;
-};
-```
-
-Contribution:
-
-- Keeps C modules consistent.
-- Prevents each C file from redefining record layouts.
-- Ensures all C helpers point to the same data file paths.
-
-## 4. C Helper Modules
+## 5. C Helper Modules
 
 ### `Backend/c_modules/patient.c`
 
-Handles patient search and patient registration at the file-operation level.
+Runtime role:
+
+- patient search,
+- patient registration.
 
 Active executable:
 
@@ -398,66 +402,36 @@ Active executable:
 Backend/c_modules/patient.exe
 ```
 
-Called from Python:
+Used by:
 
-- `find_patient_by_phone()`
-- registration branch inside `/reception`
+- `find_patient_by_phone()`,
+- receptionist registration flow,
+- first-time request approval flow.
 
-Commands:
+Typical commands:
 
 ```text
 patient.exe search <phone>
 patient.exe "<name>|<age>|<gender>|<phone>|<address>|<symptoms>|<visit_type>|<priority>|<department>"
 ```
 
-Outputs:
+Main structure pattern:
 
-```text
-PATIENT|id|name|age|gender|phone|address|symptoms|visit_type|priority|department
-PatientNotFound
-id|visit_type|priority
-Error|InvalidPatientData
-Error|InvalidPhone
-Error|MemoryAllocationFailed
-```
+- linked list of patient records.
 
-Data structures:
+Why it matters:
 
-- `struct Patient`: actual patient data.
-- `struct PatientNode`: linked-list node containing `struct Patient data` and `next`.
-- `patients_head`, `patients_tail`: linked-list pointers.
-- `patients_loaded`: prevents repeated file loading in one process.
-- `patients_dirty`: tells `atexit()` whether file save is needed.
-
-Why linked list is used:
-
-- Patients are loaded from file into a dynamic list.
-- New patients can be appended without fixed array size.
-- The module can search by phone and append records before saving.
-
-Important functions:
-
-- `safeCopy()`: bounded string copy.
-- `parsePatientLine()`: converts one text-file row into `struct Patient`.
-- `appendPatientNode()`: adds patient to linked list.
-- `loadPatients()`: loads `patients.txt` into linked list.
-- `savePatientsIfDirty()`: rewrites file only if changed.
-- `freePatients()`: releases linked-list memory.
-- `shutdownPatients()`: saves and frees at program exit.
-- `nextPatientId()`: finds max patient ID and returns next ID.
-- `searchByPhone()`: finds existing patient by phone.
-- `parse_patient_data()`: parses new patient input from Python.
-- `addPatient()`: validates and appends new patient.
-
-Workflow contribution:
-
-- Receptionist searches by phone.
-- If patient does not exist, receptionist registers patient.
-- Python validates first, then C validates again and writes to `patients.txt`.
+- reception can search quickly by phone,
+- new patients can be appended without a fixed small array,
+- first-time request approval can turn a request into a proper patient record.
 
 ### `Backend/c_modules/doctor.c`
 
-Handles doctor file operations, status updates, doctor lookup, doctor suggestions, and doctor creation.
+Runtime role:
+
+- doctor profile creation,
+- doctor status updates,
+- doctor suggestion by department.
 
 Active executable:
 
@@ -465,82 +439,42 @@ Active executable:
 Backend/c_modules/doctor.exe
 ```
 
-Called from Python:
+Used by:
 
-- `suggest_doctors_by_department()`
-- `add_doctor()`
-- `doctor_status()`
-- `doctor_my_status()`
-- `toggle_doctor()`
+- `/add_doctor`,
+- `/doctor_status`,
+- `/doctor_my_status`,
+- suggestion helpers in appointment and reception flows.
 
-Commands:
+Typical commands:
 
 ```text
-doctor.exe view
-doctor.exe daily <doctor_id> <daily_status>
-doctor.exe current <doctor_id> <current_status>
 doctor.exe status <doctor_id> <daily_status> <current_status>
-doctor.exe search <department>
 doctor.exe suggest <department>
-doctor.exe find <department>
 doctor.exe "<name>|<department>|<experience>"
 ```
 
-Outputs:
+Main structure pattern:
 
-```text
-id|name|department|experience|daily_status|current_status
-NoDoctorFound
-<new_doctor_id>
-```
+- binary tree for doctor organization and lookup in the C module.
 
-Data structures:
+Why it matters:
 
-- `struct Doctor`: doctor record.
-- `struct DoctorNode`: binary search tree node with `data`, `left`, and `right`.
-- Process-specific temp file path for safe doctor file rewrite.
-
-Why binary tree is used:
-
-- Doctors are inserted ordered by specialization and ID.
-- Department search traverses the tree.
-- `findAvailableDoctor()` returns the first matching available doctor from the tree.
-
-Important functions:
-
-- `parseDoctorLine()`: parses `doctors.txt`.
-- `printDoctor()`: prints a doctor row to stdout.
-- `generate_id()`: finds next doctor ID.
-- `addDoctor()`: appends new doctor with `Available|Free`.
-- `viewDoctors()`: prints all doctors.
-- `updateDoctorStatuses()`: updates both daily and current status.
-- `updateDailyStatus()`: updates daily status only.
-- `updateCurrentStatus()`: updates current status only.
-- `buildDoctorTempPath()`: creates process-specific temp path such as `doctors.<pid>.tmp`.
-- `createDoctorNode()`: allocates a BST node.
-- `insertDoctor()`: inserts into BST.
-- `loadDoctorTree()`: loads `doctors.txt` into BST.
-- `searchByDepartment()`: prints matching department doctors.
-- `findAvailableDoctorInTree()`: finds department doctor where `daily_status == Available` and `current_status != Emergency`.
-- `freeDoctorTree()`: releases tree memory.
-
-Workflow contribution:
-
-- Receptionist manages doctors.
-- Doctor can update own availability.
-- Appointment page uses doctor suggestion.
-- If doctor becomes unavailable/off/emergency, Python tries to reassign future booked appointments.
-
-Important status rules:
-
-- `daily_status`: `Available`, `Unavailable`, `Off`.
-- `current_status`: `Free`, `Busy`, `Emergency`.
-- Appointment slots are blocked if doctor is `Unavailable`, `Off`, or `Emergency`.
-- Suggestions include doctors who are `Available` and not `Emergency`.
+- reception can add doctors,
+- doctor availability can be changed from both receptionist and doctor flows,
+- same-department alternatives can be suggested when a doctor is blocked.
 
 ### `Backend/c_modules/appointment.c`
 
-Handles appointment slots, booking, status updates, rescheduling, availability, and doctor-date appointment listing.
+Runtime role:
+
+- appointment slot listing,
+- slot availability checks,
+- booking,
+- cancellation,
+- reschedule,
+- completion,
+- no-show updates.
 
 Active executable:
 
@@ -548,13 +482,16 @@ Active executable:
 Backend/c_modules/appointment.exe
 ```
 
-Called from Python:
+Used by:
 
-- `load_appointment_slots()`
-- `run_appointment_command()`
-- booking, cancel, reschedule, complete, no-show, reassignment flows
+- `load_appointment_slots()`,
+- `run_appointment_command()`,
+- reception booking,
+- portal booking,
+- appointment actions,
+- diagnosis completion flow.
 
-Commands:
+Typical commands:
 
 ```text
 appointment.exe slots <doctor_id> <date>
@@ -563,80 +500,22 @@ appointment.exe cancel <appointment_id>
 appointment.exe complete <appointment_id>
 appointment.exe noshow <appointment_id>
 appointment.exe reschedule <appointment_id> <new_date> <new_time>
-appointment.exe availability <doctor_id> <date> <time_slot>
-appointment.exe list <doctor_id> <date>
 ```
 
-Outputs:
+Main structure pattern:
 
-```text
-SLOT|08:30 AM|Available
-SLOT|09:30 AM|Booked
-BOOKED|appointment_id|patient_id|doctor_id|date|time_slot|Booked
-UPDATED|appointment_id|Status
-RESCHEDULED|old_id|new_id|new_date|new_time
-AVAILABILITY|Available
-APPOINTMENT|appointment_id|patient_id|doctor_id|date|time_slot|status
-Error|InvalidInput
-Error|SlotNotAvailable
-Error|AppointmentNotFound
-Error|AppointmentNotActive
-Error|AppointmentLimitReached
-Error|NewSlotNotAvailable
-Error|UpdateFailed
-```
+- dynamically loaded appointment array with fixed slot definitions.
 
-Data structures:
+Why it matters:
 
-- `struct Appointment`: one appointment record.
-- Dynamic heap array: `malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS)`.
-- `DEFAULT_SLOTS`: fixed array of 8 appointment time strings.
-
-Why dynamic heap array is used:
-
-- Appointment records are loaded into an array for slot calculations.
-- `MAX_APPOINTMENTS` is `50000`.
-- Heap allocation avoids stack overflow from a large static array.
-
-Slot constants:
-
-```text
-08:30 AM
-09:30 AM
-10:30 AM
-11:40 AM
-02:00 PM
-04:00 PM
-06:00 PM
-08:05 PM
-```
-
-Important functions:
-
-- `validSlot()`: only accepts one of the fixed slots.
-- `validDate()`: validates `YYYY-MM-DD`, real month/day, leap year, and rejects past dates.
-- `generateAppointmentId()`: max existing ID + 1.
-- `loadAppointments()`: loads `appointment.txt`.
-- `saveAppointments()`: rewrites `appointment.txt`.
-- `doctorIsBlocked()`: checks `doctors.txt`; blocks if unavailable/off/emergency.
-- `getSlotState()`: calculates slot state from doctor status and appointment status.
-- `printSlots()`: prints all 8 slots for a doctor/date.
-- `bookSlot()`: validates and appends a `Booked` appointment.
-- `updateAppointmentStatus()`: updates status to cancelled/completed/no-show.
-- `rescheduleAppointment()`: marks old appointment `Rescheduled`, creates new `Booked` row.
-- `checkDoctorAvailability()`: prints one slot state.
-- `listAppointmentsForDoctorDate()`: prints appointments for one doctor/date.
-
-Workflow contribution:
-
-- Receptionist slot board depends on this module.
-- Booking uses this module.
-- Doctor save diagnosis completes appointment through this module.
-- Reschedule/reassign/cancel/no-show all update appointment state through this module.
+- this module is the core source for appointment state,
+- queue, diagnosis, and billing all depend on appointment status transitions.
 
 ### `Backend/c_modules/queue.c`
 
-Handles same-day queue token creation and queue persistence.
+Runtime role:
+
+- creates same-day queue tokens.
 
 Active executable:
 
@@ -644,66 +523,24 @@ Active executable:
 Backend/c_modules/queue.exe
 ```
 
-Called from Python:
+Used by:
 
-- `add_patient_to_queue()`
+- `add_patient_to_queue()`.
 
-Commands:
+Main structure pattern:
 
-```text
-queue.exe <patient_id>
-queue.exe <patient_id> <doctor_id>
-queue.exe <patient_id> <doctor_id> <priority>
-```
+- linked-list queue representation inside the C module.
 
-Outputs:
+Why it matters:
 
-```text
-token|doctor_id|priority
-Error|InvalidPatient
-Error|PatientNotFound
-Error|MemoryAllocationFailed
-```
-
-Data structures:
-
-- `struct QueueNode`: queue item.
-- `struct QueueStore`: has `front` and `rear`.
-- Linked list queue: `front -> ... -> rear`.
-- Static flags: `queue_loaded`, `queue_dirty`.
-
-Why queue linked list is used:
-
-- Queue rows are naturally ordered.
-- New rows are appended at rear.
-- Existing waiting patient can be found without creating duplicate waiting rows.
-
-Important functions:
-
-- `safeCopy()`: bounded string copy.
-- `appendQueueNode()`: appends queue node.
-- `loadQueue()`: loads `queue.txt` into linked list.
-- `saveQueueIfDirty()`: rewrites queue file when changed.
-- `freeQueueStore()`: releases linked list.
-- `shutdownQueueStore()`: saves and frees at exit.
-- `nextToken()`: max token + 1.
-- `findWaitingByPatient()`: prevents duplicate waiting queue row for same patient.
-- `getPatientPriority()`: reads priority from `patients.txt`.
-- `getPatientDepartment()`: reads department from `patients.txt`.
-- `findAvailableDoctor()`: finds department doctor available and not emergency if no doctor was passed.
-- `doctorExists()`: validates passed doctor ID.
-- `enqueuePatient()`: adds row and marks dirty.
-
-Workflow contribution:
-
-- Same-day appointment creates queue token.
-- Receptionist queue page displays waiting patients grouped by doctor.
-- Doctor dashboard displays assigned waiting patients.
-- Queue status is changed by Python when appointment status changes or diagnosis is saved.
+- same-day staff bookings move into the live doctor workflow by way of this queue record.
 
 ### `Backend/c_modules/diagnosis.c`
 
-Handles diagnosis history and diagnosis record creation.
+Runtime role:
+
+- reads diagnosis history,
+- appends diagnosis and prescription records.
 
 Active executable:
 
@@ -711,65 +548,28 @@ Active executable:
 Backend/c_modules/diagnosis.exe
 ```
 
-Called from Python:
+Used by:
 
-- `get_diagnosis_context()`
-- `add_diagnosis()`
+- diagnosis page history loading,
+- diagnosis save flow,
+- patient dashboard record history.
 
-Commands:
+Main structure pattern:
 
-```text
-diagnosis.exe history <patient_id>
-diagnosis.exe latest <patient_id>
-diagnosis.exe "<patient_id>|<doctor_id>|<date>|<diagnosis>|<prescription>"
-```
+- stack-style usage for history ordering on the C side.
 
-Outputs:
+Why it matters:
 
-```text
-PATIENT|id|name|age|gender|phone|address|symptoms|visit_type|priority|department
-DIAGNOSIS|record_id|patient_id|doctor_id|date|diagnosis|prescription
-NO_DIAGNOSIS
-PatientNotFound
-record_id|patient_id|doctor_id
-```
-
-Data structures:
-
-- `struct Diagnosis`: diagnosis record.
-- `struct DiagnosisNode`: stack node.
-- Stack implemented through linked list.
-
-Why stack is used:
-
-- Diagnosis records for a patient are pushed as found.
-- Popping prints latest first because newest matching rows become top of stack.
-- `peek()` supports latest diagnosis.
-
-Important functions:
-
-- `push()`: stack push.
-- `peek()`: returns top diagnosis.
-- `pop()`: stack pop.
-- `freeStack()`: clears stack.
-- `generateDiagnosisId()`: max diagnosis ID + 1.
-- `parseDiagnosisLine()`: parses `diagnosis.txt`.
-- `getPatientById()`: reads patient details from `patients.txt`.
-- `loadDiagnosisStack()`: loads matching patient diagnoses into stack.
-- `printDiagnosis()`: prints `DIAGNOSIS|...`.
-- `printPatientHistory()`: prints patient plus diagnosis history.
-- `printLatestDiagnosis()`: prints latest diagnosis only.
-- `addDiagnosis()`: appends new diagnosis row.
-
-Workflow contribution:
-
-- Doctor opens diagnosis page and sees patient profile plus history.
-- Doctor saves diagnosis and prescription.
-- Python then completes appointment, closes queue, and creates bill.
+- diagnosis save is the event that turns an active consultation into a completed billable visit.
 
 ### `Backend/c_modules/billing.c`
 
-Handles bill file operations only.
+Runtime role:
+
+- bill ID generation,
+- bill lookup,
+- bill listing,
+- bill save commands.
 
 Active executable:
 
@@ -777,63 +577,25 @@ Active executable:
 Backend/c_modules/billing.exe
 ```
 
-Called from Python:
+Used by:
 
-- `run_billing_command()`
-- `generate_bill_id()`
-- `read_bills()`
-- `find_bill_by_id()`
-- `find_bill_by_appointment_id()`
-- `save_bill_record()`
+- `read_bills()`,
+- `find_bill_by_id()`,
+- `find_bill_by_appointment_id()`,
+- `save_bill_record()`,
+- other bill lookup helpers.
 
-Commands:
+Why it matters:
 
-```text
-billing.exe next-id
-billing.exe list
-billing.exe find-id <bill_id>
-billing.exe find-appointment <appointment_id>
-billing.exe save <serialized_bill_line>
-```
-
-Outputs:
-
-```text
-<next_bill_id>
-<billing.txt lines>
-<matching bill line>
-SAVED
-Error|InvalidInput
-Error|InvalidCommand
-Error|SaveFailed
-```
-
-Data structures:
-
-- File line buffer: `char line[MAX_LINE]`.
-- No complex business struct is used here.
-- Field extraction function preserves empty fields.
-
-Important functions:
-
-- `safeCopy()`: bounded copy.
-- `nextBillId()`: max bill ID + 1, starting from 1000 because default max is 999.
-- `extractFieldPreserveEmpty()`: extracts a pipe-separated field without losing empty fields.
-- `parseAppointmentId()`: reads field index 18 for appointment ID.
-- `listBills()`: prints all bills.
-- `findBillById()`: prints matching bill.
-- `findBillByAppointmentId()`: prints bill linked to appointment.
-- `saveBillLine()`: appends serialized Python-created bill line.
-
-Workflow contribution:
-
-- Keeps bill file operations in C.
-- Python keeps billing business logic, pricing, validation, UI context, and PDF generation.
-- This matches the current architecture split.
+- billing persistence still lives in the C helper layer even though pricing and bill logic are mainly in Python.
 
 ### `Backend/c_modules/pending_request.c`
 
-Handles patient portal request file operations.
+Runtime role:
+
+- owns both existing-patient pending requests and first-time pending requests,
+- checks whether a pending soft-lock already exists on a slot,
+- expires old requests.
 
 Active executable:
 
@@ -841,1094 +603,841 @@ Active executable:
 Backend/c_modules/pending_request.exe
 ```
 
-Called from Python:
+Used by:
 
-- `run_pending_request_command()`
-- `read_all_pending_requests()`
-- `read_all_new_patient_requests()`
-- `create_pending_request()`
-- `create_new_patient_request()`
-- `update_pending_status()`
-- `update_new_patient_request_status()`
-- `pending_slot_exists()`
-- `run_expiry_check()`
+- patient portal booking,
+- first-time request submission,
+- receptionist approval,
+- receptionist rejection,
+- request expiry processing.
 
-Commands:
+Typical command families:
 
 ```text
-pending_request.exe list-existing
-pending_request.exe list-new
-pending_request.exe add-existing ...
-pending_request.exe add-new ...
-pending_request.exe update-existing ...
-pending_request.exe update-new ...
-pending_request.exe soft-lock-exists ...
-pending_request.exe expire
+list-existing
+add-existing
+update-existing
+soft-lock-exists
+list-new
+add-new
+update-new
+expire
 ```
 
-Data structures:
+Main structure pattern:
 
-- `PendingAppointmentRequest` struct for existing patient requests.
-- `NewPatientRequest` struct for first-time patient requests.
-- Singly linked lists for loading, scanning, updating, expiring, and rewriting records.
+- linked lists for both pending existing-patient requests and first-time requests.
 
-Workflow contribution:
+Why it matters:
 
-- C owns raw request persistence for `pending_appointments.txt` and `new_patient_requests.txt`.
-- C checks whether a pending request is soft-locking a doctor/date/slot.
-- C updates expired requests and reports which rows changed.
-- Python still owns route access, triage decisions, appointment booking, patient registration, SMS notifications, and template rendering.
+- it prevents portal requests from going directly into `appointment.txt` when receptionist review is required.
 
 ### `Backend/c_modules/auth.c`
 
-Legacy authentication helper.
+This file still exists in the repository, but it is not part of the active login path. Staff login is handled in Python now.
 
-Active runtime status:
+## 6. `app.py` By Responsibility Area
 
-- Not used by current Flask login.
-- Kept as source/reference only.
-- `auth.exe` still exists in the folder, but `app.py` does not call it.
+This section is the most important part of the walkthrough because most real system behavior now lives in Python.
 
-Why it is inactive:
+### 6.1 Core utilities
 
-- It expects plaintext passwords.
-- Current `users.txt` stores hashed passwords.
-- Passing passwords as command-line arguments is unsafe because OS process lists can expose them.
+Important helpers:
 
-Data structures:
+- `append_data_line()`
+- `clean_record_field()`
+- `safe_int()`
+- `parse_iso_date()`
+- `parse_iso_datetime()`
+- `format_human_date()`
+- `format_amount()`
 
-- Simple file line buffers and local char arrays.
-- No dynamic structure.
+These helpers make the rest of the code safer and keep file formatting consistent.
 
-Contribution now:
+### 6.2 Authentication and authorization
 
-- Historical/reference module only.
-- Do not use for current login unless rewritten for hashed password verification or stdin-based secret handling.
+Important helpers:
 
-### Removed module: `serve.c` / `serve.exe`
+- `is_authenticated()`
+- `require_role()`
+- `get_csrf_token()`
+- `verify_csrf_token()`
+- `password_matches()`
+- `authenticate_user()`
 
-This was removed because the active system no longer lets the receptionist manually serve the next queue patient.
+Important rules:
 
-Current queue movement:
+- staff passwords are checked in Python,
+- every state-changing form must include `_csrf_token`,
+- the Razorpay webhook is the only CSRF-exempt POST route,
+- doctor pages are restricted by doctor role,
+- patient portal pages are restricted by patient role.
 
-```text
-Doctor saves diagnosis
-        -> Flask completes appointment
-        -> Flask marks queue row Completed
-        -> Flask auto-generates bill
-```
+### 6.3 Patient OTP login
 
-## 5. Backend Data Files
+Important helpers:
 
-All data files use pipe-separated text records unless stated otherwise.
+- `normalize_phone()`
+- `is_valid_patient_phone()`
+- `mask_phone()`
+- `hash_otp()`
+- `find_registered_patient_by_phone()`
+- `generate_otp()`
+- `verify_otp()`
 
-### `Backend/data/users.txt`
+Important rules:
 
-Stores login accounts.
+- OTPs are six digits,
+- OTPs are stored as hashes in memory,
+- OTP expires after five minutes,
+- too many wrong attempts invalidate it,
+- OTP is only for already registered patients.
 
-Format:
+### 6.4 SMS notification helpers
 
-```text
-user_id|username|password_hash|role|doctor_id
-```
+Important helpers:
 
-Example:
+- `send_patient_otp()`
+- `send_sms_notice()`
+- `notify_receptionists()`
 
-```text
-3|dr.arun.kumar|scrypt:...|Doctor|1
-```
+These functions keep all messaging in one place and allow the rest of the code to treat SMS as an optional service boundary instead of inline provider logic.
 
-Fields:
+### 6.5 Billing helpers
 
-- `user_id`: numeric account ID.
-- `username`: login username.
-- `password_hash`: Werkzeug hash, currently `scrypt`.
-- `role`: `Receptionist` or `Doctor`.
-- `doctor_id`: `0` for receptionists, real doctor ID for doctors.
+Important helpers:
 
-Used by:
+- `run_billing_command()`
+- `parse_bill_line()`
+- `read_bills()`
+- `find_bill_by_id()`
+- `find_bill_by_appointment_id()`
+- `serialize_bill_record()`
+- `save_bill_record()`
+- `update_bill_record()`
+- `build_bill_preview_text()`
+- `build_bill_pdf()`
+- `create_bill_record()`
 
-- Python `read_user_accounts()`
-- Python `authenticate_user()`
-- Python `save_user_account()`
+Important billing rules:
 
-Data structures after parsing:
+- billing is tied to appointment completion,
+- duplicate billing is blocked by appointment linkage,
+- totals are recalculated from structured bill components,
+- paid bills show payment metadata in preview and PDF.
 
-```python
-{
-    "id": int,
-    "username": str,
-    "password": str,
-    "role": str,
-    "doctor_id": int
-}
-```
+### 6.6 Appointment helpers
 
-### `Backend/data/doctors.txt`
+Important helpers:
 
-Stores doctor profiles and availability.
+- `parse_appointment_line()`
+- `read_appointment_file()`
+- `write_appointment_file()`
+- `load_appointment_slots()`
+- `slot_is_available()`
+- `run_appointment_command()`
+- `parse_booked_appointment_id()`
+- `read_appointments()`
+- `parse_appointment_datetime()`
+- `is_consultation_day_reached()`
+- `is_future_appointment()`
+- `find_appointment_by_id()`
 
-Format:
+These helpers are used by:
 
-```text
-doctor_id|name|department|experience|daily_status|current_status
-```
+- reception,
+- appointments page,
+- doctor consultation flow,
+- patient cancellation flow,
+- queue reconciliation,
+- billing context construction.
 
-Example:
+### 6.7 Queue helpers
 
-```text
-1|Dr. Arun Kumar|General|10|Available|Busy
-```
+Important helpers:
 
-Fields:
+- `add_patient_to_queue()`
+- `update_waiting_queue_status()`
+- `read_queue()`
+- `write_queue_file()`
+- `reconcile_waiting_queue_entries()`
+- `process_queue()`
+- `build_reception_queue_groups()`
+- `read_assigned_queue_patients()`
 
-- `doctor_id`: numeric doctor profile ID.
-- `name`: doctor display name.
-- `department`: specialization/department.
-- `experience`: years.
-- `daily_status`: `Available`, `Unavailable`, or `Off`.
-- `current_status`: `Free`, `Busy`, or `Emergency`.
+Important queue rule:
 
-Used by:
+- queue is not an independent service sequence anymore,
+- it is derived from same-day appointment activity and kept synchronized with appointment state.
 
-- Python doctor dashboards, appointment page, reassignment, billing doctor lookup.
-- `doctor.exe` for status and suggestions.
-- `appointment.exe` for slot blocking.
-- `queue.exe` for automatic doctor assignment.
+### 6.8 Doctor helpers
 
-### `Backend/data/patients.txt`
+Important helpers:
 
-Stores patient records.
+- `get_doctors()`
+- `write_doctor_file()`
+- `load_doctor_status_meta()`
+- `save_doctor_status_meta()`
+- `normalize_doctor_statuses()`
+- `doctor_current_status_view()`
+- `doctor_status_end_date()`
+- `doctor_is_blocked_for_date()`
+- `update_doctor_status_meta()`
+- `expire_doctor_status_overrides()`
+- `doctor_has_live_workload()`
+- `sync_doctor_busy_statuses()`
+- `suggest_doctors_by_department()`
+- `get_suggested_doctors()`
+- `get_reassignment_candidates()`
 
-Format:
+Important current rule:
 
-```text
-patient_id|name|age|gender|phone|address|symptoms|visit_type|priority|department
-```
+- doctor unavailability blocks future slot selection,
+- but existing appointments are not silently auto-moved,
+- reassignment requires manual action and patient confirmation.
 
-Example:
+### 6.9 Diagnosis helpers
 
-```text
-1|Aakash|34|Male|9000000001|Chennai|Chest tightness|New|Urgent|General
-```
+Important helpers:
 
-Fields:
-
-- `patient_id`
-- `name`
-- `age`
-- `gender`
-- `phone`
-- `address`
-- `symptoms`
-- `visit_type`: `New`, `Follow-up`, `Emergency`
-- `priority`: `Normal`, `Urgent`
-- `department`
-
-Used by:
-
-- Reception search and registration.
-- Queue priority and department lookup.
-- Diagnosis patient context.
-- Billing patient details.
-
-Python parsing now accepts records with at least 10 fields, so a minor extra field does not make a patient invisible.
-
-### `Backend/data/appointment.txt`
-
-Stores appointment records.
-
-Format:
-
-```text
-appointment_id|patient_id|doctor_id|date|time_slot|status
-```
-
-Example:
-
-```text
-1|1|1|2026-04-30|08:30 AM|Booked
-```
-
-Statuses:
-
-- `Booked`
-- `Completed`
-- `Cancelled`
-- `Rescheduled`
-- `No-show`
-
-Used by:
-
-- Appointment slot board.
-- Doctor upcoming appointments.
-- Doctor live consultation resolution.
-- Queue reconciliation.
-- Billing eligibility.
-- Auto-reassignment.
+- `read_diagnosis_for_patient()`
+- `get_diagnosis_context()`
+- `resolve_consultation_appointment()`
+- `doctor_can_access_patient()`
+- `auto_generate_bill()`
 
 Important rule:
 
-- Completion should happen through doctor diagnosis save, not receptionist manual action.
+- diagnosis save is the real consultation completion event,
+- not just opening the diagnosis page and not just clicking a generic complete button.
 
-### `Backend/data/queue.txt`
+### 6.10 Pending request helpers
 
-Stores same-day consultation queue rows.
+Important helpers:
 
-Format:
+- `parse_pending_request_line()`
+- `run_pending_request_command()`
+- `read_all_pending_requests()`
+- `create_pending_request()`
+- `update_pending_status()`
+- `read_pending_requests_for_patient()`
+- `read_pending_requests_for_reception()`
+- `pending_slot_exists()`
+- `parse_new_patient_request_line()`
+- `read_all_new_patient_requests()`
+- `create_new_patient_request()`
+- `update_new_patient_request_status()`
+- `read_new_patient_requests_for_reception()`
+- `run_expiry_check()`
 
-```text
-token|patient_id|doctor_id|priority|status
-```
+These helpers are what make the patient portal safe to operate without allowing pending online requests to directly corrupt appointment state.
 
-Example:
+### 6.11 Patient portal triage helpers
 
-```text
-1|1|1|Urgent|Waiting
-```
+Important helpers:
 
-Statuses:
+- `triage_booking_request()`
+- `auto_approve_booking()`
+- `exception_queue_booking()`
+- `doctor_options_for_department()`
+- `choose_any_available_doctor()`
+- `build_patient_slot_payload()`
+- `register_patient_from_request()`
 
-- `Waiting`
-- `Completed`
-- `Cancelled`
-- `Rescheduled`
-- `No-show`
+Important triage rule:
 
-Used by:
+Portal auto-approval only happens when:
 
-- Receptionist queue page.
-- Doctor live queue.
-- Queue counts on dashboard.
-- Stale queue cleanup.
-- Diagnosis completion.
+- the request is submitted during clinic review hours,
+- doctor availability does not require receptionist review,
+- visit type is `New`.
 
-Important rule:
+Otherwise the request goes to the pending-review queue.
 
-- Queue is grouped by doctor.
-- Receptionist monitors queue; doctor workflow clears it.
+### 6.12 Payment helpers
 
-### `Backend/data/diagnosis.txt`
+Important helpers:
 
-Stores diagnosis and prescription history.
+- `revert_stale_initiated_payments()`
+- `find_bill_by_razorpay_order_id()`
+- payment routes using `create_payment_order()` and `verify_webhook_signature()`
 
-Format:
+Important payment rules:
 
-```text
-record_id|patient_id|doctor_id|date|diagnosis|prescription
-```
+- browser checkout does not mark a bill paid,
+- only the verified webhook updates final payment state,
+- stale initiated payments are cleaned up,
+- patient ownership is checked before allowing payment or PDF access.
 
-Example:
+## 7. Route Map
 
-```text
-4|15|6|2026-04-30|Dust allergy|Cetirizine once daily
-```
-
-Used by:
-
-- Doctor diagnosis history.
-- Diagnosis save workflow.
-
-Important rule:
-
-- Diagnosis requires prescription before consultation can be completed.
-
-### `Backend/data/billing.txt`
-
-Stores bills.
-
-Current 24-field format:
+### Public routes
 
 ```text
-bill_id|date|patient_id|name|age|gender|doctor|department|doctor_fee|treatment_total|lab_total|medicine_total|total|status|doctor_id|treatments|lab_tests|medicine_notes|appointment_id|razorpay_order_id|razorpay_payment_id|payment_method|paid_at|initiated_at
+/                         -> landing page
+/login                    -> staff login
+/patient/login            -> patient OTP login
+/patient/request-otp      -> request OTP
+/patient/verify-otp       -> verify OTP
+/patient/new              -> first-time request form
+/patient/new/slots        -> public future-slot lookup
+/patient/new/submit       -> first-time request submit
+/payment/webhook          -> Razorpay webhook
 ```
 
-Example:
+### Patient portal routes
 
 ```text
-1003|2026-04-30|15|Omkar|33|Male|Dr. Priya Sharma|Dermatology|700|0|0|200|900|PENDING|6|||Cetirizine and moisturizer|15|||||
+/patient/dashboard
+/patient/book
+/patient/book/slots
+/patient/book/submit
+/patient/cancel
+/patient/bills/<bill_id>/pdf
+/patient/payment/create-order
+/patient/logout
 ```
 
-Fields:
-
-- `bill_id`: starts from 1000.
-- `date`: bill date.
-- patient fields: ID, name, age, gender.
-- doctor fields: name, department, doctor ID.
-- billing totals: doctor fee, treatment total, lab total, medicine total, total.
-- `status`: `PENDING`, `INITIATED`, `PAID`, `WAIVED`, or `REFUNDED`.
-- `treatments`: serialized with `^` between items and `~` between name and price.
-- `lab_tests`: same item serialization.
-- `medicine_notes`: free text sanitized by Python.
-- `appointment_id`: links bill to completed appointment.
-- `razorpay_order_id`: set when online payment is started.
-- `razorpay_payment_id`: set after Razorpay reports a captured or failed payment.
-- `payment_method`: `upi`, `card`, `netbanking`, `wallet`, `razorpay`, or `counter`.
-- `paid_at`: ISO timestamp for online capture or counter payment.
-- `initiated_at`: ISO timestamp for Razorpay order creation; used only to expire stale `INITIATED` payments.
-
-Used by:
-
-- `billing.exe` for file operations.
-- Python billing parser and PDF generator.
-
-Important rule:
-
-- Python recalculates total from component values after parsing.
-- Duplicate billing is prevented by appointment ID.
-- Older 13-field, 18-field, 19-field, and 23-field bill records are still parsed for compatibility.
-- Browser payment requests never provide the amount; Python reads the bill total before creating a Razorpay order.
-- Bills are marked paid only after the Razorpay webhook signature is verified.
-
-### `Backend/data/pending_appointments.txt`
-
-Stores existing patient portal booking requests before receptionist approval, plus approved/rejected/expired audit records.
-
-Format:
+### Receptionist routes
 
 ```text
-request_id|patient_id|doctor_id|requested_date|requested_slot|reason|visit_type|status|submitted_at|expires_at|receptionist_note|appointment_id
+/receptionist_dashboard
+/reception
+/reception/approve
+/reception/reject
+/appointments
+/appointment_reassign_options
+/book_appointment
+/cancel_appointment
+/reschedule
+/update_appointment
+/queue
+/queue/panels
+/doctors
+/add_doctor
+/toggle_doctor
+/doctor_status
+/billing
+/generate_bill
+/billing/update-status
+/billing/download/<bill_id>
 ```
 
-Used by:
-
-- Patient dashboard pending/rejected/expired request display.
-- Patient booking slot soft-lock checks.
-- Receptionist dashboard pending request cards.
-- Receptionist approve/reject routes.
-- Expiry checks on patient and receptionist dashboard loads.
-
-Important rule:
-
-- Patient requests are not written directly to `appointment.txt` unless auto-approved or approved by reception.
-
-### `Backend/data/new_patient_requests.txt`
-
-Stores first-time appointment requests submitted from `/patient/new`.
-
-Format:
+### Doctor routes
 
 ```text
-request_id|name|age|gender|phone|address|department|doctor_id|requested_date|requested_slot|reason|visit_type|priority|status|submitted_at|expires_at|receptionist_note|patient_id|appointment_id
+/doctor
+/doctor/dashboard-panels
+/doctor_my_status
+/doctor_complete_consultation
+/diagnosis
+/diagnosis_history
+/add_diagnosis
 ```
 
-Used by:
+## 8. Frontend Templates
 
-- Public first-time appointment request page.
-- Receptionist dashboard first-time request cards.
-- Receptionist register-and-approve workflow.
-- Slot soft-lock checks so first-time requests can reserve a pending slot during the review window.
-
-Important rule:
-
-- Submitting this form does not create an official patient record. The patient is created only after receptionist approval.
-
-### `Backend/data/pricing_catalog.json`
-
-Stores pricing rules.
-
-JSON structure:
-
-```json
-{
-  "doctor_fees": {},
-  "treatments": [],
-  "lab_tests": []
-}
-```
-
-Contributes:
-
-- Department doctor consultation fees.
-- Treatment catalog.
-- Treatment category.
-- Treatment department restrictions.
-- Lab test prices.
-
-Used by:
-
-- `load_pricing_catalog()`
-- `get_pricing_maps()`
-- billing page JavaScript
-- bill total calculation
-- PDF bill line items
-
-Important design choice:
-
-- Pricing is JSON, not hardcoded in C, so fees can be changed without recompiling executables.
-
-## 6. Frontend Templates
-
-All main page templates except `login.html` extend `index.html`.
-
-They are rendered server-side by Flask/Jinja.
+All major pages are rendered server-side through Jinja templates.
 
 ### `Frontend/templates/index.html`
 
-Base layout for authenticated pages.
+Role:
+
+- base shell for authenticated staff pages.
 
 Contributes:
 
-- HTML document shell.
-- Bootstrap and Bootstrap Icons includes.
-- Shared sidebar navigation.
-- Topbar/mobile hamburger.
-- Logout form.
-- Main content area with `{% block content %}`.
-- Injected auth state: current user and current role.
-- Loads `Frontend/static/css/style.css`.
-- Loads `Frontend/static/script/main.js`.
+- document shell,
+- sidebar,
+- topbar,
+- logout form,
+- role-aware navigation,
+- shared content block.
 
-Data structures:
+### `Frontend/templates/landing.html`
 
-- Jinja conditionals check `is_logged_in`, `current_role`, `current_user`.
-- Sidebar links are role-aware.
+Role:
+
+- public landing page.
+
+Contributes:
+
+- staff login entry,
+- patient OTP entry,
+- first-time request entry,
+- visual explanation of the product.
 
 ### `Frontend/templates/login.html`
 
-Login page.
+Role:
+
+- staff login screen.
 
 Contributes:
 
-- Standalone clinical staff login UI.
-- POST form to `/login`.
-- CSRF hidden field.
-- Displays login error message.
+- username/password form,
+- CSRF token,
+- error display.
 
-Inputs:
+### `Frontend/templates/patient_login.html`
 
-```text
-username
-password
-_csrf_token
-```
+Role:
+
+- patient OTP login flow UI.
+
+Contributes:
+
+- phone-number step,
+- OTP step,
+- masked-phone display,
+- error and message feedback.
+
+### `Frontend/templates/patient_dashboard.html`
+
+Role:
+
+- patient self-service home.
+
+Contributes:
+
+- upcoming appointments,
+- pending requests,
+- appointment history,
+- diagnosis history,
+- bills and payment actions,
+- profile summary,
+- cancellation actions where allowed.
+
+### `Frontend/templates/patient_book.html`
+
+Role:
+
+- existing-patient booking form,
+- also reused for first-time request form.
+
+Contributes:
+
+- department and doctor selection,
+- future-date selection,
+- slot loading,
+- reason entry,
+- visit-type selection,
+- first-time or existing-patient specific sections.
+
+### `Frontend/templates/new_patient_request_submitted.html`
+
+Role:
+
+- confirmation page after first-time request submission.
 
 ### `Frontend/templates/receptionist_dashboard.html`
 
-Receptionist landing dashboard.
+Role:
+
+- receptionist command center.
 
 Contributes:
 
-- Summary stats.
-- Quick access cards.
-- Current date.
-- No live queue snapshot, because queue has its own page.
-
-Context variables:
-
-```text
-waiting_count
-completed_count
-booked_count
-cancelled_count
-available_doctors
-today
-```
+- summary counts,
+- pending request review cards,
+- approve and reject controls,
+- quick access links.
 
 ### `Frontend/templates/reception.html`
 
-Patient intake and appointment booking page.
+Role:
+
+- receptionist intake page.
 
 Contributes:
 
-- Patient phone search.
-- Patient registration form.
-- Patient profile display.
-- Doctor/date selector.
-- Doctor status display.
-- Alternative doctor suggestions.
-- Slot booking buttons.
-- Booking confirmation and queue token display.
-
-Forms:
-
-- POST `/reception` with `action=search`.
-- POST `/reception` with `action=register`.
-- GET `/reception` to reload selected doctor/date.
-- POST `/book_appointment` for selected slot.
-
-Important UI logic:
-
-- If patient exists, show appointment booking controls.
-- If patient does not exist, show registration.
-- Same-day successful booking may show queue token.
+- phone search,
+- registration form,
+- patient profile view,
+- department and doctor selection,
+- slot board,
+- booking confirmation and queue token display.
 
 ### `Frontend/templates/appointments.html`
 
-Receptionist appointment management page.
+Role:
+
+- appointment control page.
 
 Contributes:
 
-- Department/doctor/date filters.
-- Seven-day slot availability overview.
-- Daily slot board.
-- Patient-ID based booking.
-- Appointment action groups by doctor.
-- Cancel, no-show, reschedule, and reassign actions.
+- department and doctor filters,
+- date filter,
+- seven-day availability overview,
+- slot board,
+- appointment action groups,
+- reschedule and reassignment controls.
 
-Forms:
+Important current rule:
 
-- GET `/appointments` for filtering.
-- POST `/book_appointment`.
-- POST `/update_appointment`.
+- reception does not manually finish consultations from here.
 
-Important rule:
+### `Frontend/templates/queue.html` and `_queue_panels.html`
 
-- No receptionist `Complete` option is shown.
-- Completion happens only when doctor saves diagnosis.
+Role:
 
-JavaScript contribution:
-
-- Uses `.appointment-action-select` and extra fields.
-- `main.js` shows/hides date/time/doctor fields depending on chosen action.
-
-### `Frontend/templates/queue.html`
-
-Receptionist queue monitoring page.
+- receptionist queue monitoring.
 
 Contributes:
 
-- Queue grouped by doctor.
-- Waiting/completed queue counts.
-- Per-doctor waiting patient rows.
-- Patient token, ID, name, priority, symptoms.
-- Status note display.
-
-Important rule:
-
-- No serve button.
-- Queue exits automatically after doctor diagnosis save.
+- grouped waiting queue by doctor,
+- completed counts,
+- queue token display,
+- patient priority and symptoms.
 
 ### `Frontend/templates/doctors.html`
 
-Doctor management page for receptionist.
+Role:
+
+- doctor roster and status management.
 
 Contributes:
 
-- Add doctor form.
-- Optional username/password fields.
-- Shows newly created doctor login credentials.
-- Doctor directory table.
-- Doctor status update forms.
+- add-doctor form,
+- optional username and password input,
+- newly created account preview,
+- doctor status controls.
 
-Forms:
+### `Frontend/templates/doctor_dashboard.html` and `_doctor_dashboard_panels.html`
 
-- POST `/add_doctor`.
-- POST `/doctor_status`.
+Role:
 
-Important rule:
-
-- If username/password are blank, Python generates them.
-- Password is hashed before storing in `users.txt`.
-- If doctor becomes unavailable/off/emergency, Python tries appointment reassignment.
-
-### `Frontend/templates/doctor_dashboard.html`
-
-Doctor home page.
+- doctor dashboard.
 
 Contributes:
 
-- Doctor identity/status hero.
-- Status update form.
-- Live queue section above upcoming appointments.
-- Upcoming appointments section below live queue.
-- Consultation start buttons.
-- Billing result context after diagnosis.
-
-Forms:
-
-- POST `/doctor_my_status`.
-- POST `/doctor_complete_consultation`.
-
-Important rule:
-
-- Live queue is the actionable consultation list.
-- Upcoming appointments are future informational items.
-- Start consultation opens `/diagnosis` with appointment context.
+- doctor identity and availability controls,
+- live queue patients,
+- future booked appointments,
+- consultation start actions,
+- billing-result context after diagnosis save.
 
 ### `Frontend/templates/diagnosis.html`
 
-Doctor diagnosis page.
+Role:
+
+- consultation and diagnosis page.
 
 Contributes:
 
-- Patient history search when no patient context is active.
-- Patient overview.
-- Diagnosis history table.
-- Diagnosis and prescription form.
-- Completion button.
-
-Forms:
-
-- POST `/diagnosis_history`.
-- POST `/add_diagnosis`.
-
-Important rule:
-
-- Save button is disabled if there is no active appointment.
-- Prescription is required.
-- Save diagnosis completes consultation.
+- patient history,
+- appointment-linked consultation form,
+- diagnosis and prescription entry.
 
 ### `Frontend/templates/billing.html`
 
-Billing management page.
+Role:
+
+- receptionist billing page.
 
 Contributes:
 
-- Patient selector.
-- Appointment context panel.
-- Payment status selector.
-- Dynamic treatment row builder.
-- Lab test checkboxes.
-- Medicine amount and notes.
-- Live bill total summary.
-- Completed patients sidebar.
-- Existing bills sidebar.
-- Bill preview text.
-- PDF download links.
+- billable patient selection,
+- pricing-driven treatment and lab-test capture,
+- medicine amount and notes,
+- bill preview,
+- status update actions,
+- bill PDF links.
 
-Forms:
-
-- POST `/generate_bill`.
-
-Inline JavaScript data structures:
-
-- `patients`: JSON list from Flask.
-- `billingLookup`: JSON object mapping patient ID to billing context.
-- `pricingCatalog`: JSON pricing catalog.
-- `patientMap`: JavaScript object created with `Object.fromEntries`.
-- DOM rows for treatment selection.
-
-Important JavaScript functions:
-
-- `formatCurrency()`
-- `getCurrentContext()`
-- `treatmentCategories()`
-- `buildOption()`
-- `populateTreatmentSelect()`
-- `createTreatmentRow()`
-- `ensureTreatmentRow()`
-- `updateRowPrice()`
-- `updateTreatmentRowsDisplay()`
-- `updateContextPanel()`
-- `updateTotals()`
-
-Important rule:
-
-- Generate Bill button is enabled only when the selected patient has a completed appointment and no existing bill for that appointment.
-
-## 7. Static Files
+## 9. Static Files
 
 ### `Frontend/static/css/style.css`
 
-Global styling for the app.
+Role:
 
-Contributes:
+- shared application design system and responsive styling.
 
-- CSS custom properties in `:root`.
-- Sidebar and topbar layout.
-- Responsive mobile sidebar.
-- Shared card styles.
-- Dashboard stat cards.
-- Action cards.
-- Tables.
-- Badges.
-- Buttons.
-- Slot grid.
-- Alerts.
-- Billing layouts.
-- Doctor dashboard layouts.
-- Reception/appointment/queue/doctor/diagnosis/billing page-specific classes.
-- Media queries for tablet and mobile.
+It contains:
 
-Important CSS class families:
-
-```text
-hd-*      shared HealthDesk design system
-rx-*      reception/dashboard related older classes
-rcx-*     reception page
-apx-*     appointments page
-qx-*      queue page
-docx-*    doctor dashboard
-drx-*     doctors page
-dgx-*     diagnosis page
-billx-*   billing page
-```
-
-Data structure concept:
-
-- CSS uses variables as a design token map, for example color, shadows, radius, sidebar width.
+- CSS variables,
+- shared layout styles,
+- button, badge, table, and card systems,
+- page-specific styles for reception, appointments, queue, doctors, diagnosis, billing, and patient pages.
 
 ### `Frontend/static/script/main.js`
 
-Shared frontend behavior.
+Role:
 
-Contributes:
+- shared frontend behavior.
 
-- Mobile sidebar open/close.
-- Overlay click closes sidebar.
-- Escape key closes sidebar.
-- Sidebar link click closes sidebar on mobile.
-- Auto-refresh if a page includes `data-auto-refresh`.
-- Appointment action field toggling.
+It handles:
 
-JavaScript data structures:
+- sidebar toggling,
+- mobile overlay behavior,
+- auto-refresh when configured,
+- appointment action form field toggling.
 
-- DOM node references.
-- Arrays of extra fields.
-- Event listeners.
+## 10. Runtime Data Flow By Workflow
 
-Important behavior:
-
-- For appointment action forms, date/time fields appear for `reschedule` and `reassign`.
-- Doctor ID field appears only for `reassign`.
-- Hidden fields are not required; visible fields become required.
-
-## 8. Runtime Data Flow By Workflow
-
-### Login
+### Staff login
 
 ```text
 login.html
     -> POST /login
     -> app.py authenticate_user()
     -> read users.txt
-    -> check_password_hash()
+    -> password check in Python
     -> session created
-    -> redirect to receptionist dashboard or doctor dashboard
+    -> redirect to receptionist or doctor dashboard
 ```
 
-No C executable is used for current login.
+### Patient OTP login
 
-### Patient Search
+```text
+patient_login.html
+    -> POST /patient/request-otp
+    -> app.py generate_otp()
+    -> send SMS
+    -> POST /patient/verify-otp
+    -> app.py verify_otp()
+    -> patient session created
+    -> redirect /patient/dashboard
+```
+
+### Receptionist search and registration
 
 ```text
 reception.html
     -> POST /reception action=search
-    -> app.py find_patient_by_phone()
     -> patient.exe search phone
-    -> patient.c loads patients.txt into linked list
-    -> prints PATIENT|...
-    -> Flask parses into dict
-    -> reception.html displays patient
-```
+    -> existing patient returned or not found
 
-### Patient Registration
-
-```text
-reception.html
+if not found:
     -> POST /reception action=register
-    -> Flask validates required fields, phone, age
     -> patient.exe "name|age|..."
-    -> patient.c validates and appends linked-list node
-    -> patients.txt updated at exit
-    -> Flask reloads patient
-    -> receptionist chooses appointment slot
+    -> patients.txt updated
 ```
 
-### Appointment Booking
+### Staff appointment booking
 
 ```text
-appointments.html or reception.html
+reception.html or appointments.html
     -> POST /book_appointment
-    -> Flask validates patient, doctor, date, slot
-    -> Flask acquires _appointment_lock
+    -> Flask validates patient, doctor, date, and slot
     -> appointment.exe book ...
-    -> appointment.c validates date/slot/doctor slot state
-    -> appointment.txt appended
-    -> if date is today, Flask calls queue.exe
-    -> queue.txt appended
-    -> frontend shows confirmation
+    -> appointment.txt updated
+    -> if same day: queue.exe
+    -> queue.txt updated
+    -> confirmation shown in UI
 ```
 
-### Queue Monitoring
+### Existing patient portal booking
+
+```text
+patient_book.html
+    -> POST /patient/book/submit
+    -> Flask validates doctor/date/slot
+    -> triage_booking_request()
+
+if auto-approved:
+    -> appointment.exe book ...
+    -> pending_request.exe add-existing with status Approved
+    -> SMS confirmation
+
+if needs review:
+    -> pending_request.exe add-existing with status Pending
+    -> slot soft-lock recorded
+    -> receptionist notified
+```
+
+### First-time patient request
+
+```text
+patient_book.html (new mode)
+    -> POST /patient/new/submit
+    -> Flask validates fields and future date
+    -> pending_request.exe add-new
+    -> new_patient_requests.txt updated
+    -> SMS confirmation of request receipt
+    -> receptionist dashboard receives pending item
+```
+
+### Receptionist approval flow
+
+```text
+receptionist_dashboard.html
+    -> POST /reception/approve
+    -> Flask re-checks slot
+
+existing patient:
+    -> appointment.exe book ...
+    -> pending_request.exe update-existing
+
+first-time patient:
+    -> patient.exe create patient
+    -> appointment.exe book ...
+    -> pending_request.exe update-new
+```
+
+### Queue monitoring
 
 ```text
 queue.html
-    -> GET /queue
     -> Flask expire_stale_consultations()
     -> Flask reconcile_waiting_queue_entries()
-    -> read queue.txt, patients.txt, doctors.txt
-    -> build_reception_queue_groups()
-    -> render queue grouped by doctor
+    -> read queue.txt and appointment state
+    -> build per-doctor queue groups
+    -> render monitoring page
 ```
 
-### Doctor Consultation
+### Doctor consultation
 
 ```text
 doctor_dashboard.html
     -> POST /doctor_complete_consultation
-    -> Flask verifies appointment belongs to doctor
-    -> Flask verifies consultation date reached
+    -> access and date checks
     -> redirect /diagnosis?patient_id=...&appointment_id=...
 ```
 
-### Diagnosis Save
+### Diagnosis save
 
 ```text
 diagnosis.html
     -> POST /add_diagnosis
     -> Flask validates assignment, date, diagnosis, prescription
     -> appointment.exe complete appointment_id
-    -> diagnosis.exe "patient|doctor|date|diagnosis|prescription"
-    -> diagnosis.txt appended
-    -> Flask marks queue row Completed
-    -> Flask auto_generate_bill()
-    -> billing.exe save serialized bill
-    -> redirect doctor dashboard with billing context
+    -> diagnosis.exe save record
+    -> queue row marked Completed
+    -> auto_generate_bill()
+    -> doctor redirected with billing context
 ```
 
-### Billing Page
+### Billing generation
 
 ```text
 billing.html
     -> GET /billing
+    -> read patients, appointments, doctors
     -> billing.exe list
-    -> Flask parses bills and recalculates totals
-    -> Flask reads patients, appointments, doctors
-    -> build_billing_lookup()
-    -> render patient context and completed patients
+    -> build billing lookup
+
+POST /generate_bill
+    -> validate completed appointment context
+    -> calculate totals from pricing catalog
+    -> billing.exe save
+    -> preview returned
 ```
 
-### Manual Bill Generation
+### Online payment
 
 ```text
-billing.html
-    -> POST /generate_bill
-    -> Flask validates completed appointment and no existing bill
-    -> Flask loads pricing_catalog.json
-    -> Flask calculates doctor/treatment/lab/medicine totals
-    -> billing.exe next-id
-    -> billing.exe save line
-    -> redirect billing preview
+patient dashboard
+    -> POST /patient/payment/create-order
+    -> payment_service.py create Razorpay order
+    -> bill marked INITIATED
+    -> webhook POST /payment/webhook
+    -> signature verified
+    -> bill marked PAID or reset to PENDING
 ```
 
-### PDF Download
+### Doctor unavailable and reassignment
 
 ```text
-/billing/download/<bill_id>
-    -> billing.exe find-id bill_id
-    -> Flask parse_bill_line()
-    -> Flask build_bill_pdf()
-    -> ReportLab writes PDF into BytesIO
-    -> browser downloads PDF
-```
-
-### Doctor Availability and Reassignment
-
-```text
-doctors.html or doctor_dashboard.html
+doctors.html or doctor dashboard
     -> POST doctor status route
-    -> doctor.exe status doctor_id daily current
-    -> doctor.c rewrites doctors.txt via process-specific temp file
-    -> if unavailable/off/emergency:
-        -> Flask reads future booked appointments
-        -> suggests same-department doctors
-        -> checks available slot through appointment.exe slots
-        -> cancels old appointment
-        -> books new appointment
-        -> updates same-day queue if needed
+    -> doctor.exe status ...
+    -> doctor_status_meta.json updated
+    -> future slots blocked
+
+if reception reassigns manually:
+    -> patient confirmation required
+    -> replacement slot re-checked
+    -> appointment.exe book replacement
+    -> appointment.exe cancel original
+    -> queue updated if same-day
 ```
 
-## 9. Data Structures Summary
+## 11. Current Runtime Rules
+
+These are the most important rules the code currently enforces.
+
+- Staff authentication is handled in Python, not by passing passwords to `auth.exe`.
+- Every normal POST form requires CSRF.
+- Patient OTPs are in memory only.
+- Portal patients can request only future appointments.
+- Reception can book same-day or future appointments.
+- Same-day staff bookings create queue tokens.
+- Diagnosis save completes the consultation.
+- Reception cannot manually complete consultations from the appointments page.
+- Billing is allowed only for completed appointments.
+- Duplicate billing is blocked for the same completed appointment.
+- Online payment is finalized only by verified webhook.
+- Existing-patient requests go through pending review unless triage allows auto-approval.
+- First-time requests do not create patient records until reception approves them.
+- Reassignment is manual and requires patient confirmation and a confirmation note.
+- Patient self-cancel is blocked within 24 hours of the appointment time.
+
+## 12. Data Structures Summary
 
 ### Python
 
-```text
-dict
-```
+Used heavily throughout `app.py`:
 
-Used for:
-
-- patient records
-- doctor records
-- appointment records
-- queue rows
-- diagnosis records
-- bill records
-- billing lookup
-- doctor maps
-- appointment maps
-- page context
-
-```text
-list
-```
-
-Used for:
-
-- all patients
-- all doctors
-- all appointments
-- all queue rows
-- all bills
-- grouped appointment lists
-- grouped queue lists
-- selected treatments
-- selected lab tests
-- billing-ready patients
-
-```text
-set
-```
-
-Used for:
-
-- allowed roles
-- allowed payment statuses
-- status membership checks
-- duplicate username checks
-
-```text
-tuple
-```
-
-Used for:
-
-- grouping keys like `(patient_id, doctor_id)`
-
-```text
-threading.Lock
-```
-
-Used for:
-
-- appointment command serialization inside Flask process
-
-```text
-Flask session
-```
-
-Used for:
-
-- login state
-- role
-- current username
-- doctor ID
-- CSRF token
-- newly-created doctor credentials flash context
+- `dict` for records and lookup maps,
+- `list` for ordered collections,
+- `set` for status and role checks,
+- `tuple` for grouping keys,
+- `threading.Lock` for write coordination,
+- Flask `session` for active identity,
+- in-memory OTP dictionary for hashed OTP state.
 
 ### C
 
-```text
-struct Patient
-struct Doctor
-struct QueueNode
-struct Diagnosis
-struct Appointment
-struct BillingItem
-```
+Defined in `common.h` and used across modules:
 
-Defined in `common.h`.
+- `struct Patient`
+- `struct Doctor`
+- `struct QueueNode`
+- `struct Diagnosis`
+- `struct Appointment`
+- `struct BillingItem`
+- `PendingAppointmentRequest`
+- `NewPatientRequest`
 
-```text
-Linked list
-```
+Patterns used by the C side include:
 
-Used in:
+- linked lists,
+- dynamic arrays,
+- stack-style history handling,
+- tree-based doctor organization.
 
-- `patient.c`: patient store
-- `queue.c`: queue store
+### Frontend
 
-```text
-Stack
-```
+The frontend mainly uses:
 
-Used in:
+- Jinja template context objects,
+- DOM references,
+- small JavaScript arrays and objects,
+- CSS custom properties and responsive layout classes.
 
-- `diagnosis.c`: diagnosis history for newest-first behavior
+## 13. Security And Validation
 
-```text
-Binary search tree
-```
+Current safeguards include:
 
-Used in:
+- hashed staff passwords,
+- role-gated routes,
+- CSRF on state-changing forms,
+- phone-number validation,
+- age validation,
+- appointment date validation,
+- server-side slot re-checks before approval or booking,
+- patient ownership checks for bill PDF and payment actions,
+- payment status whitelisting,
+- webhook signature verification,
+- data sanitization through `clean_record_field()`.
 
-- `doctor.c`: doctor search/suggestion by department
+Known architectural limitation:
 
-```text
-Dynamic heap array
-```
+- flat files are simple and workable for a small local system, but they do not provide the transaction safety and concurrency control of a real database.
 
-Used in:
+## 14. Generated And Binary Files
 
-- `appointment.c`: appointment records loaded for slot-state calculation
-
-```text
-File line buffers and token parsing
-```
-
-Used in:
-
-- all C modules
-
-### JavaScript
-
-```text
-DOM references
-arrays
-plain objects
-event listeners
-JSON-injected server data
-```
-
-Used in:
-
-- sidebar interaction
-- appointment action dynamic fields
-- billing treatment builder
-- billing total calculation
-
-### CSS
-
-```text
-CSS custom properties
-responsive grids
-class families
-media queries
-```
-
-Used for:
-
-- visual system
-- layout
-- responsive behavior
-- page-specific UI composition
-
-## 10. Security and Validation
-
-Current safeguards:
-
-- Password hashes in `users.txt`.
-- Login handled in Python, not command-line password passing.
-- `SESSION_COOKIE_HTTPONLY=True`.
-- `SESSION_COOKIE_SAMESITE="Lax"`.
-- Random development secret if `HEALTHDESK_SECRET` is missing.
-- CSRF token on every POST form.
-- Pipe and newline sanitization through `clean_record_field()`.
-- Phone validation.
-- Age validation.
-- Required patient registration fields.
-- Appointment past-date rejection in Python and C.
-- Payment status whitelist.
-- Billing total recalculation after parsing.
-- Doctor route ownership checks.
-- Doctor cannot access patients not assigned to them.
-- Receptionist cannot manually complete consultations.
-
-Important limitation:
-
-- Flat-file storage is simple but not as safe as a real database for multi-user concurrency.
-- The Python appointment lock protects one Flask process, but not multiple separate server processes.
-- C file rewrites are basic file operations, not transactional database writes.
-
-## 11. Generated and Binary Files
-
-### `.exe` files in `Backend/c_modules`
-
-These are compiled Windows executables from the corresponding `.c` files.
-
-Active executables:
+### Active executables
 
 ```text
 appointment.exe
@@ -1936,24 +1445,26 @@ billing.exe
 doctor.exe
 diagnosis.exe
 patient.exe
+pending_request.exe
 queue.exe
 ```
 
-Legacy executable:
+### Legacy executable
 
 ```text
 auth.exe
 ```
 
-Removed executable:
+### Runtime-generated files
 
 ```text
-serve.exe
+Backend/data/doctor_status_meta.json
+__pycache__/*
 ```
 
-If C source changes, rebuild the matching exe.
+If a C source file changes, its matching executable should be rebuilt.
 
-Example:
+Examples:
 
 ```powershell
 gcc Backend\c_modules\appointment.c -o Backend\c_modules\appointment.exe
@@ -1965,67 +1476,25 @@ gcc Backend\c_modules\patient.c -o Backend\c_modules\patient.exe
 gcc Backend\c_modules\diagnosis.c -o Backend\c_modules\diagnosis.exe
 ```
 
-### `__pycache__`
-
-Generated by Python.
-
-Not part of application logic.
-
-## 12. File-by-File Quick Reference
+## 15. File-By-File Quick Reference
 
 ```text
 app.py
 ```
 
-Main Flask app. Owns routing, validation, sessions, CSRF, workflow, billing rules, PDF generation, and subprocess calls.
-
-```text
-README.md
-```
-
-Project overview and setup guide.
-
-```text
-SYSTEM_FLOW.md
-```
-
-Workflow explanation for demo and understanding.
-
-```text
-PROJECT_WALKTHROUGH.md
-```
-
-This full technical walkthrough.
-
-```text
-changes.md
-```
-
-Patient portal architecture and implementation checklist, not runtime code.
+Main Flask app. Owns routes, session logic, CSRF, triage, workflow coordination, bill generation, queue reconciliation, and payment webhook handling.
 
 ```text
 sms_service.py
 ```
 
-Fast2SMS abstraction with console dev mode and non-crashing failure handling.
+Fast2SMS integration and development fallback logging.
 
 ```text
 payment_service.py
 ```
 
 Razorpay order creation and webhook signature verification.
-
-```text
-requirements.txt
-```
-
-Python package list, including Flask, ReportLab, requests, python-dotenv, and Razorpay.
-
-```text
-Claude review check.zip
-```
-
-Review artifact, not runtime code.
 
 ```text
 Backend/c_modules/common.h
@@ -2037,226 +1506,76 @@ Shared C structs, constants, and file paths.
 Backend/c_modules/patient.c / patient.exe
 ```
 
-Patient search and registration using linked list.
+Patient search and registration.
 
 ```text
 Backend/c_modules/doctor.c / doctor.exe
 ```
 
-Doctor profile/status/search/suggestion using binary search tree.
+Doctor profile creation, doctor status writes, and doctor suggestions.
 
 ```text
 Backend/c_modules/appointment.c / appointment.exe
 ```
 
-Appointment slot state, booking, completion, cancellation, no-show, reschedule using dynamic array.
+Appointment slot handling and appointment status transitions.
 
 ```text
 Backend/c_modules/queue.c / queue.exe
 ```
 
-Same-day queue token creation using linked-list queue.
+Queue token generation for same-day appointments.
 
 ```text
 Backend/c_modules/diagnosis.c / diagnosis.exe
 ```
 
-Diagnosis history and save using stack.
+Diagnosis history and diagnosis save.
 
 ```text
 Backend/c_modules/billing.c / billing.exe
 ```
 
-Bill file helper for IDs, listing, finding, and saving.
+Bill persistence and lookup helper.
 
 ```text
 Backend/c_modules/pending_request.c / pending_request.exe
 ```
 
-Patient portal request helper using linked lists for pending and first-time request records.
+Existing-patient and first-time request persistence, soft locks, and expiry handling.
 
 ```text
-Backend/c_modules/auth.c / auth.exe
+Frontend/templates/*
 ```
 
-Legacy auth helper, not used by active Flask login.
-
-```text
-Backend/data/users.txt
-```
-
-Hashed login accounts.
-
-```text
-Backend/data/doctors.txt
-```
-
-Doctor profiles and statuses.
-
-```text
-Backend/data/patients.txt
-```
-
-Patient records.
-
-```text
-Backend/data/appointment.txt
-```
-
-Appointment records.
-
-```text
-Backend/data/queue.txt
-```
-
-Same-day queue records.
-
-```text
-Backend/data/diagnosis.txt
-```
-
-Diagnosis and prescription history.
-
-```text
-Backend/data/billing.txt
-```
-
-Bill records linked to completed appointments, including online payment fields.
-
-```text
-Backend/data/pending_appointments.txt
-```
-
-Existing patient portal booking request audit trail.
-
-```text
-Backend/data/new_patient_requests.txt
-```
-
-First-time appointment request audit trail before receptionist registration.
-
-```text
-Backend/data/pricing_catalog.json
-```
-
-Doctor fees, treatment prices, treatment categories, department restrictions, and lab test prices.
-
-```text
-Frontend/templates/index.html
-```
-
-Base authenticated layout and sidebar.
-
-```text
-Frontend/templates/login.html
-```
-
-Staff login screen.
-
-```text
-Frontend/templates/landing.html
-```
-
-Public access page for staff login, patient login, and first-time appointment requests.
-
-```text
-Frontend/templates/patient_login.html
-```
-
-Existing patient phone OTP login.
-
-```text
-Frontend/templates/patient_dashboard.html
-```
-
-Patient appointments, medical records, bills, payments, and read-only profile.
-
-```text
-Frontend/templates/patient_book.html
-```
-
-Existing patient booking form and first-time request form.
-
-```text
-Frontend/templates/new_patient_request_submitted.html
-```
-
-First-time request confirmation screen.
-
-```text
-Frontend/templates/receptionist_dashboard.html
-```
-
-Receptionist summary dashboard.
-
-```text
-Frontend/templates/reception.html
-```
-
-Patient intake and slot booking.
-
-```text
-Frontend/templates/appointments.html
-```
-
-Slot board and grouped appointment actions.
-
-```text
-Frontend/templates/queue.html
-```
-
-Doctor-grouped queue monitoring.
-
-```text
-Frontend/templates/doctors.html
-```
-
-Doctor creation and availability management.
-
-```text
-Frontend/templates/doctor_dashboard.html
-```
-
-Doctor status, live queue, upcoming appointments, consultation entry.
-
-```text
-Frontend/templates/diagnosis.html
-```
-
-Patient history, diagnosis, prescription, consultation completion.
-
-```text
-Frontend/templates/billing.html
-```
-
-Billing workflow, dynamic charges, bill preview, PDF download.
+All user-facing and staff-facing server-rendered pages.
 
 ```text
 Frontend/static/css/style.css
 ```
 
-Global styling and responsive design.
+Global styling and responsive layout system.
 
 ```text
 Frontend/static/script/main.js
 ```
 
-Shared sidebar behavior, auto-refresh, appointment action field toggling.
+Shared UI behavior and appointment action toggling.
 
-## 13. Most Important End-to-End Rule
+## 16. Most Important End-To-End Rule
 
-The system is now doctor-driven for completion:
+The system is now strongly doctor-driven at the completion stage:
 
 ```text
 Appointment booked
         -> if same day, queue token created
         -> doctor sees patient in live queue
-        -> doctor starts consultation
+        -> doctor opens diagnosis
         -> doctor saves diagnosis and prescription
         -> appointment becomes Completed
         -> queue row becomes Completed
-        -> bill record is created
-        -> receptionist can preview/download bill
+        -> bill context becomes available
+        -> receptionist can review, preview, update status, and download the bill
 ```
 
-This is the core workflow that ties the whole project together.
+That is the main workflow thread connecting reception, doctor, queue, diagnosis, and billing in the current project.

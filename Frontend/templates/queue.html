@@ -1,109 +1,160 @@
 {% extends "index.html" %}
-
 {% block content %}
-
 <style>
-    .qx-shell { display:grid; gap:20px; }
-    .qx-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:20px; }
-    .qx-card { background:#fff; border:1px solid #dfe7ef; border-radius:22px; box-shadow:0 16px 36px rgba(20,40,66,0.06); }
-    .qx-body { padding:20px; }
-    .qx-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px; }
-    .qx-title { margin:0 0 4px; font-size:1.02rem; font-weight:700; color:#1f3750; }
-    .qx-sub { margin:0; color:#728598; font-size:0.88rem; }
-    .qx-stats { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
-    .qx-stat { padding:18px; border-radius:18px; background:#f8fbfd; border:1px solid #e3ebf2; }
-    .qx-stat small { display:block; color:#728598; margin-bottom:6px; }
-    .qx-stat strong { font-size:1.35rem; color:#19324b; }
-    @media (max-width: 991.98px) { .qx-stats { grid-template-columns:1fr; } }
+/* Queue Monitor */
+.qx-shell { display: grid; gap: 20px; }
+
+.qx-card {
+    background: var(--hd-surface); border: 1px solid var(--hd-border);
+    border-radius: var(--hd-radius); box-shadow: var(--hd-shadow);
+}
+.qx-body { padding: clamp(16px,2.5vw,22px); }
+.qx-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 14px; margin-bottom: 18px; flex-wrap: wrap;
+}
+.qx-title { font-size: 1rem; font-weight: 700; color: var(--hd-text); margin: 0 0 3px; }
+.qx-sub   { font-size: .82rem; color: var(--hd-text-muted); margin: 0; }
+
+.qx-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 14px;
+}
+.qx-stat {
+    padding: 16px 18px; border-radius: 12px;
+    background: var(--hd-bg); border: 1px solid var(--hd-border);
+    display: flex; flex-direction: column; gap: 4px;
+}
+.qx-stat-label { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--hd-text-muted); }
+.qx-stat-value { font-size: 1.5rem; font-weight: 700; line-height: 1; }
+.qx-stat-value.waiting   { color: var(--hd-warning); }
+.qx-stat-value.completed { color: var(--hd-accent); }
+.qx-stat-value.urgent    { color: var(--hd-danger); }
+.qx-stat-value.total     { color: var(--hd-primary); }
+
+.qx-refresh-bar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border-radius: 10px;
+    background: var(--hd-primary-light); border: 1px solid #c8def2;
+    font-size: .82rem; color: var(--hd-primary-dark);
+}
+.qx-refresh-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    background: var(--hd-accent);
+    animation: qx-pulse 2s ease-in-out infinite;
+}
+@keyframes qx-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.6)} }
+.qx-refresh-bar progress {
+    flex: 1; height: 4px; border-radius: 3px; border: none;
+    appearance: none; -webkit-appearance: none;
+}
+.qx-refresh-bar progress::-webkit-progress-bar  { background: rgba(46,134,193,.15); border-radius: 3px; }
+.qx-refresh-bar progress::-webkit-progress-value{ background: var(--hd-primary); border-radius: 3px; }
+.qx-refresh-bar progress::-moz-progress-bar      { background: var(--hd-primary); border-radius: 3px; }
+
+.qx-group { margin-bottom: 24px; }
+.qx-group:last-child { margin-bottom: 0; }
+.qx-group-head {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 12px; padding-bottom: 10px; margin-bottom: 12px;
+    border-bottom: 2px solid var(--hd-border); flex-wrap: wrap;
+}
+.qx-group-head h6 { font-size: .95rem; font-weight: 700; margin: 0; color: var(--hd-text); }
+.qx-group-head small { font-size: .78rem; color: var(--hd-text-muted); }
+
+.qx-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+.qx-empty {
+    padding: 28px; text-align: center;
+    border: 2px dashed var(--hd-border); border-radius: 12px;
+    color: var(--hd-text-muted); font-size: .84rem;
+}
+.qx-empty i { display: block; font-size: 1.8rem; margin-bottom: 10px; opacity: .4; }
+
+@media (max-width: 900px) { .qx-stats { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 480px) { .qx-stats { grid-template-columns: 1fr 1fr; } }
 </style>
 
 <div class="hd-page-header">
     <h4><i class="bi bi-people-fill me-2"></i>Doctor Queue Monitor</h4>
-    <small>Reception can monitor separate waiting queues for each doctor while doctors clear patients automatically after diagnosis.</small>
+    <small>Live view of each doctor's waiting list. Patients clear automatically after diagnosis is saved.</small>
 </div>
 
 {% if status_note %}
 <div class="hd-alert info"><i class="bi bi-info-circle me-1"></i> {{ status_note }}</div>
 {% endif %}
 
-<div class="qx-shell" data-auto-refresh="15000">
-    <div class="qx-grid">
-        <div class="qx-card">
-            <div class="qx-body">
-                <div class="qx-head">
-                    <div>
-                        <h5 class="qx-title"><i class="bi bi-bar-chart-fill me-1"></i> Queue Overview</h5>
-                        <p class="qx-sub">A quick snapshot of current waiting patients and consultations already cleared from the queue.</p>
-                    </div>
-                </div>
-                <div class="qx-stats">
-                    <div class="qx-stat"><small>Waiting</small><strong>{{ waiting_count }}</strong></div>
-                    <div class="qx-stat"><small>Completed</small><strong>{{ completed_count }}</strong></div>
-                </div>
-                {% set total = waiting_count + completed_count %}
-                {% set waiting_pct = ((waiting_count / total * 100) | int) if total > 0 else 0 %}
-                {% set completed_pct = ((completed_count / total * 100) | int) if total > 0 else 0 %}
-                <div class="hd-progress mt-4">
-                    <div class="hd-progress-bar warning" style="width: {{ waiting_pct }}%"></div>
-                    <div class="hd-progress-bar success" style="width: {{ completed_pct }}%"></div>
-                </div>
-                <div class="d-flex justify-content-between mt-2">
-                    <small class="text-muted"><span class="hd-dot yellow"></span> Waiting {{ waiting_pct }}%</small>
-                    <small class="text-muted"><span class="hd-dot green"></span> Done {{ completed_pct }}%</small>
-                </div>
-            </div>
-        </div>
+<div class="qx-shell">
+    <div class="qx-refresh-bar" role="status" aria-live="polite">
+        <span class="qx-refresh-dot"></span>
+        <span id="qxRefreshText">Refreshing in 30s</span>
+        <progress id="qxProgress" max="30" value="30"></progress>
+        <button class="hd-btn hd-btn-outline hd-btn-sm" id="qxRefreshNow" type="button" style="flex-shrink:0;">
+            <i class="bi bi-arrow-clockwise"></i> Refresh Now
+        </button>
     </div>
 
-    <div class="qx-card">
-        <div class="qx-body">
-            <div class="qx-head">
-                <div>
-                    <h5 class="qx-title"><i class="bi bi-diagram-3-fill me-1"></i> Separate Doctor Queues</h5>
-                    <p class="qx-sub">Each doctor's current waiting patients are grouped together. Patients disappear from these lists after the doctor saves diagnosis.</p>
-                </div>
-                <small class="text-muted">{{ queue_groups|length }} active queues</small>
-            </div>
-            <div class="qx-grid">
-                {% for group in queue_groups %}
-                <div class="qx-card">
-                    <div class="qx-body">
-                        <div class="qx-head">
-                            <div>
-                                <h5 class="qx-title">{{ group.doctor_name }}</h5>
-                                <p class="qx-sub">{{ group.department if group.department else "Unassigned queue" }}</p>
-                            </div>
-                            <span class="hd-badge normal">{{ group.patients|length }} waiting</span>
-                        </div>
-                        <div class="table-responsive">
-                            <table class="hd-table">
-                                <thead>
-                                    <tr><th>Token</th><th>Patient</th><th>Priority</th><th>Symptoms</th></tr>
-                                </thead>
-                                <tbody>
-                                    {% for patient in group.patients %}
-                                    <tr>
-                                        <td><strong>{{ patient.token }}</strong></td>
-                                        <td>
-                                            <div>#{{ patient.patient_id }}</div>
-                                            <small class="text-muted">{{ patient.name or "-" }}</small>
-                                        </td>
-                                        <td><span class="hd-badge {% if patient.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ patient.priority }}</span></td>
-                                        <td>{{ patient.symptoms or "-" }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-                {% if not queue_groups %}
-                <div class="text-muted text-center py-3">No active waiting patients in any doctor queue.</div>
-                {% endif %}
-            </div>
-        </div>
+    <div id="qxPanels" data-refresh-url="/queue/panels">
+        {% include "_queue_panels.html" %}
     </div>
 </div>
 
+<script>
+(function() {
+    var TOTAL = 30;
+    var remaining = TOTAL;
+    var textEl = document.getElementById("qxRefreshText");
+    var progEl = document.getElementById("qxProgress");
+    var panels = document.getElementById("qxPanels");
+    var refreshBtn = document.getElementById("qxRefreshNow");
+    var isRefreshing = false;
+
+    function updateRefreshUi() {
+        if (textEl) textEl.textContent = "Refreshing in " + remaining + "s";
+        if (progEl) progEl.value = remaining;
+    }
+
+    function refreshPanels() {
+        if (!panels || isRefreshing) return;
+        isRefreshing = true;
+        if (refreshBtn) refreshBtn.disabled = true;
+
+        fetch(panels.getAttribute("data-refresh-url"), {
+            headers: { "X-Requested-With": "XMLHttpRequest" }
+        })
+        .then(function(response) {
+            if (!response.ok) throw new Error("Refresh failed");
+            return response.text();
+        })
+        .then(function(html) {
+            panels.innerHTML = html;
+            remaining = TOTAL;
+            updateRefreshUi();
+        })
+        .catch(function() {
+            remaining = 10;
+            updateRefreshUi();
+        })
+        .finally(function() {
+            isRefreshing = false;
+            if (refreshBtn) refreshBtn.disabled = false;
+        });
+    }
+
+    if (refreshBtn) {
+        refreshBtn.addEventListener("click", refreshPanels);
+    }
+
+    updateRefreshUi();
+    setInterval(function() {
+        remaining--;
+        if (remaining <= 0) {
+            refreshPanels();
+            return;
+        }
+        updateRefreshUi();
+    }, 1000);
+})();
+</script>
 {% endblock %}

@@ -1,23 +1,198 @@
 {% extends "index.html" %}
-
 {% block content %}
-
 <style>
-    .dgx-shell { display:grid; gap:20px; }
-    .dgx-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:20px; }
-    .dgx-card { background:#fff; border:1px solid #dee7ef; border-radius:22px; box-shadow:0 16px 36px rgba(20,40,66,0.06); }
-    .dgx-body { padding:20px; }
-    .dgx-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px; }
-    .dgx-title { margin:0 0 4px; font-size:1.02rem; font-weight:700; color:#1f3750; }
-    .dgx-sub { margin:0; color:#728598; font-size:0.88rem; }
+/* Diagnosis Page */
+.dgx-shell { display: grid; gap: 20px; }
+.dgx-main-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    gap: 20px;
+    align-items: start;
+}
+
+.dgx-card {
+    background: var(--hd-surface);
+    border: 1px solid var(--hd-border);
+    border-radius: var(--hd-radius);
+    box-shadow: var(--hd-shadow);
+}
+.dgx-body { padding: clamp(16px, 2.5vw, 22px); }
+.dgx-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+}
+.dgx-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--hd-text);
+    margin: 0 0 3px;
+}
+.dgx-sub {
+    font-size: 0.82rem;
+    color: var(--hd-text-muted);
+    margin: 0;
+}
+
+/* Patient finder */
+.dgx-search-form .form-control { min-height: 44px; }
+.dgx-patient-results {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+}
+.dgx-patient-link {
+    display: block;
+    padding: 14px 15px;
+    border-radius: 12px;
+    text-decoration: none;
+    background: var(--hd-bg);
+    border: 1px solid var(--hd-border);
+    transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+}
+.dgx-patient-link:hover,
+.dgx-patient-link.active {
+    border-color: var(--hd-primary);
+    box-shadow: var(--hd-shadow);
+    transform: translateY(-1px);
+}
+.dgx-patient-topline {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.dgx-patient-name {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--hd-text);
+}
+.dgx-patient-id {
+    font-size: 0.78rem;
+    color: var(--hd-text-muted);
+}
+.dgx-patient-meta,
+.dgx-patient-note {
+    font-size: 0.78rem;
+    color: var(--hd-text-muted);
+    margin: 0;
+    line-height: 1.45;
+}
+
+/* Patient overview */
+.dgx-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+.dgx-fact {
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--hd-bg);
+    border: 1px solid var(--hd-border);
+}
+.dgx-fact small {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--hd-text-muted);
+    margin-bottom: 4px;
+}
+.dgx-fact strong {
+    font-size: 0.9rem;
+    color: var(--hd-text);
+}
+
+/* Diagnosis form */
+.dgx-textarea {
+    width: 100%;
+    min-height: 130px;
+    resize: vertical;
+    padding: 12px 14px;
+    border: 1px solid var(--hd-border);
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: var(--hd-text);
+    background: var(--hd-surface);
+    outline: none;
+    transition: border-color 0.18s, box-shadow 0.18s;
+    line-height: 1.6;
+}
+.dgx-textarea:focus {
+    border-color: var(--hd-primary);
+    box-shadow: 0 0 0 3px rgba(46, 134, 193, 0.12);
+}
+@media (min-width: 1024px) {
+    .dgx-textarea { min-height: 160px; }
+}
+
+/* History table */
+.dgx-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.dgx-table-wrap td.dgx-truncate {
+    max-width: 260px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dgx-table-wrap td.dgx-truncate:hover {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    position: relative;
+    z-index: 1;
+    background: var(--hd-surface);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+
+/* Empty state */
+.dgx-empty {
+    padding: 22px;
+    text-align: center;
+    border: 2px dashed var(--hd-border);
+    border-radius: 12px;
+    color: var(--hd-text-muted);
+    font-size: 0.84rem;
+}
+.dgx-empty i {
+    display: block;
+    font-size: 1.8rem;
+    margin-bottom: 10px;
+    opacity: 0.4;
+}
+
+/* Responsive */
+@media (min-width: 1200px) {
+    .dgx-patient-results { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 1024px) {
+    .dgx-main-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+    .dgx-facts { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+    .dgx-facts { grid-template-columns: 1fr; }
+}
 </style>
 
 <div class="hd-page-header">
     <div class="d-flex align-items-center gap-2 flex-wrap">
-        <a href="/doctor" class="hd-btn hd-btn-outline hd-btn-sm"><i class="bi bi-arrow-left"></i> Dashboard</a>
+        <a href="/doctor" class="hd-btn hd-btn-outline hd-btn-sm">
+            <i class="bi bi-arrow-left"></i> Dashboard
+        </a>
         <div>
             <h4 class="mb-0"><i class="bi bi-clipboard2-pulse-fill me-2"></i>Diagnosis</h4>
-            <small>Search history, review patient context, and record the current consultation</small>
+            <small>Review patient context and record the current consultation</small>
         </div>
     </div>
 </div>
@@ -25,56 +200,112 @@
 {% if error_message %}
 <div class="hd-alert danger"><i class="bi bi-x-circle-fill me-1"></i> {{ error_message }}</div>
 {% endif %}
-
 {% set diagnosis_status_note = request.args.get("status_note", "") %}
 {% if diagnosis_status_note %}
 <div class="hd-alert info"><i class="bi bi-info-circle me-1"></i> {{ diagnosis_status_note }}</div>
 {% endif %}
 
 <div class="dgx-shell">
-    {% if not patient %}
     <div class="dgx-card">
         <div class="dgx-body">
             <div class="dgx-head">
                 <div>
-                    <h5 class="dgx-title"><i class="bi bi-search me-1"></i> Find Patient History</h5>
-                    <p class="dgx-sub">Search by patient ID to load history and continue the diagnosis workflow.</p>
+                    <h5 class="dgx-title"><i class="bi bi-search me-1"></i> Find or Switch Patient</h5>
+                    <p class="dgx-sub">Enter a patient ID, or pick directly from your consultation list below.</p>
                 </div>
             </div>
-            <form action="/diagnosis_history" method="POST">
+            <form action="/diagnosis_history" method="POST" class="dgx-search-form" autocomplete="off">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <div class="row g-3 align-items-end">
                     <div class="col-12 col-md-9">
                         <label class="form-label">Patient ID</label>
-                        <input type="number" name="patient_id" class="form-control" placeholder="Enter patient ID" required>
+                        <input
+                            type="text"
+                            id="dgxPatientIdInput"
+                            name="patient_id"
+                            class="form-control"
+                            value="{{ patient.id if patient else '' }}"
+                            placeholder="Type patient ID or use the list below"
+                            inputmode="numeric"
+                            pattern="[0-9]+"
+                            list="dgxPatientOptions"
+                            required
+                        >
+                        <datalist id="dgxPatientOptions">
+                            {% for item in doctor_patients %}
+                            <option value="{{ item.id }}" label="{{ item.name }} - {{ item.department }} - {{ item.phone }}"></option>
+                            {% endfor %}
+                        </datalist>
                     </div>
                     <div class="col-12 col-md-3">
-                        <button class="hd-btn hd-btn-primary hd-btn-block"><i class="bi bi-search"></i> Search</button>
+                        <button class="hd-btn hd-btn-primary hd-btn-block">
+                            <i class="bi bi-search"></i> Search
+                        </button>
                     </div>
                 </div>
             </form>
+
+            {% if doctor_patients %}
+            <div class="dgx-patient-results" id="dgxPatientResults">
+                {% for item in doctor_patients %}
+                <a
+                    class="dgx-patient-link {% if patient and patient.id == item.id %}active{% endif %}"
+                    href="/diagnosis?patient_id={{ item.id }}{% if item.appointment_id %}&appointment_id={{ item.appointment_id }}{% endif %}"
+                    data-search="{{ (item.id ~ ' ' ~ item.name ~ ' ' ~ item.phone ~ ' ' ~ item.department ~ ' ' ~ item.priority ~ ' ' ~ (item.symptoms or '') ~ ' ' ~ (item.latest_status or ''))|lower }}"
+                >
+                    <div class="dgx-patient-topline">
+                        <div>
+                            <div class="dgx-patient-name">{{ item.name }}</div>
+                            <div class="dgx-patient-id">Patient #{{ item.id }}</div>
+                        </div>
+                        <span class="hd-badge {% if item.is_waiting %}urgent{% elif item.has_active_consultation %}booked{% else %}completed{% endif %}">
+                            {{ item.latest_status or "Known" }}
+                        </span>
+                    </div>
+                    <p class="dgx-patient-meta">{{ item.department }} &middot; {{ item.phone }} &middot; {{ item.priority }}</p>
+                    <p class="dgx-patient-note">{{ item.symptoms or "No symptoms noted" }}</p>
+                </a>
+                {% endfor %}
+            </div>
+            <div class="dgx-empty" id="dgxPatientEmpty" style="display:none;">
+                <i class="bi bi-search"></i>
+                No matching patients found in your list.
+            </div>
+            {% else %}
+            <div class="dgx-empty">
+                <i class="bi bi-people"></i>
+                No patients are currently assigned to your consultation list.
+            </div>
+            {% endif %}
         </div>
     </div>
-    {% endif %}
 
     {% if patient %}
-    <div class="dgx-grid">
+    <div class="dgx-main-grid">
         <div class="dgx-card">
             <div class="dgx-body">
                 <div class="dgx-head">
                     <div>
                         <h5 class="dgx-title"><i class="bi bi-person-fill me-1"></i> Patient Overview</h5>
-                        <p class="dgx-sub">Current patient context for this consultation.</p>
+                        <p class="dgx-sub">Context for this consultation.</p>
                     </div>
+                    <span class="hd-badge {% if patient.priority == 'Urgent' %}urgent{% else %}booked{% endif %}">
+                        {{ patient.priority }}
+                    </span>
                 </div>
-                <div class="row g-3">
-                    <div class="col-6 col-md-4"><small class="text-muted d-block">ID</small><strong>{{ patient.id }}</strong></div>
-                    <div class="col-6 col-md-4"><small class="text-muted d-block">Name</small><strong>{{ patient.name }}</strong></div>
-                    <div class="col-6 col-md-4"><small class="text-muted d-block">Phone</small>{{ patient.phone }}</div>
-                    <div class="col-6 col-md-4"><small class="text-muted d-block">Age / Gender</small>{{ patient.age }} / {{ patient.gender }}</div>
-                    <div class="col-6 col-md-4"><small class="text-muted d-block">Department</small><span class="hd-badge booked">{{ patient.department }}</span></div>
-                    <div class="col-6 col-md-4"><small class="text-muted d-block">Priority</small><span class="hd-badge {% if patient.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ patient.priority }}</span></div>
-                    <div class="col-12"><small class="text-muted d-block">Symptoms</small>{{ patient.symptoms }}</div>
+                <div class="dgx-facts">
+                    <div class="dgx-fact"><small>Patient ID</small><strong>#{{ patient.id }}</strong></div>
+                    <div class="dgx-fact"><small>Name</small><strong>{{ patient.name }}</strong></div>
+                    <div class="dgx-fact"><small>Phone</small><strong>{{ patient.phone }}</strong></div>
+                    <div class="dgx-fact"><small>Age / Gender</small><strong>{{ patient.age }} / {{ patient.gender }}</strong></div>
+                    <div class="dgx-fact"><small>Department</small><strong><span class="hd-badge booked">{{ patient.department }}</span></strong></div>
+                    <div class="dgx-fact"><small>Visit Type</small><strong>{{ patient.visit_type or "-" }}</strong></div>
+                    {% if patient.symptoms %}
+                    <div class="dgx-fact" style="grid-column:1/-1;">
+                        <small>Symptoms / Reason</small>
+                        <strong style="font-weight:400;line-height:1.55;">{{ patient.symptoms }}</strong>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -83,26 +314,57 @@
             <div class="dgx-body">
                 <div class="dgx-head">
                     <div>
-                        <h5 class="dgx-title"><i class="bi bi-plus-circle me-1"></i> Add Diagnosis</h5>
-                        <p class="dgx-sub">Record the consultation and continue billing flow automatically.</p>
+                        <h5 class="dgx-title"><i class="bi bi-plus-circle-fill me-1"></i> Record Diagnosis</h5>
+                        <p class="dgx-sub">Saving this form completes the consultation, clears the patient from queue, and triggers billing.</p>
                     </div>
                 </div>
+
                 {% if not appointment_id %}
-                <div class="hd-alert info">
-                    <i class="bi bi-info-circle me-1"></i>
-                    This patient has no active appointment assigned to you right now. You can review history here, but consultation completion needs an active appointment or queue assignment.
+                <div class="hd-alert warning mb-3">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    No active appointment assigned right now. You can review history, but saving diagnosis requires an active queue entry or appointment.
                 </div>
                 {% endif %}
+
                 <form action="/add_diagnosis" method="POST">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="appointment_id" value="{{ appointment_id }}">
                     <div class="row g-3">
-                        <div class="col-6"><label class="form-label">Patient ID</label><input type="number" name="patient_id" class="form-control" value="{{ patient.id }}" readonly required></div>
-                        <div class="col-6"><label class="form-label">Doctor ID</label><input type="number" name="doctor_id" class="form-control" value="{{ current_doctor_id }}" readonly required></div>
-                        <input type="hidden" name="appointment_id" value="{{ appointment_id }}">
-                        <div class="col-12"><label class="form-label">Date</label><input type="date" name="date" class="form-control" value="{{ today }}" required></div>
-                        <div class="col-12"><label class="form-label">Diagnosis</label><textarea name="diagnosis" class="form-control" rows="4" placeholder="Enter diagnosis details" required></textarea></div>
-                        <div class="col-12"><label class="form-label">Prescription</label><textarea name="prescription" class="form-control" rows="4" placeholder="Enter prescription" required></textarea></div>
-                        <div class="col-12"><button class="hd-btn hd-btn-success" {% if not appointment_id %}disabled{% endif %}><i class="bi bi-check2-circle"></i> Save Diagnosis And Complete Consultation</button></div>
+                        <div class="col-6 col-md-4">
+                            <label class="form-label">Patient ID</label>
+                            <input type="number" name="patient_id" class="form-control" value="{{ patient.id }}" readonly required>
+                        </div>
+                        <div class="col-6 col-md-4">
+                            <label class="form-label">Doctor ID</label>
+                            <input type="number" name="doctor_id" class="form-control" value="{{ current_doctor_id }}" readonly required>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label">Date</label>
+                            <input type="date" name="date" class="form-control" value="{{ today }}" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Diagnosis</label>
+                            <textarea
+                                name="diagnosis"
+                                class="dgx-textarea"
+                                placeholder="Enter your diagnosis in full - this becomes part of the permanent medical record."
+                                required
+                            ></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Prescription</label>
+                            <textarea
+                                name="prescription"
+                                class="dgx-textarea"
+                                placeholder="List medications, dosage, and duration. Leave blank if no prescription required."
+                                required
+                            ></textarea>
+                        </div>
+                        <div class="col-12">
+                            <button class="hd-btn hd-btn-success" {% if not appointment_id %}disabled{% endif %}>
+                                <i class="bi bi-check2-circle"></i> Save Diagnosis &amp; Complete Consultation
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -114,34 +376,73 @@
             <div class="dgx-head">
                 <div>
                     <h5 class="dgx-title"><i class="bi bi-clock-history me-1"></i> Diagnosis History</h5>
-                    <p class="dgx-sub">Past records for quick medical context during the consultation.</p>
+                    <p class="dgx-sub">Previous records for quick medical context. Hover long cells to expand.</p>
                 </div>
+                {% if diagnosis %}
+                <span class="hd-badge booked">{{ diagnosis|length }} record{{ "s" if diagnosis|length != 1 }}</span>
+                {% endif %}
             </div>
             {% if diagnosis %}
-            <div class="table-responsive">
+            <div class="dgx-table-wrap">
                 <table class="hd-table">
                     <thead>
-                        <tr><th>Record</th><th>Doctor</th><th>Date</th><th>Diagnosis</th><th>Prescription</th></tr>
+                        <tr>
+                            <th>Record</th>
+                            <th>Doctor</th>
+                            <th>Date</th>
+                            <th>Diagnosis</th>
+                            <th>Prescription</th>
+                        </tr>
                     </thead>
                     <tbody>
                         {% for d in diagnosis %}
                         <tr>
-                            <td>#{{ d.record_id }}</td>
-                            <td>Dr {{ d.doctor_id }}</td>
-                            <td>{{ d.date }}</td>
-                            <td>{{ d.diagnosis }}</td>
-                            <td>{{ d.prescription }}</td>
+                            <td><strong>#{{ d.record_id }}</strong></td>
+                            <td>Dr #{{ d.doctor_id }}</td>
+                            <td style="white-space:nowrap;">{{ d.date }}</td>
+                            <td class="dgx-truncate">{{ d.diagnosis }}</td>
+                            <td class="dgx-truncate">{{ d.prescription or "-" }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
             {% else %}
-            <div class="text-muted">No previous diagnosis records found.</div>
+            <div class="dgx-empty">
+                <i class="bi bi-clipboard2-x"></i>
+                No previous diagnosis records found for this patient.
+            </div>
             {% endif %}
         </div>
     </div>
     {% endif %}
 </div>
 
+<script>
+(function() {
+    var input = document.getElementById("dgxPatientIdInput");
+    var results = Array.from(document.querySelectorAll("#dgxPatientResults .dgx-patient-link"));
+    var emptyState = document.getElementById("dgxPatientEmpty");
+
+    if (!input || !results.length) return;
+
+    function syncResults() {
+        var query = (input.value || "").trim().toLowerCase();
+        var visibleCount = 0;
+
+        results.forEach(function(item) {
+            var matches = !query || item.dataset.search.indexOf(query) !== -1;
+            item.style.display = matches ? "" : "none";
+            if (matches) visibleCount += 1;
+        });
+
+        if (emptyState) {
+            emptyState.style.display = visibleCount ? "none" : "";
+        }
+    }
+
+    input.addEventListener("input", syncResults);
+    syncResults();
+})();
+</script>
 {% endblock %}

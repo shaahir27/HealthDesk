@@ -1,30 +1,302 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HealthDesk - Request Submitted</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body { min-height:100vh; margin:0; display:grid; place-items:center; padding:20px; font-family:"Poppins",sans-serif; color:#2C3E50; background:#f0f2f5; }
-        .card { width:min(100%,560px); padding:34px; border-radius:22px; background:#fff; border:1px solid #e2e8f0; box-shadow:0 4px 16px rgba(0,0,0,.06); }
-        h1 { margin:0 0 10px; font-size:clamp(2rem,8vw,3.2rem); letter-spacing:-.05em; }
-        p { color:#52677a; line-height:1.55; }
-        .summary { margin:18px 0; padding:16px; border-radius:14px; background:#eaf3fb; border:1px solid #b7dcf2; }
-        a { min-height:46px; display:inline-flex; align-items:center; border-radius:14px; padding:12px 18px; color:white; background:linear-gradient(135deg,#2E86C1,#1B4F72); font-weight:700; text-decoration:none; }
-    </style>
-</head>
-<body>
-    <main class="card">
-        <h1>Request sent</h1>
-        <p>Reception will verify your details before creating your official patient record. You should receive confirmation within 2 hours during clinic hours.</p>
-        <div class="summary">
-            <strong>{{ request_row.doctor_name }}</strong><br>
-            {{ request_row.human_date }} at {{ request_row.time_label }}<br>
-            {{ request_row.time_remaining }}
-        </div>
-        <p>If your request is urgent, please call {{ clinic_phone }}.</p>
-        <a href="/">Back to HealthDesk</a>
-    </main>
-</body>
-</html>
+{% extends "index.html" %}
+
+{% block head_extra %}
+<title>HealthDesk - Request Submitted</title>
+{% endblock %}
+
+{% block content %}
+<style>
+.hd-topbar, .hd-overlay, .hd-sidebar { display: none !important; }
+.hd-layout { display: block !important; }
+.hd-main { margin-left: 0 !important; padding: 0 !important; min-height: unset !important; }
+
+.nps-shell {
+    width: min(880px, calc(100% - clamp(24px, 4vw, 64px)));
+    margin: 0 auto;
+    padding: clamp(24px, 4vw, 40px) 0 60px;
+}
+
+.nps-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    height: 64px;
+    padding: 0 clamp(16px, 4vw, 40px);
+    background: linear-gradient(90deg, var(--hd-primary-dark), var(--hd-primary));
+    box-shadow: 0 2px 12px rgba(27,79,114,.2);
+}
+.nps-brand { display: flex; align-items: baseline; gap: 2px; text-decoration: none; }
+.nps-brand .brand-health { font-family: "Satisfy", cursive; font-size: 1.4rem; color: #fff; }
+.nps-brand .brand-desk { font-family: "MonteCarlo", cursive; font-size: 1.6rem; color: #D6EAF8; margin-left: 2px; }
+.nps-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 16px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.22);
+    color: #fff;
+    font-size: .83rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+.nps-back:hover { color: #fff; background: rgba(255,255,255,.22); }
+
+.nps-hero {
+    position: relative;
+    overflow: hidden;
+    padding: clamp(24px, 4vw, 36px);
+    border-radius: 22px;
+    margin-bottom: 24px;
+    color: #fff;
+    background:
+        radial-gradient(ellipse at 90% 15%, rgba(255,255,255,.13) 0%, transparent 40%),
+        linear-gradient(135deg, #0f5132, #1a9e5c);
+    box-shadow: 0 8px 28px rgba(15,81,50,.22);
+}
+.nps-hero::after {
+    content: "";
+    position: absolute;
+    right: -30px;
+    bottom: -30px;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.05);
+    pointer-events: none;
+}
+.nps-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    margin-bottom: 12px;
+    background: rgba(255,255,255,.14);
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 30px;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.88);
+}
+.nps-hero h1 {
+    font-size: clamp(1.5rem, 3.2vw, 2.2rem);
+    font-weight: 700;
+    letter-spacing: -.03em;
+    line-height: 1.1;
+    margin: 0 0 10px;
+    color: #fff;
+}
+.nps-hero p {
+    margin: 0;
+    color: rgba(255,255,255,.78);
+    font-size: .92rem;
+    line-height: 1.6;
+    max-width: 620px;
+}
+
+.nps-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
+    gap: 20px;
+}
+.nps-card {
+    background: var(--hd-surface);
+    border: 1px solid var(--hd-border);
+    border-radius: 20px;
+    box-shadow: var(--hd-shadow);
+}
+.nps-body { padding: clamp(18px, 3vw, 24px); }
+.nps-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--hd-text);
+    margin: 0 0 4px;
+}
+.nps-sub {
+    font-size: .82rem;
+    color: var(--hd-text-muted);
+    margin: 0 0 18px;
+}
+.nps-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+.nps-fact {
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--hd-bg);
+    border: 1px solid var(--hd-border);
+}
+.nps-fact.full { grid-column: 1 / -1; }
+.nps-fact small {
+    display: block;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: var(--hd-text-muted);
+    margin-bottom: 5px;
+}
+.nps-fact strong,
+.nps-fact span {
+    font-size: .9rem;
+    color: var(--hd-text);
+}
+
+.nps-steps {
+    display: grid;
+    gap: 12px;
+}
+.nps-step {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 12px;
+    align-items: start;
+}
+.nps-step-num {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--hd-primary-light);
+    color: var(--hd-primary-dark);
+    font-weight: 700;
+}
+.nps-step strong {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--hd-text);
+}
+.nps-step p {
+    margin: 0;
+    color: var(--hd-text-muted);
+    font-size: .84rem;
+    line-height: 1.55;
+}
+
+.nps-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+@media (max-width: 900px) {
+    .nps-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+    .nps-facts { grid-template-columns: 1fr; }
+    .nps-actions { flex-direction: column; }
+    .nps-actions .hd-btn { width: 100%; justify-content: center; }
+}
+</style>
+
+<div class="nps-topbar">
+    <a href="/" class="nps-brand" aria-label="HealthDesk home">
+        <span class="brand-health">Health</span><span class="brand-desk">Desk</span>
+    </a>
+    <a href="/patient/new" class="nps-back"><i class="bi bi-arrow-left"></i> Back to Portal</a>
+</div>
+
+<div class="nps-shell">
+    <section class="nps-hero">
+        <div class="nps-eyebrow"><i class="bi bi-check2-circle"></i> Request Submitted</div>
+        <h1>Your appointment request is with reception now</h1>
+        <p>We received your first-time patient request and shared it with the clinic team for review. They’ll verify your details and confirm the appointment within 2 hours during clinic hours.</p>
+    </section>
+
+    <div class="nps-grid">
+        <section class="nps-card">
+            <div class="nps-body">
+                <h2 class="nps-title">Request Summary</h2>
+                <p class="nps-sub">Keep these details handy in case you need to call the clinic.</p>
+
+                <div class="nps-facts">
+                    <div class="nps-fact">
+                        <small>Request ID</small>
+                        <strong>#{{ request_row.request_id }}</strong>
+                    </div>
+                    <div class="nps-fact">
+                        <small>Status</small>
+                        <span class="hd-badge {{ request_row.status_class }}">{{ request_row.status }}</span>
+                    </div>
+                    <div class="nps-fact">
+                        <small>Patient</small>
+                        <strong>{{ request_row.name }}</strong>
+                    </div>
+                    <div class="nps-fact">
+                        <small>Phone</small>
+                        <strong>{{ request_row.phone }}</strong>
+                    </div>
+                    <div class="nps-fact">
+                        <small>Department</small>
+                        <strong>{{ request_row.department }}</strong>
+                    </div>
+                    <div class="nps-fact">
+                        <small>Doctor</small>
+                        <strong>{{ request_row.doctor_name }}</strong>
+                    </div>
+                    <div class="nps-fact">
+                        <small>Date</small>
+                        <strong>{{ request_row.human_date }}</strong>
+                    </div>
+                    <div class="nps-fact">
+                        <small>Slot</small>
+                        <strong>{{ request_row.time_label }}</strong>
+                    </div>
+                    <div class="nps-fact full">
+                        <small>Reason for Visit</small>
+                        <span>{{ request_row.reason }}</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="nps-card">
+            <div class="nps-body">
+                <h2 class="nps-title">What Happens Next</h2>
+                <p class="nps-sub">Reception will review the request before confirming the first visit.</p>
+
+                <div class="nps-steps">
+                    <div class="nps-step">
+                        <div class="nps-step-num">1</div>
+                        <div>
+                            <strong>Verification</strong>
+                            <p>Your details and selected slot are checked by reception.</p>
+                        </div>
+                    </div>
+                    <div class="nps-step">
+                        <div class="nps-step-num">2</div>
+                        <div>
+                            <strong>Confirmation</strong>
+                            <p>If approved, your patient record and appointment are created by the clinic.</p>
+                        </div>
+                    </div>
+                    <div class="nps-step">
+                        <div class="nps-step-num">3</div>
+                        <div>
+                            <strong>Phone Update</strong>
+                            <p>You’ll receive an SMS update. If you need help sooner, call <strong>{{ clinic_phone }}</strong>.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="nps-actions">
+                    <a href="/patient/new" class="hd-btn hd-btn-outline"><i class="bi bi-calendar-plus"></i> Submit Another Request</a>
+                    <a href="/" class="hd-btn hd-btn-primary"><i class="bi bi-house-door"></i> Return Home</a>
+                </div>
+            </div>
+        </aside>
+    </div>
+</div>
+{% endblock %}

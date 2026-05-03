@@ -1,0 +1,120 @@
+<div class="dd-stats">
+    <div class="dd-stat">
+        <span class="dd-stat-label">Live Queue</span>
+        <span class="dd-stat-value" style="color:var(--hd-primary);">{{ live_queue_patients|length }}</span>
+    </div>
+    <div class="dd-stat">
+        <span class="dd-stat-label">Upcoming Appts</span>
+        <span class="dd-stat-value">{{ appointments|length }}</span>
+    </div>
+    <div class="dd-stat">
+        <span class="dd-stat-label">Duty Today</span>
+        <div style="margin-top:4px;">
+            {% if doctor_info %}
+            <span class="hd-badge {{ doctor_info.daily_status|lower }}">{{ doctor_info.daily_status }}</span>
+            {% if doctor_info.daily_status in ["Unavailable", "Off"] and doctor_info.status_until %}
+            <small class="text-muted d-block mt-1">Until {{ doctor_info.status_until_label }}</small>
+            {% endif %}
+            {% else %}
+            <span class="hd-badge normal">-</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="dd-stat">
+        <span class="dd-stat-label">Live Status</span>
+        <div style="margin-top:4px;">
+            {% if doctor_info %}
+            {% if doctor_info.show_live_status %}
+            <span class="hd-badge {{ doctor_info.current_status_badge }}">{{ doctor_info.current_status_label }}</span>
+            {% else %}
+            <small class="text-muted">Only used while on duty</small>
+            {% endif %}
+            {% else %}
+            <span class="hd-badge normal">-</span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="dd-card">
+    <div class="dd-card-body">
+        <div class="dd-card-head">
+            <div>
+                <h5 class="dd-card-title"><i class="bi bi-people-fill me-1"></i> Live Queue</h5>
+                <p class="dd-card-sub">Patients waiting right now. Starts consultation and clears from queue automatically on save.</p>
+            </div>
+            <div class="dd-refresh-label">
+                <span class="dd-refresh-dot"></span> Auto-refresh 30s
+            </div>
+        </div>
+        {% if live_queue_patients %}
+        <div class="dd-queue">
+            {% for q in live_queue_patients %}
+            <div class="dd-queue-card">
+                <div class="dd-queue-token">{{ q.token }}</div>
+                <div>
+                    <p class="dd-queue-name">#{{ q.patient_id }} - {{ q.name or "-" }}</p>
+                    <p class="dd-queue-meta">
+                        <span class="hd-badge {% if q.priority == 'Urgent' %}urgent{% else %}normal{% endif %}" style="font-size:.65rem;">{{ q.priority }}</span>
+                        {% if q.appointment_id %}&nbsp;&middot;&nbsp;Appt #{{ q.appointment_id }} ({{ q.appointment_date }}){% endif %}
+                    </p>
+                </div>
+                <a class="hd-btn hd-btn-primary hd-btn-sm" href="/diagnosis?patient_id={{ q.patient_id }}&appointment_id={{ q.appointment_id }}">
+                    <i class="bi bi-clipboard2-pulse"></i> Start Consultation
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="dd-empty">
+            <i class="bi bi-people"></i>
+            <p>Your queue is clear right now. Patients appear here when assigned to you.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="dd-card">
+    <div class="dd-card-body">
+        <div class="dd-card-head">
+            <div>
+                <h5 class="dd-card-title"><i class="bi bi-calendar2-check-fill me-1"></i> Upcoming Appointments</h5>
+                <p class="dd-card-sub">Future scheduled visits - these move to your live queue on the consultation day.</p>
+            </div>
+            {% if appointments %}
+            <span class="hd-badge booked">{{ appointments|length }} scheduled</span>
+            {% endif %}
+        </div>
+        {% if appointments %}
+        <div class="dd-table-wrap">
+            <table class="hd-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Patient</th>
+                        <th>Date</th>
+                        <th>Slot</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in appointments %}
+                    <tr>
+                        <td><strong>#{{ a.appointment_id }}</strong></td>
+                        <td>#{{ a.patient_id }}</td>
+                        <td>{{ a.date }}</td>
+                        <td>{{ a.time_slot }}</td>
+                        <td><span class="hd-badge {{ a.status|lower|replace('-','') }}">{{ a.status }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="dd-empty">
+            <i class="bi bi-calendar-x"></i>
+            <p>No upcoming appointments scheduled right now.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>

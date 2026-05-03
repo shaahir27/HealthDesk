@@ -1,57 +1,146 @@
 {% extends "index.html" %}
-
 {% block content %}
-
 <style>
-    .apx-shell { display:grid; gap:20px; }
-    .apx-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:20px; }
-    .apx-card { background:#fff; border:1px solid #e0e8ef; border-radius:22px; box-shadow:0 16px 36px rgba(22,40,66,0.06); }
-    .apx-card-body { padding:20px; }
-    .apx-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px; }
-    .apx-title { margin:0 0 4px; font-size:1.02rem; font-weight:700; color:#1f3750; }
-    .apx-sub { margin:0; color:#708396; font-size:0.88rem; }
-    .apx-overview { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
-    .apx-metric { padding:16px; border-radius:18px; border:1px solid #e4ebf1; background:#f8fbfd; }
-    .apx-metric small { display:block; color:#708396; margin-bottom:6px; }
-    .apx-metric strong { font-size:1.18rem; color:#183149; }
-    @media (max-width: 991.98px) { .apx-overview { grid-template-columns:1fr; } }
-    @media (max-width: 767.98px) { .apx-card-body { padding:16px; } .apx-head { display:block; } }
+/* ── Appointments Page ── */
+.apx-shell { display: grid; gap: 20px; }
+
+.apx-card {
+    background: var(--hd-surface); border: 1px solid var(--hd-border);
+    border-radius: var(--hd-radius); box-shadow: var(--hd-shadow);
+}
+.apx-body { padding: clamp(16px,2.5vw,22px); }
+.apx-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 14px; margin-bottom: 18px; flex-wrap: wrap;
+}
+.apx-title { font-size: 1rem; font-weight: 700; color: var(--hd-text); margin: 0 0 3px; }
+.apx-sub   { font-size: .82rem; color: var(--hd-text-muted); margin: 0; }
+
+/* Metrics row */
+.apx-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 12px;
+}
+.apx-metric {
+    display: block; text-decoration: none;
+    padding: 14px 16px; border-radius: 12px;
+    background: var(--hd-bg); border: 1px solid var(--hd-border);
+    transition: border-color .18s, box-shadow .18s;
+}
+.apx-metric:hover { border-color: var(--hd-primary); box-shadow: var(--hd-shadow); }
+.apx-metric small  { display: block; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; color: var(--hd-text-muted); margin-bottom: 4px; }
+.apx-metric strong { display: block; font-size: 1.1rem; font-weight: 700; color: var(--hd-primary); }
+.apx-metric span   { font-size: .72rem; color: var(--hd-text-muted); }
+
+/* Slot section label */
+.apx-slot-label {
+    grid-column: 1/-1; font-size: .68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--hd-text-muted); margin-top: 6px;
+    display: flex; align-items: center; gap: 8px;
+}
+.apx-slot-label::after { content: ''; flex: 1; height: 1px; background: var(--hd-border); }
+
+/* Appointment action form */
+.apx-action-form {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+}
+.apx-action-form .form-select,
+.apx-action-form .form-control { min-height: 36px; font-size: .82rem; border-radius: 8px; }
+.apx-extra { display: none; }
+.apx-inline-note {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--hd-bg);
+    border: 1px solid var(--hd-border);
+    color: var(--hd-text-muted);
+    font-size: .76rem;
+}
+.apx-confirm-wrap {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: .8rem;
+    color: var(--hd-text);
+}
+.apx-confirm-wrap input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+}
+.apx-status-note {
+    display: block;
+    margin-top: 4px;
+    font-size: .72rem;
+    color: var(--hd-text-muted);
+}
+
+/* Table wrap */
+.apx-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* Empty state */
+.apx-empty {
+    padding: 24px; text-align: center;
+    border: 2px dashed var(--hd-border); border-radius: 12px;
+    color: var(--hd-text-muted); font-size: .84rem;
+}
+.apx-empty i { display: block; font-size: 1.8rem; margin-bottom: 10px; opacity: .4; }
+
+/* Group header within actions card */
+.apx-group-head {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 12px; padding: 12px 0 10px; border-bottom: 1px solid var(--hd-border);
+    margin-bottom: 12px; flex-wrap: wrap;
+}
+.apx-group-head h6 { font-size: .92rem; font-weight: 700; margin: 0; color: var(--hd-text); }
+.apx-group-head small { font-size: .78rem; color: var(--hd-text-muted); }
+
+/* Responsive */
+@media (max-width: 900px)  { .apx-metrics { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 560px)  { .apx-metrics { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 768px)  { .apx-action-form { flex-direction: column; align-items: stretch; } }
 </style>
 
 <div class="hd-page-header">
     <h4><i class="bi bi-calendar2-check-fill me-2"></i>Appointments</h4>
-    <small>Book, review, and manage appointment flow without switching between screens</small>
+    <small>Book, review, and manage the full appointment flow from one screen</small>
 </div>
 
 {% if suggested_doctors %}
 <div class="hd-alert info">
-    <i class="bi bi-info-circle me-1"></i> Alternative doctors available for the selected date:
+    <i class="bi bi-info-circle me-1"></i> Alternative doctors with open slots on this date:
     <div class="d-flex gap-2 flex-wrap mt-2">
         {% for d in suggested_doctors %}
-        <a class="hd-btn hd-btn-outline hd-btn-sm" href="/appointments?department={{ d.department }}&doctor_id={{ d.id }}&date={{ selected_date }}">Dr {{ d.name }} | {{ d.available_slots }} free slots</a>
+        <a class="hd-btn hd-btn-outline hd-btn-sm"
+           href="/appointments?department={{ d.department }}&doctor_id={{ d.id }}&date={{ selected_date }}">
+            Dr {{ d.name }} &middot; {{ d.available_slots }} free slots
+        </a>
         {% endfor %}
     </div>
 </div>
 {% endif %}
 
 {% if status_note %}
-<div class="hd-alert info">{{ status_note }}</div>
+<div class="hd-alert info"><i class="bi bi-info-circle me-1"></i> {{ status_note }}</div>
 {% endif %}
 
 <div class="apx-shell">
+
+    {# ── Filter form ── #}
     <div class="apx-card">
-        <div class="apx-card-body">
+        <div class="apx-body">
             <div class="apx-head">
                 <div>
                     <h5 class="apx-title"><i class="bi bi-funnel me-1"></i> Find Available Slots</h5>
-                    <p class="apx-sub">Start with department and doctor filters, then load the daily slot map.</p>
+                    <p class="apx-sub">Filter by department and doctor, pick a date, then load the slot board.</p>
                 </div>
             </div>
             <form method="GET" action="/appointments">
                 <div class="row g-3 align-items-end">
-                    <div class="col-12 col-md-4">
+                    <div class="col-12 col-md-3">
                         <label class="form-label">Department</label>
-                        <select name="department" class="form-select">
+                        <select id="apxDepartmentSelect" name="department" class="form-select">
                             <option value="">Any department</option>
                             {% for dep in doctors|map(attribute='department')|unique|list %}
                             <option value="{{ dep }}" {% if selected_department == dep %}selected{% endif %}>{{ dep }}</option>
@@ -60,145 +149,380 @@
                     </div>
                     <div class="col-12 col-md-4">
                         <label class="form-label">Doctor</label>
-                        <select name="doctor_id" class="form-select">
+                        <select id="apxDoctorSelect" name="doctor_id" class="form-select" data-selected-doctor="{{ selected_doctor }}">
                             <option value="">Select doctor</option>
                             {% for d in doctors %}
                             {% if not selected_department or d.department == selected_department %}
-                            <option value="{{ d.id }}" {% if selected_doctor|int == d.id %}selected{% endif %}>Dr {{ d.name }} ({{ d.department }})</option>
+                            <option value="{{ d.id }}" {% if selected_doctor|int == d.id %}selected{% endif %}>
+                                Dr {{ d.name }} ({{ d.department }})
+                            </option>
                             {% endif %}
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-12 col-sm-6 col-md-2">
+                    <div class="col-12 col-sm-6 col-md-3">
                         <label class="form-label">Date</label>
                         <input type="date" name="date" class="form-control" value="{{ selected_date }}" required>
                     </div>
                     <div class="col-12 col-sm-6 col-md-2">
-                        <button class="hd-btn hd-btn-primary hd-btn-block"><i class="bi bi-clock"></i> Load Slots</button>
+                        <button class="hd-btn hd-btn-primary hd-btn-block">
+                            <i class="bi bi-clock"></i> Load Slots
+                        </button>
                     </div>
                 </div>
             </form>
         </div>
     </div>
 
+    {# ── 7-day availability overview ── #}
     {% if date_slot_overview %}
-    <div class="apx-overview">
+    <div class="apx-metrics">
         {% for day in date_slot_overview %}
-        <a class="apx-metric text-decoration-none" href="/appointments?department={{ selected_department }}&doctor_id={{ selected_doctor }}&date={{ day.date }}">
+        <a class="apx-metric"
+           href="/appointments?department={{ selected_department }}&doctor_id={{ selected_doctor }}&date={{ day.date }}">
             <small>{{ day.date }}</small>
-            <strong>{{ day.available_count }} free</strong>
+            <strong>{{ day.available_count }}</strong>
+            <span>free slots</span>
         </a>
         {% endfor %}
     </div>
     {% endif %}
 
-    <div class="apx-grid">
-        <div class="apx-card">
-            <div class="apx-card-body">
-                <div class="apx-head">
-                    <div>
-                        <h5 class="apx-title"><i class="bi bi-grid-3x3-gap me-1"></i> Slot Board</h5>
-                        <p class="apx-sub">Available slots can be booked instantly by entering the patient ID.</p>
-                    </div>
+    {# ── Slot board ── #}
+    <div class="apx-card">
+        <div class="apx-body">
+            <div class="apx-head">
+                <div>
+                    <h5 class="apx-title"><i class="bi bi-grid-3x3-gap me-1"></i> Slot Board</h5>
+                    <p class="apx-sub">Available slots show a patient ID input to book instantly.</p>
                 </div>
                 {% if slots %}
-                <div class="hd-slot-grid">
-                    {% for slot in slots %}
-                        {% if slot.state == "Available" %}
-                        <form action="/book_appointment" method="POST">
-                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="doctor_id" value="{{ selected_doctor }}">
-                            <input type="hidden" name="appointment_date" value="{{ selected_date }}">
-                            <input type="hidden" name="time_slot" value="{{ slot.time }}">
-                            <input type="number" name="patient_id" class="form-control form-control-sm mb-2" placeholder="Patient ID" min="1" required>
-                            <button class="hd-slot available w-100">
-                                <div class="hd-slot-time">{{ slot.time }}</div>
-                                <div class="hd-slot-label">Book</div>
-                            </button>
-                        </form>
-                        {% else %}
-                        <div class="hd-slot {{ slot.state|lower|replace('-', '-') }}">
-                            <div class="hd-slot-time">{{ slot.time }}</div>
-                            <div class="hd-slot-label">{{ slot.state }}</div>
-                        </div>
-                        {% endif %}
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div class="text-muted py-3">Load a doctor and date to view appointment slots.</div>
+                <span class="hd-badge booked">{{ slots|selectattr('state','equalto','Available')|list|length }} available</span>
                 {% endif %}
             </div>
-        </div>
 
-        <div class="apx-card">
-            <div class="apx-card-body">
-                <div class="apx-head">
-                    <div>
-                        <h5 class="apx-title"><i class="bi bi-list-check me-1"></i> Appointment Actions</h5>
-                        <p class="apx-sub">Manage booking exceptions doctor by doctor. Consultation completion now happens from the doctor diagnosis flow.</p>
+            {% if slots %}
+            <div class="hd-slot-grid" id="apxSlotGrid">
+                {% set ns = namespace(last_period='') %}
+                {% for slot in slots %}
+                    {% set h = slot.time[:2]|int %}
+                    {% set period = "Morning" if h < 12 else ("Afternoon" if h < 17 else "Evening") %}
+                    {% if slot.state == "Available" %}
+                    <form action="/book_appointment" method="POST" data-period="{{ period }}">
+                        <input type="hidden" name="_csrf_token"       value="{{ csrf_token() }}">
+                        <input type="hidden" name="doctor_id"         value="{{ selected_doctor }}">
+                        <input type="hidden" name="appointment_date"  value="{{ selected_date }}">
+                        <input type="hidden" name="time_slot"         value="{{ slot.time }}">
+                        <input type="number" name="patient_id" class="form-control form-control-sm mb-2"
+                               placeholder="Patient ID" min="1" required
+                               style="border-radius:8px;min-height:40px;">
+                        <button class="hd-slot available w-100" data-period="{{ period }}">
+                            <div class="hd-slot-time">{{ slot.time }}</div>
+                            <div class="hd-slot-label">Book</div>
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="hd-slot {{ slot.state|lower|replace('-','') }}" data-period="{{ period }}">
+                        <div class="hd-slot-time">{{ slot.time }}</div>
+                        <div class="hd-slot-label">{{ slot.state }}</div>
                     </div>
-                </div>
-                <div class="apx-grid">
-                    {% for group in appointment_groups %}
-                    <div class="apx-card">
-                        <div class="apx-card-body">
-                            <div class="apx-head">
-                                <div>
-                                    <h5 class="apx-title">{{ group.doctor_name }}</h5>
-                                    <p class="apx-sub">{{ group.department if group.department else "Doctor queue" }} | {{ group.appointments|length }} appointments</p>
-                                </div>
-                            </div>
-                            <div class="table-responsive">
-                                <table class="hd-table">
-                                    <thead>
-                                        <tr><th>ID</th><th>Patient</th><th>Status</th><th>Action</th></tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for a in group.appointments %}
-                                        <tr>
-                                            <td>{{ a.appointment_id }}</td>
-                                            <td>
-                                                <div>#{{ a.patient_id }}</div>
-                                                <small class="text-muted">{{ a.date }} | {{ a.time_slot }}</small>
-                                            </td>
-                                            <td><span class="hd-badge {{ a.workflow_status|lower|replace('-','') }}">{{ a.workflow_status }}</span></td>
-                                            <td>
-                                                <form action="/update_appointment" method="POST" class="hd-table-action-form">
-                                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                                                    <input type="hidden" name="appointment_id" value="{{ a.appointment_id }}">
-                                                    <input type="hidden" name="patient_id" value="{{ a.patient_id }}">
-                                                    <select class="form-select form-select-sm appointment-action-select" name="action" required>
-                                                        <option value="">Action</option>
-                                                        <option value="cancel">Cancel</option>
-                                                        <option value="noshow">No-show</option>
-                                                        <option value="reschedule">Reschedule</option>
-                                                        <option value="reassign">Reassign</option>
-                                                    </select>
-                                                    <input type="date" class="form-control form-control-sm appointment-extra appointment-extra-date" name="new_date" title="New date">
-                                                    <select class="form-select form-select-sm appointment-extra appointment-extra-time" name="new_time" title="New slot">
-                                                        <option value="">Slot</option>
-                                                        <option>08:30 AM</option><option>09:30 AM</option><option>10:30 AM</option><option>11:40 AM</option>
-                                                        <option>02:00 PM</option><option>04:00 PM</option><option>06:00 PM</option><option>08:05 PM</option>
-                                                    </select>
-                                                    <input type="number" class="form-control form-control-sm appointment-extra appointment-extra-doctor" name="new_doctor_id" placeholder="New doctor ID" min="1">
-                                                    <button class="hd-btn hd-btn-primary hd-btn-sm">Apply</button>
-                                                </form>
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                    {% if not appointment_groups %}
-                    <div class="text-muted text-center py-3">No appointments found.</div>
                     {% endif %}
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="apx-empty">
+                <i class="bi bi-calendar-x"></i>
+                Select a doctor and date above to see the slot board.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ── Appointment action groups ── #}
+    <div class="apx-card">
+        <div class="apx-body">
+            <div class="apx-head">
+                <div>
+                    <h5 class="apx-title"><i class="bi bi-list-check me-1"></i> Appointment Actions</h5>
+                    <p class="apx-sub">Cancel, mark no-show, reschedule, or reassign appointments by doctor. Reassignments require patient confirmation first.</p>
                 </div>
             </div>
+
+            {% if appointment_groups %}
+            {% for group in appointment_groups %}
+            <div class="apx-group-head">
+                <h6>{{ group.doctor_name }}</h6>
+                <small>{{ group.department or "—" }} &middot; {{ group.appointments|length }} appointments</small>
+            </div>
+            <div class="apx-table-wrap" style="margin-bottom:20px;">
+                <table class="hd-table">
+                    <thead>
+                        <tr><th>ID</th><th>Patient</th><th>Date / Slot</th><th>Status</th><th>Action</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for a in group.appointments %}
+                        <tr>
+                            <td><strong>#{{ a.appointment_id }}</strong></td>
+                            <td>#{{ a.patient_id }}</td>
+                            <td><div>{{ a.date }}</div><small class="text-muted">{{ a.time_slot }}</small></td>
+                            <td>
+                                <span class="hd-badge {{ a.workflow_status|lower|replace('-','') }}">{{ a.workflow_status }}</span>
+                                {% if a.requires_reassign_confirmation %}
+                                <small class="apx-status-note">{{ a.reassign_context_label }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form action="/update_appointment" method="POST" class="apx-action-form"
+                                      data-appointment-id="{{ a.appointment_id }}"
+                                      data-original-doctor-id="{{ a.doctor_id }}"
+                                      data-reassign-department="{{ a.reassign_department }}"
+                                      data-original-date="{{ a.date }}"
+                                      data-original-time="{{ a.time_slot }}"
+                                      data-reassign-context="{{ a.reassign_context_label }}">
+                                    <input type="hidden" name="_csrf_token"     value="{{ csrf_token() }}">
+                                    <input type="hidden" name="appointment_id" value="{{ a.appointment_id }}">
+                                    <input type="hidden" name="patient_id"     value="{{ a.patient_id }}">
+                                    <select class="form-select apx-action-sel" name="action" required style="min-width:130px;">
+                                        <option value="">Action…</option>
+                                        <option value="cancel">Cancel</option>
+                                        <option value="noshow">No-show</option>
+                                        <option value="reschedule">Reschedule</option>
+                                        <option value="reassign">Reassign</option>
+                                    </select>
+                                    <input type="date"   class="form-control apx-extra apx-extra-date" name="new_date"      title="New date" style="display:none;">
+                                    <select             class="form-select apx-extra apx-extra-time"   name="new_time"      title="New slot" style="display:none;">
+                                        <option value="">Slot</option>
+                                        <option>08:30 AM</option><option>09:30 AM</option><option>10:30 AM</option><option>11:40 AM</option>
+                                        <option>02:00 PM</option><option>04:00 PM</option><option>06:00 PM</option><option>08:05 PM</option>
+                                    </select>
+                                    <select class="form-select apx-extra apx-extra-doctor" name="new_doctor_id" style="display:none;min-width:220px;">
+                                        <option value="">Replacement doctor</option>
+                                    </select>
+                                    <div class="apx-inline-note apx-extra apx-reassign-help" style="display:none;"></div>
+                                    <label class="apx-confirm-wrap apx-extra apx-reassign-confirm" style="display:none;">
+                                        <input type="checkbox" name="patient_confirmed" value="yes">
+                                        Patient has agreed to this reassignment
+                                    </label>
+                                    <input type="text" class="form-control apx-extra apx-reassign-note" name="confirmation_note"
+                                           placeholder="Confirmation note: phone call, time, and who confirmed"
+                                           style="display:none;min-width:280px;">
+                                    <button class="hd-btn hd-btn-primary hd-btn-sm">Apply</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="apx-empty">
+                <i class="bi bi-calendar-check"></i>
+                No appointments found. Book one using the slot board above.
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
 
+<script id="apxDoctorsJson" type="application/json">{{ doctors|tojson }}</script>
+<script>
+/* Inject period labels into slot grid */
+(function() {
+    var departmentSelect = document.getElementById("apxDepartmentSelect");
+    var doctorSelect = document.getElementById("apxDoctorSelect");
+    var doctorSource = document.getElementById("apxDoctorsJson");
+
+    if (departmentSelect && doctorSelect && doctorSource) {
+        try {
+            var doctors = JSON.parse(doctorSource.textContent || "[]");
+            var rebuildDoctorOptions = function(preferredDoctorId) {
+                var department = departmentSelect.value;
+                var selectedDoctorId = String(
+                    preferredDoctorId !== undefined && preferredDoctorId !== null
+                        ? preferredDoctorId
+                        : doctorSelect.value
+                );
+                var matchingDoctors = doctors.filter(function(doctor) {
+                    return !department || doctor.department === department;
+                });
+
+                doctorSelect.innerHTML = "";
+
+                var placeholder = document.createElement("option");
+                placeholder.value = "";
+                placeholder.textContent = "Select doctor";
+                doctorSelect.appendChild(placeholder);
+
+                matchingDoctors.forEach(function(doctor) {
+                    var option = document.createElement("option");
+                    option.value = String(doctor.id);
+                    option.textContent = "Dr " + doctor.name + " (" + doctor.department + ")";
+                    if (String(doctor.id) === selectedDoctorId) {
+                        option.selected = true;
+                    }
+                    doctorSelect.appendChild(option);
+                });
+
+                var hasSelectedDoctor = matchingDoctors.some(function(doctor) {
+                    return String(doctor.id) === selectedDoctorId;
+                });
+                doctorSelect.value = hasSelectedDoctor ? selectedDoctorId : "";
+            };
+
+            rebuildDoctorOptions(doctorSelect.dataset.selectedDoctor || doctorSelect.value);
+            departmentSelect.addEventListener("change", function() {
+                rebuildDoctorOptions("");
+            });
+        } catch (error) {
+            console.warn("Could not load appointment doctor filters.", error);
+        }
+    }
+
+    var grid = document.getElementById("apxSlotGrid");
+    if (grid) {
+        var seen = {}, icons = { Morning:"bi-sunrise", Afternoon:"bi-sun", Evening:"bi-moon-stars" };
+        Array.from(grid.children).forEach(function(el) {
+            var p = el.dataset.period || (el.firstElementChild && el.firstElementChild.dataset.period);
+            if (!p || seen[p]) return;
+            seen[p] = true;
+            var lbl = document.createElement("div");
+            lbl.style.cssText = "grid-column:1/-1;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--hd-text-muted);display:flex;align-items:center;gap:8px;margin-top:4px;";
+            lbl.innerHTML = '<i class="bi '+(icons[p]||"bi-clock")+'"></i>'+p+'<span style="flex:1;height:1px;background:var(--hd-border);display:inline-block;margin-left:4px;"></span>';
+            grid.insertBefore(lbl, el);
+        });
+    }
+    /* Show/hide extra fields based on action */
+    document.querySelectorAll(".apx-action-sel").forEach(function(sel) {
+        var form = sel.closest("form");
+        var timeSelect = form.querySelector(".apx-extra-time");
+        var defaultTimeOptions = timeSelect ? timeSelect.innerHTML : "";
+        form.dataset.defaultTimeOptions = defaultTimeOptions;
+
+        function resetTimeOptions() {
+            if (!timeSelect) return;
+            timeSelect.innerHTML = form.dataset.defaultTimeOptions || '<option value="">Slot</option>';
+        }
+
+        function populateReplacementSlots() {
+            var doctorSelect = form.querySelector(".apx-extra-doctor");
+            if (!doctorSelect || !timeSelect) return;
+            var candidates = form._reassignCandidates || [];
+            var selectedDoctor = doctorSelect.value;
+            var selectedCandidate = candidates.find(function(candidate) {
+                return String(candidate.id) === String(selectedDoctor);
+            });
+            timeSelect.innerHTML = '<option value="">Select replacement slot</option>';
+            (selectedCandidate ? selectedCandidate.available_slots : []).forEach(function(slot) {
+                var option = document.createElement("option");
+                option.value = slot;
+                option.textContent = slot;
+                timeSelect.appendChild(option);
+            });
+        }
+
+        function loadReassignmentOptions(preferredDoctorId) {
+            var reassignDate = form.querySelector(".apx-extra-date");
+            var doctorSelect = form.querySelector(".apx-extra-doctor");
+            var helpNote = form.querySelector(".apx-reassign-help");
+            if (!reassignDate || !doctorSelect || !helpNote || !reassignDate.value) return;
+
+            helpNote.textContent = "Loading replacement doctors and open slots...";
+            fetch(
+                "/appointment_reassign_options?appointment_id=" + encodeURIComponent(form.dataset.appointmentId || "") +
+                "&department=" + encodeURIComponent(form.dataset.reassignDepartment || "") +
+                "&date=" + encodeURIComponent(reassignDate.value) +
+                "&exclude_doctor_id=" + encodeURIComponent(form.dataset.originalDoctorId || ""),
+                { headers: { "X-Requested-With": "XMLHttpRequest" } }
+            )
+            .then(function(response) {
+                if (!response.ok) throw new Error("Could not load reassignment options");
+                return response.json();
+            })
+            .then(function(payload) {
+                var candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+                form._reassignCandidates = candidates;
+                doctorSelect.innerHTML = '<option value="">Replacement doctor</option>';
+
+                candidates.forEach(function(candidate) {
+                    var option = document.createElement("option");
+                    option.value = String(candidate.id);
+                    option.textContent = "Dr " + candidate.name + " - " + candidate.available_slots.length + " open slot" + (candidate.available_slots.length === 1 ? "" : "s");
+                    if (String(candidate.id) === String(preferredDoctorId)) {
+                        option.selected = true;
+                    }
+                    doctorSelect.appendChild(option);
+                });
+
+                if (!doctorSelect.value && candidates.length) {
+                    doctorSelect.value = String(candidates[0].id);
+                }
+
+                populateReplacementSlots();
+                if (candidates.length) {
+                    helpNote.textContent = (form.dataset.reassignContext || "Manual reassignment") + ". Confirm with the patient first, then choose the replacement doctor and slot.";
+                } else {
+                    helpNote.textContent = "No same-department doctors currently have open slots on this date. Choose another date after patient confirmation.";
+                }
+            })
+            .catch(function() {
+                form._reassignCandidates = [];
+                doctorSelect.innerHTML = '<option value="">Replacement doctor</option>';
+                timeSelect.innerHTML = '<option value="">Select replacement slot</option>';
+                helpNote.textContent = "Could not load reassignment options right now.";
+            });
+        }
+
+        if (timeSelect) {
+            timeSelect.addEventListener("focus", function() {
+                if (sel.value === "reschedule") {
+                    resetTimeOptions();
+                }
+            });
+        }
+
+        var doctorSelect = form.querySelector(".apx-extra-doctor");
+        if (doctorSelect) {
+            doctorSelect.addEventListener("change", populateReplacementSlots);
+        }
+
+        var reassignDate = form.querySelector(".apx-extra-date");
+        if (reassignDate) {
+            reassignDate.addEventListener("change", function() {
+                if (sel.value === "reassign") {
+                    loadReassignmentOptions("");
+                }
+            });
+        }
+
+        sel.addEventListener("change", function() {
+            form.querySelectorAll(".apx-extra").forEach(function(f) { f.style.display = "none"; f.required = false; });
+            var confirmCheckbox = form.querySelector(".apx-reassign-confirm input");
+            if (confirmCheckbox) {
+                confirmCheckbox.required = false;
+            }
+            var noteInput = form.querySelector(".apx-reassign-note");
+            if (noteInput) {
+                noteInput.required = false;
+            }
+            var v = sel.value;
+            if (v === "reschedule") {
+                resetTimeOptions();
+                form.querySelector(".apx-extra-date").style.display = ""; form.querySelector(".apx-extra-date").required = true;
+                form.querySelector(".apx-extra-time").style.display = ""; form.querySelector(".apx-extra-time").required = true;
+            } else if (v === "reassign") {
+                var dateInput = form.querySelector(".apx-extra-date");
+                dateInput.style.display = ""; dateInput.required = true;
+                dateInput.value = dateInput.value || form.dataset.originalDate || "";
+                form.querySelector(".apx-extra-doctor").style.display = ""; form.querySelector(".apx-extra-doctor").required = true;
+                form.querySelector(".apx-extra-time").style.display = ""; form.querySelector(".apx-extra-time").required = true;
+                form.querySelector(".apx-reassign-help").style.display = "";
+                form.querySelector(".apx-reassign-confirm").style.display = ""; form.querySelector(".apx-reassign-confirm input").required = true;
+                form.querySelector(".apx-reassign-note").style.display = ""; form.querySelector(".apx-reassign-note").required = true;
+                loadReassignmentOptions("");
+            }
+        });
+    });
+})();
+</script>
 {% endblock %}

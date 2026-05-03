@@ -123,7 +123,23 @@ int saveAppointments(struct Appointment *list, int count) {
     return 1;
 }
 
-int doctorIsBlocked(int doctor_id) {
+int isTodayDate(const char *date) {
+    int y, m, d;
+    time_t now;
+    struct tm *today;
+
+    if (sscanf(date, "%4d-%2d-%2d", &y, &m, &d) != 3) return 0;
+
+    now = time(NULL);
+    today = localtime(&now);
+    if (today == NULL) return 0;
+
+    return y == today->tm_year + 1900 &&
+           m == today->tm_mon + 1 &&
+           d == today->tm_mday;
+}
+
+int doctorIsBlocked(int doctor_id, const char *date) {
     FILE *fp = fopen(DOCTOR_FILE, "r");
     char line[MAX_LINE];
 
@@ -157,6 +173,7 @@ int doctorIsBlocked(int doctor_id) {
 
         fclose(fp);
 
+        if (!isTodayDate(date)) return 0;
         if (strcmp(daily, "Unavailable") == 0 || strcmp(daily, "Off") == 0) return 1;
         if (strcmp(current, "Emergency") == 0) return 1;
         return 0;
@@ -170,7 +187,7 @@ const char* getSlotState(int doctor_id, const char *date, const char *time_slot,
     int i;
     const char *state = "Available";
 
-    if (doctorIsBlocked(doctor_id)) return "Blocked";
+    if (doctorIsBlocked(doctor_id, date)) return "Blocked";
 
     for (i = 0; i < count; i++) {
         if (list[i].doctor_id == doctor_id &&

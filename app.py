@@ -29,6 +29,7 @@ QUEUE_FILE = os.path.join(DATA_DIR, "queue.txt")
 DIAGNOSIS_FILE = os.path.join(DATA_DIR, "diagnosis.txt")
 PENDING_APPOINTMENTS_FILE = os.path.join(DATA_DIR, "pending_appointments.txt")
 NEW_PATIENT_REQUESTS_FILE = os.path.join(DATA_DIR, "new_patient_requests.txt")
+DOCTOR_STATUS_META_FILE = os.path.join(DATA_DIR, "doctor_status_meta.json")
 BILLING_EXE = os.path.join(BACKEND_DIR, "c_modules", "billing.exe")
 PENDING_REQUEST_EXE = os.path.join(BACKEND_DIR, "c_modules", "pending_request.exe")
 _appointment_lock = threading.Lock()
@@ -849,6 +850,15 @@ def load_appointment_slots(doctor_id, selected_date):
         if len(data) == 3 and data[0] == "SLOT":
             slots.append({"time": data[1], "state": data[2]})
 
+    if doctor_is_blocked_for_date(doctor_id, selected_date):
+        return [
+            {
+                "time": slot["time"],
+                "state": "Blocked" if slot["state"] == "Available" else slot["state"]
+            }
+            for slot in slots
+        ]
+
     return slots
 
 
@@ -1133,6 +1143,42 @@ def get_suggested_doctors(selected_department, selected_doctor, selected_date):
 
     return suggested_doctors
 
+
+def doctor_available_slots_for_date(doctor_id, selected_date):
+    return [
+        slot["time"]
+        for slot in load_appointment_slots(doctor_id, selected_date)
+        if slot["state"] == "Available" and not pending_slot_exists(doctor_id, selected_date, slot["time"])
+    ]
+
+
+def get_reassignment_candidates(department, selected_date, excluded_doctor_id=None):
+    candidates = []
+    if not department or not selected_date:
+        return candidates
+
+    for doctor in get_doctors():
+        if department and doctor["department"] != department:
+            continue
+        if excluded_doctor_id is not None and int(doctor["id"]) == int(excluded_doctor_id):
+            continue
+
+        available_slots = doctor_available_slots_for_date(doctor["id"], selected_date)
+        if not available_slots:
+            continue
+
+        candidates.append({
+            "id": doctor["id"],
+            "name": doctor["name"],
+            "department": doctor["department"],
+            "daily_status": doctor["daily_status"],
+            "current_status_label": doctor["current_status_label"],
+            "available_slots": available_slots
+        })
+
+    candidates.sort(key=lambda item: (item["name"], item["id"]))
+    return candidates
+
 def add_patient_to_queue(patient_id, doctor_id=None):
     queue_exe_path = os.path.join(BACKEND_DIR, "c_modules", "queue.exe")
     command = [queue_exe_path, str(patient_id)]
@@ -1247,7 +1293,10 @@ def verify_csrf_token():
 
 @app.before_request
 def sync_doctor_statuses_before_request():
-    public_endpoints = {"login", "patient_login", "patient_request_otp", "patient_verify_otp", "new_patient_request", "new_patient_slots", "new_patient_submit", "payment_webhook", "static"}
+    if request.endpoint == "static":
+        return
+    expire_doctor_status_overrides()
+    public_endpoints = {"login", "patient_login", "patient_request_otp", "patient_verify_otp", "new_patient_request", "new_patient_slots", "new_patient_submit", "payment_webhook"}
     if request.endpoint in public_endpoints or not is_authenticated():
         return
     sync_doctor_busy_statuses()
@@ -1295,6 +1344,165 @@ def write_doctor_file(doctors):
                 f"{clean_record_field(doctor['department'])}|{int(doctor['experience'])}|"
                 f"{clean_record_field(doctor['daily_status'])}|{clean_record_field(doctor['current_status'])}\n"
             )
+
+
+def load_doctor_status_meta():
+    try:
+        with open(DOCTOR_STATUS_META_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def save_doctor_status_meta(meta):
+    os.makedirs(os.path.dirname(DOCTOR_STATUS_META_FILE), exist_ok=True)
+    with open(DOCTOR_STATUS_META_FILE, "w", encoding="utf-8") as f:
+        json.dump(meta, f, indent=2, sort_keys=True)
+
+
+def normalize_doctor_statuses(daily_status, current_status):
+    daily = str(daily_status or "").strip() or "Available"
+    current = str(current_status or "").strip()
+
+    if daily == "Off":
+        return "Off", "Off"
+    if daily == "Unavailable":
+        return "Unavailable", "Unavailable"
+    if current == "Emergency":
+        return daily, "Emergency"
+    if current == "Busy":
+        return daily, "Busy"
+    return daily, "Free"
+
+
+def doctor_current_status_view(daily_status, current_status):
+    daily, current = normalize_doctor_statuses(daily_status, current_status)
+
+    if daily == "Off":
+        return {
+            "current_status_label": "Off Duty",
+            "current_status_badge": "waived"
+        }
+    if daily == "Unavailable":
+        return {
+            "current_status_label": "Unavailable",
+            "current_status_badge": "cancelled"
+        }
+    if current == "Emergency":
+        return {
+            "current_status_label": "Emergency",
+            "current_status_badge": "cancelled"
+        }
+    if current == "Busy":
+        return {
+            "current_status_label": "Busy",
+            "current_status_badge": "pending"
+        }
+    return {
+        "current_status_label": "Free",
+        "current_status_badge": "booked"
+    }
+
+
+def doctor_status_end_date(doctor_id, meta=None):
+    meta = meta or load_doctor_status_meta()
+    key = str(safe_int(doctor_id))
+    expires_on = str((meta.get(key) or {}).get("expires_on", "")).strip()
+    return expires_on if parse_iso_date(expires_on) else ""
+
+
+def doctor_is_blocked_for_date(doctor_id, selected_date, doctor=None, meta=None):
+    selected = parse_iso_date(selected_date)
+    if not selected:
+        return False
+
+    doctor = doctor or get_doctor_by_id(doctor_id) or {}
+    daily_status, current_status = normalize_doctor_statuses(
+        doctor.get("daily_status", "Available"),
+        doctor.get("current_status", "Free")
+    )
+    if daily_status not in {"Unavailable", "Off"} and current_status != "Emergency":
+        return False
+
+    expires_on = doctor_status_end_date(doctor_id, meta=meta)
+    if expires_on:
+        expiry = parse_iso_date(expires_on)
+        return bool(expiry and selected <= expiry)
+
+    return selected == date.today()
+
+
+def update_doctor_status_meta(doctor_id, daily_status, current_status, expires_on=None):
+    meta = load_doctor_status_meta()
+    key = str(safe_int(doctor_id))
+
+    if daily_status in {"Unavailable", "Off"} or current_status == "Emergency":
+        effective_expiry = expires_on if parse_iso_date(expires_on) else date.today().isoformat()
+        meta[key] = {
+            "expires_on": effective_expiry,
+            "daily_status": daily_status,
+            "current_status": current_status,
+            "updated_at": datetime.now().isoformat(timespec="seconds")
+        }
+    else:
+        meta.pop(key, None)
+
+    save_doctor_status_meta(meta)
+
+
+def expire_doctor_status_overrides():
+    meta = load_doctor_status_meta()
+    if not meta:
+        return False
+
+    today_str = date.today().isoformat()
+    expired_ids = [
+        safe_int(doctor_id)
+        for doctor_id, info in meta.items()
+        if str((info or {}).get("expires_on", "")) < today_str
+    ]
+    if not expired_ids:
+        return False
+
+    doctors = []
+    doctor_file = os.path.join(BACKEND_DIR, "data", "doctors.txt")
+    try:
+        with open(doctor_file, "r", encoding="utf-8") as f:
+            for line in f:
+                data = line.strip().split("|")
+                if len(data) < 6:
+                    continue
+                try:
+                    doctors.append({
+                        "id": int(data[0]),
+                        "name": data[1],
+                        "department": data[2],
+                        "experience": int(data[3]),
+                        "daily_status": data[4],
+                        "current_status": data[5]
+                    })
+                except ValueError:
+                    continue
+    except FileNotFoundError:
+        return False
+
+    changed = False
+    for doctor in doctors:
+        if doctor["id"] not in expired_ids:
+            continue
+        doctor["daily_status"] = "Available"
+        doctor["current_status"] = "Free"
+        changed = True
+
+    if not changed:
+        return False
+
+    write_doctor_file(doctors)
+    for doctor_id in expired_ids:
+        meta.pop(str(doctor_id), None)
+    save_doctor_status_meta(meta)
+    return True
 
 def process_queue(queue):
 
@@ -1395,8 +1603,7 @@ def count_available_doctors():
     return count
 
 def doctor_availability_view(daily_status, current_status):
-    daily = str(daily_status or "").strip()
-    current = str(current_status or "").strip()
+    daily, current = normalize_doctor_statuses(daily_status, current_status)
 
     if daily == "Off":
         return {
@@ -1426,6 +1633,7 @@ def doctor_availability_view(daily_status, current_status):
 
 def get_doctors():
     doctors = []
+    meta = load_doctor_status_meta()
     try:
         doctor_file = os.path.join(BACKEND_DIR, "data", "doctors.txt")
         with open(doctor_file, "r", encoding="utf-8") as f:
@@ -1433,15 +1641,22 @@ def get_doctors():
                 data = line.strip().split("|")
                 if len(data) < 6:
                     continue
-                availability = doctor_availability_view(data[4], data[5])
+                daily_status, current_status = normalize_doctor_statuses(data[4], data[5])
+                availability = doctor_availability_view(daily_status, current_status)
+                current_view = doctor_current_status_view(daily_status, current_status)
+                status_until = doctor_status_end_date(data[0], meta=meta)
                 doctors.append({
                     "id": int(data[0]),
                     "name": data[1],
                     "department": data[2],
                     "experience": int(data[3]),
-                    "daily_status": data[4],
-                    "current_status": data[5],
-                    **availability
+                    "daily_status": daily_status,
+                    "current_status": current_status,
+                    "show_live_status": daily_status == "Available",
+                    "status_until": status_until,
+                    "status_until_label": format_human_date(status_until) if status_until else "",
+                    **availability,
+                    **current_view
                 })
     except:
         pass
@@ -1680,6 +1895,76 @@ def doctor_can_access_patient(patient_id, doctor_id):
         item["patient_id"] == patient_id and item["doctor_id"] == doctor_id
         for item in read_queue()
     )
+
+
+def get_doctor_patient_options(doctor_id):
+    doctor_id = safe_int(doctor_id)
+    if doctor_id <= 0:
+        return []
+
+    patients_by_id = {patient["id"]: patient for patient in read_patients()}
+    doctor_appointments = [
+        appointment for appointment in read_appointments()
+        if appointment["doctor_id"] == doctor_id
+    ]
+    queue_by_patient = {
+        item["patient_id"]: item
+        for item in read_assigned_queue_patients(doctor_id)
+    }
+
+    patient_ids = {appointment["patient_id"] for appointment in doctor_appointments}
+    patient_ids.update(queue_by_patient.keys())
+
+    options = []
+    for patient_id in patient_ids:
+        patient = patients_by_id.get(patient_id)
+        if not patient:
+            continue
+
+        patient_appointments = [
+            appointment for appointment in doctor_appointments
+            if appointment["patient_id"] == patient_id
+        ]
+        patient_appointments.sort(key=parse_appointment_datetime, reverse=True)
+        latest_appointment = patient_appointments[0] if patient_appointments else None
+        active_appointment = next(
+            (
+                appointment for appointment in patient_appointments
+                if appointment["status"] in {"Booked", "No-show"}
+            ),
+            None
+        )
+        queue_item = queue_by_patient.get(patient_id)
+        navigation_appointment = active_appointment or latest_appointment
+
+        options.append({
+            "id": patient["id"],
+            "name": patient["name"],
+            "phone": patient["phone"],
+            "department": patient["department"],
+            "priority": patient["priority"],
+            "symptoms": patient["symptoms"],
+            "latest_status": "Waiting" if queue_item else (latest_appointment["status"] if latest_appointment else ""),
+            "latest_date": (navigation_appointment or {}).get("date", ""),
+            "appointment_id": (navigation_appointment or {}).get("appointment_id", 0),
+            "is_waiting": bool(queue_item),
+            "has_active_consultation": bool(active_appointment or queue_item),
+            "sort_timestamp": parse_appointment_datetime(navigation_appointment) if navigation_appointment else datetime.min
+        })
+
+    options.sort(
+        key=lambda item: (
+            not item["is_waiting"],
+            not item["has_active_consultation"],
+            -item["sort_timestamp"].timestamp() if item["sort_timestamp"] != datetime.min else float("inf"),
+            item["name"].lower()
+        )
+    )
+
+    for item in options:
+        item.pop("sort_timestamp", None)
+
+    return options
 
 
 def get_doctor_by_id(doctor_id):
@@ -3314,6 +3599,19 @@ def doctor_dashboard():
     billing_doctor_id = request.args.get("doctor_id", str(doctor_id))
     billing_bill_id = request.args.get("bill_id", "")
     status_note = request.args.get("status_note", "")
+    dashboard_context = build_doctor_dashboard_context(doctor_id)
+    return render_template(
+        "doctor_dashboard.html",
+        billing_patient_id=billing_patient_id,
+        billing_doctor_id=billing_doctor_id,
+        billing_bill_id=billing_bill_id,
+        status_note=status_note,
+        today_iso=date.today().isoformat(),
+        **dashboard_context
+    )
+
+
+def build_doctor_dashboard_context(doctor_id):
     expire_stale_consultations()
     reconcile_waiting_queue_entries()
     appointments = [
@@ -3325,34 +3623,54 @@ def doctor_dashboard():
     live_queue_patients = queue_patients
 
     doctor_info = next((d for d in get_doctors() if d["id"] == doctor_id), None)
+    return {
+        "appointments": appointments,
+        "queue_patients": queue_patients,
+        "live_queue_patients": live_queue_patients,
+        "doctor_info": doctor_info,
+    }
+
+
+@app.route("/doctor/dashboard-panels")
+@require_role("Doctor")
+def doctor_dashboard_panels():
+    doctor_id = int(session.get("doctor_id", "0") or 0)
     return render_template(
-        "doctor_dashboard.html",
-        appointments=appointments,
-        queue_patients=queue_patients,
-        live_queue_patients=live_queue_patients,
-        doctor_info=doctor_info,
-        billing_patient_id=billing_patient_id,
-        billing_doctor_id=billing_doctor_id,
-        billing_bill_id=billing_bill_id,
-        status_note=status_note
+        "_doctor_dashboard_panels.html",
+        **build_doctor_dashboard_context(doctor_id)
     )
 
 @app.route("/queue")
 @require_role("Receptionist")
 def queue_page():
+    queue_context = build_queue_page_context()
+    return render_template(
+        "queue.html",
+        status_note=request.args.get("status_note", ""),
+        **queue_context
+    )
 
+
+def build_queue_page_context():
     expire_stale_consultations()
     queue = reconcile_waiting_queue_entries()
     queue, next_patient, waiting_count, completed_count = process_queue(queue)
     queue_groups = build_reception_queue_groups(queue)
+    return {
+        "queue": queue,
+        "queue_groups": queue_groups,
+        "next_patient": next_patient,
+        "waiting_count": waiting_count,
+        "completed_count": completed_count,
+    }
+
+
+@app.route("/queue/panels")
+@require_role("Receptionist")
+def queue_panels():
     return render_template(
-        "queue.html",
-        queue=queue,
-        queue_groups=queue_groups,
-        next_patient=next_patient,
-        waiting_count=waiting_count,
-        completed_count=completed_count,
-        status_note=request.args.get("status_note", "")
+        "_queue_panels.html",
+        **build_queue_page_context()
     )
 
 @app.route("/appointments")
@@ -3387,6 +3705,20 @@ def appointments_page():
 
     suggested_doctors = get_suggested_doctors(selected_department, selected_doctor, selected_date)
     enriched_appointments = [enrich_appointment_workflow_status(a) for a in appointments]
+    doctor_map = {doctor["id"]: doctor for doctor in doctors}
+    patient_map = {patient["id"]: patient for patient in read_patients()}
+    for appointment in enriched_appointments:
+        doctor = doctor_map.get(appointment["doctor_id"], {})
+        patient = patient_map.get(appointment["patient_id"], {})
+        reassign_department = doctor.get("department") or patient.get("department", "")
+        unavailable_reason = doctor.get("daily_status") in {"Unavailable", "Off"} or doctor.get("current_status") == "Emergency"
+        appointment["reassign_department"] = reassign_department
+        appointment["requires_reassign_confirmation"] = unavailable_reason
+        appointment["reassign_context_label"] = (
+            "Doctor unavailable for this appointment"
+            if unavailable_reason
+            else "Manual reassignment"
+        )
     appointment_groups = build_appointment_action_groups(enriched_appointments, doctors)
 
     return render_template(
@@ -3403,6 +3735,35 @@ def appointments_page():
         date_slot_overview=date_slot_overview,
         status_note=status_note
     )
+
+
+@app.route("/appointment_reassign_options")
+@require_role("Receptionist")
+def appointment_reassign_options():
+    department = request.args.get("department", "").strip()
+    selected_date = request.args.get("date", "").strip()
+    excluded_doctor_id = safe_int(request.args.get("exclude_doctor_id", "0")) or None
+    appointment_id = safe_int(request.args.get("appointment_id", "0"))
+
+    if appointment_id:
+        appointment = find_appointment_by_id(appointment_id)
+        if appointment and not department:
+            doctor = get_doctor_by_id(appointment["doctor_id"]) or {}
+            department = doctor.get("department", "")
+        if appointment and not selected_date:
+            selected_date = appointment["date"]
+
+    parsed_date = parse_iso_date(selected_date)
+    if not department or not parsed_date or parsed_date < date.today():
+        return jsonify({"candidates": []})
+
+    return jsonify({
+        "candidates": get_reassignment_candidates(
+            department,
+            selected_date,
+            excluded_doctor_id=excluded_doctor_id
+        )
+    })
 
 @app.route("/book_appointment", methods=["POST"])
 @require_role("Receptionist")
@@ -3537,21 +3898,75 @@ def update_appointment():
         if result.returncode == 0:
             update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "No-show")
     elif action == "reassign":
-        new_doctor_id = request.form["new_doctor_id"]
-        new_date = request.form["new_date"]
-        new_time = request.form["new_time"]
-        patient_id = request.form["patient_id"]
+        if session.get("role") != "Receptionist":
+            return redirect("/appointments?status_note=Only reception can reassign appointments")
+        new_doctor_id = safe_int(request.form.get("new_doctor_id", "0"))
+        new_date = request.form.get("new_date", "").strip()
+        new_time = request.form.get("new_time", "").strip()
+        patient_id = appointment["patient_id"]
+        patient_confirmed = request.form.get("patient_confirmed", "").strip().lower() in {"on", "true", "yes", "1"}
+        confirmation_note = clean_record_field(request.form.get("confirmation_note", ""), 220)
         if not new_doctor_id or not new_date or not new_time:
             return redirect("/appointments?status_note=Doctor, date and slot are required for reassignment")
+        if not patient_confirmed:
+            return redirect("/appointments?status_note=Record patient confirmation before reassigning the appointment")
+        if not confirmation_note:
+            return redirect("/appointments?status_note=Add a short confirmation note before reassigning the appointment")
         parsed_new_date = parse_iso_date(new_date)
         if not parsed_new_date or parsed_new_date < date.today():
             return redirect("/appointments?status_note=Cannot reassign to a past date")
-        cancel_result = run_appointment_command("cancel", appointment_id)
+        if (
+            appointment["doctor_id"] == new_doctor_id
+            and appointment["date"] == new_date
+            and appointment["time_slot"] == new_time
+        ):
+            return redirect("/appointments?status_note=Choose a different doctor, date, or slot for reassignment")
+        if not get_doctor_by_id(new_doctor_id):
+            return redirect("/appointments?status_note=The selected replacement doctor was not found")
+        if pending_slot_exists(new_doctor_id, new_date, new_time) or not slot_is_available(new_doctor_id, new_date, new_time):
+            return redirect("/appointments?status_note=The selected replacement slot is no longer available")
+
+        patient = find_patient_by_id(patient_id)
+        old_doctor = get_doctor_by_id(appointment["doctor_id"]) or {}
+        new_doctor = get_doctor_by_id(new_doctor_id) or {}
+        old_doctor_name = old_doctor.get("name", f"Doctor #{appointment['doctor_id']}")
+        new_doctor_name = new_doctor.get("name", f"Doctor #{new_doctor_id}")
+        old_doctor_unavailable = old_doctor.get("daily_status") in {"Unavailable", "Off"} or old_doctor.get("current_status") == "Emergency"
+
         book_result = run_appointment_command("book", patient_id, new_doctor_id, new_date, new_time)
+        new_appointment_id = parse_booked_appointment_id(book_result)
+        if not new_appointment_id:
+            return redirect("/appointments?status_note=Could not book the replacement slot. Please choose another one.")
+
+        cancel_result = run_appointment_command("cancel", appointment_id)
+        if cancel_result.returncode != 0:
+            run_appointment_command("cancel", new_appointment_id)
+            return redirect("/appointments?status_note=Could not complete reassignment because the original appointment could not be cancelled.")
+
         if cancel_result.returncode == 0:
             update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "Cancelled")
-        if book_result.returncode == 0 and parse_iso_date(new_date) == date.today():
+        if parse_iso_date(new_date) == date.today():
             add_patient_to_queue(patient_id, doctor_id=new_doctor_id)
+
+        sms_sent = False
+        if patient:
+            if old_doctor_unavailable:
+                message = (
+                    f"Your appointment with {old_doctor_name} was changed because the doctor is unavailable. "
+                    f"New appointment: {new_doctor_name} on {format_human_date(new_date)} at {new_time}. "
+                    f"Please contact reception if needed."
+                )
+            else:
+                message = (
+                    f"Your appointment was updated to {new_doctor_name} on {format_human_date(new_date)} at {new_time}. "
+                    f"Please contact reception if needed."
+                )
+            sms_sent = send_sms_notice(patient.get("phone", ""), message)
+
+        sms_note = " Patient notified by SMS." if sms_sent else " Reassignment saved, but patient SMS could not be delivered."
+        return redirect(
+            f"/appointments?status_note=Appointment reassigned after patient confirmation ({confirmation_note}).{sms_note}"
+        )
 
     if session.get("role") == "Doctor":
         return redirect("/doctor")
@@ -3576,7 +3991,8 @@ def doctors_page():
         "doctors.html",
         doctors=doctors,
         created_account=created_account,
-        status_note=status_note
+        status_note=status_note,
+        today_iso=date.today().isoformat()
     )
 
 
@@ -3629,33 +4045,55 @@ def toggle_doctor():
 @require_role("Receptionist")
 def doctor_status():
     doctor_id = request.form["doctor_id"]
-    daily_status = request.form["daily_status"]
-    current_status = request.form["current_status"]
+    daily_status, current_status = normalize_doctor_statuses(
+        request.form["daily_status"],
+        request.form["current_status"]
+    )
+    status_until = request.form.get("status_until", "").strip()
+    if daily_status in {"Unavailable", "Off"}:
+        parsed_until = parse_iso_date(status_until) or date.today()
+        if parsed_until < date.today():
+            return redirect(url_for("doctors_page", status_note="Choose a valid end date for the unavailable period."))
+        status_until = parsed_until.isoformat()
+    else:
+        status_until = date.today().isoformat()
 
     exe_path = os.path.join(BACKEND_DIR, "c_modules", "doctor.exe")
     subprocess.run([exe_path, "status", doctor_id, daily_status, current_status], cwd=BASE_DIR)
-    should_reassign = daily_status in {"Unavailable", "Off"} or current_status == "Emergency"
-    if should_reassign:
-        reassigned = auto_reassign_unavailable_doctor_appointments(int(doctor_id))
-        if reassigned:
-            return redirect(url_for("appointments_page", status_note=f"Auto-reassigned {len(reassigned)} appointment(s)"))
-        return redirect(url_for("appointments_page", status_note="No alternative doctor available for reassignment"))
+    update_doctor_status_meta(doctor_id, daily_status, current_status, status_until)
+    if daily_status in {"Unavailable", "Off"} or current_status == "Emergency":
+        if daily_status in {"Unavailable", "Off"} and status_until > date.today().isoformat():
+            status_note = f"Status saved through {format_human_date(status_until)}. Existing patients were not reassigned automatically; please contact them and get confirmation before any change."
+        else:
+            status_note = "Status saved for today only. Existing patients were not reassigned automatically; please contact them and get confirmation before any change."
+        return redirect(url_for("doctors_page", status_note=status_note))
     return redirect("/doctors")
 
 @app.route("/doctor_my_status", methods=["POST"])
 @require_role("Doctor")
 def doctor_my_status():
     doctor_id = session.get("doctor_id", "0")
-    daily_status = request.form["daily_status"]
-    current_status = request.form["current_status"]
+    daily_status, current_status = normalize_doctor_statuses(
+        request.form["daily_status"],
+        request.form["current_status"]
+    )
+    status_until = request.form.get("status_until", "").strip()
+    if daily_status in {"Unavailable", "Off"}:
+        parsed_until = parse_iso_date(status_until) or date.today()
+        if parsed_until < date.today():
+            return redirect(url_for("doctor_dashboard", status_note="Choose a valid end date for your unavailable period."))
+        status_until = parsed_until.isoformat()
+    else:
+        status_until = date.today().isoformat()
     exe_path = os.path.join(BACKEND_DIR, "c_modules", "doctor.exe")
     subprocess.run([exe_path, "status", doctor_id, daily_status, current_status], cwd=BASE_DIR)
-    should_reassign = daily_status in {"Unavailable", "Off"} or current_status == "Emergency"
-    if should_reassign:
-        reassigned = auto_reassign_unavailable_doctor_appointments(int(doctor_id))
-        if reassigned:
-            return redirect(url_for("doctor_dashboard", status_note=f"Auto-reassigned {len(reassigned)} of your appointment(s)"))
-        return redirect(url_for("doctor_dashboard", status_note="No alternative doctor was free for your booked appointments"))
+    update_doctor_status_meta(doctor_id, daily_status, current_status, status_until)
+    if daily_status in {"Unavailable", "Off"} or current_status == "Emergency":
+        if daily_status in {"Unavailable", "Off"} and status_until > date.today().isoformat():
+            status_note = f"Status saved through {format_human_date(status_until)}. Your booked patients were not reassigned automatically; reception should confirm with them before making any change."
+        else:
+            status_note = "Status saved for today only. Your booked patients were not reassigned automatically; reception should confirm with them before making any change."
+        return redirect(url_for("doctor_dashboard", status_note=status_note))
     return redirect("/doctor")
 
 @app.route("/doctor_complete_consultation", methods=["POST"])
@@ -3681,6 +4119,7 @@ def diagnosis_page():
     patient_id = request.args.get("patient_id", "").strip()
     appointment_id = request.args.get("appointment_id", "").strip()
     doctor_id = session.get("doctor_id", "0")
+    doctor_patients = get_doctor_patient_options(doctor_id)
     if patient_id:
         if not doctor_can_access_patient(patient_id, doctor_id):
             return redirect("/doctor?status_note=Patient is not assigned to your consultation list")
@@ -3692,12 +4131,14 @@ def diagnosis_page():
             diagnosis=diagnosis,
             error_message=error_message,
             appointment_id=consultation_appointment["appointment_id"] if consultation_appointment else 0,
+            doctor_patients=doctor_patients,
             current_doctor_id=session.get("doctor_id", ""),
             today=date.today().isoformat()
         )
     return render_template(
         "diagnosis.html",
         appointment_id=0,
+        doctor_patients=doctor_patients,
         current_doctor_id=session.get("doctor_id", ""),
         today=date.today().isoformat()
     )
@@ -3709,6 +4150,7 @@ def diagnosis_history():
 
     patient_id = request.form["patient_id"]
     doctor_id = session.get("doctor_id", "0")
+    doctor_patients = get_doctor_patient_options(doctor_id)
     if not doctor_can_access_patient(patient_id, doctor_id):
         return redirect("/doctor?status_note=Patient is not assigned to your consultation list")
     consultation_appointment = resolve_consultation_appointment(patient_id, doctor_id)
@@ -3720,6 +4162,7 @@ def diagnosis_history():
         diagnosis=diagnosis,
         error_message=error_message,
         appointment_id=consultation_appointment["appointment_id"] if consultation_appointment else 0,
+        doctor_patients=doctor_patients,
         current_doctor_id=session.get("doctor_id", ""),
         today=date.today().isoformat()
     )

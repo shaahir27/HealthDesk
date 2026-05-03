@@ -237,8 +237,15 @@
             <div class="rcx-doc-strip mt-3">
                 <div class="rcx-doc-strip-item"><small>Doctor</small><strong>Dr {{ selected_doctor_info.name }}</strong></div>
                 <div class="rcx-doc-strip-item"><small>Department</small><strong>{{ selected_doctor_info.department }}</strong></div>
-                <div class="rcx-doc-strip-item"><small>Daily Status</small><span class="hd-badge {{ selected_doctor_info.daily_status|lower }}">{{ selected_doctor_info.daily_status }}</span></div>
-                <div class="rcx-doc-strip-item"><small>Current Status</small><span class="hd-badge {{ selected_doctor_info.current_status|lower }}">{{ selected_doctor_info.current_status }}</span></div>
+                <div class="rcx-doc-strip-item"><small>Duty Status</small><span class="hd-badge {{ selected_doctor_info.daily_status|lower }}">{{ selected_doctor_info.daily_status }}</span></div>
+                <div class="rcx-doc-strip-item">
+                    <small>Live Status</small>
+                    {% if selected_doctor_info.show_live_status %}
+                    <span class="hd-badge {{ selected_doctor_info.current_status_badge }}">{{ selected_doctor_info.current_status_label }}</span>
+                    {% else %}
+                    <strong>Only used while on duty</strong>
+                    {% endif %}
+                </div>
             </div>
             {% endif %}
         </div>

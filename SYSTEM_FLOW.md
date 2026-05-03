@@ -1,15 +1,20 @@
 # HealthDesk Complete System Flow
 
-This document explains the HealthDesk workflow from a user perspective. It focuses on what happens on each page and how the receptionist, doctor, queue, diagnosis, appointment, and billing flows connect.
+Last updated: May 2026
+
+This document explains the current HealthDesk workflow from a user and operations perspective. It focuses on what happens on each page, how the receptionist, doctor, patient, queue, diagnosis, appointment, and billing flows connect, and where the current guardrails live.
+
+It is intended to be detailed enough for demos, handover, and review, without becoming as large as the older version.
 
 ## Big Picture Flow
 
 ```mermaid
 flowchart LR
-    Start([Open HealthDesk]) --> Landing[Access Landing Page]
+    Start([Open HealthDesk]) --> Landing[Landing Page]
     Landing --> StaffLogin[Staff Login]
-    Landing --> PatientLogin[Patient Phone OTP Login]
+    Landing --> PatientLogin[Patient OTP Login]
     Landing --> FirstTime[First-Time Appointment Request]
+
     StaffLogin -->|Receptionist| RD[Receptionist Dashboard]
     StaffLogin -->|Doctor| DD[Doctor Dashboard]
     PatientLogin --> PD[Patient Dashboard]
@@ -28,118 +33,149 @@ flowchart LR
     Register --> Profile
     Profile --> SelectSlot[Select Doctor, Date, Slot]
     SelectSlot --> Book[Book Appointment]
-    Book -->|Today| AddQueue[Add To Queue]
-    Book -->|Future Date| Future[Future Appointment Saved]
+    Book -->|Today| AddQueue[Queue Token Created]
+    Book -->|Future| Future[Future Appointment Saved]
 
-    DD --> Assigned[Upcoming Appointments]
-    DD --> DocQueue[Live Queue Patients]
-    Assigned --> Diagnose[Open Consultation On Due Date]
-    DocQueue --> Diagnose[Open Diagnosis]
-    Diagnose --> Prescription[Diagnosis + Prescription]
-    Prescription --> Complete[Appointment + Queue Completed]
-    Complete --> BillContext[Billing Context Created]
+    DD --> FutureList[Upcoming Appointments]
+    DD --> LiveQueue[Live Queue Patients]
+    FutureList --> Diagnose[Open Consultation On Due Date]
+    LiveQueue --> Diagnose
+    Diagnose --> SaveDx[Save Diagnosis + Prescription]
+    SaveDx --> Complete[Appointment Completed]
+    Complete --> BillContext[Billing Context Ready]
     BillContext --> Billing
-    Billing --> FinalBill[Bill Preview / PDF]
-    PD --> PatientBook[Patient Booking Request]
+
+    PD --> PatientBook[Existing Patient Booking]
     PatientBook -->|Auto-approved| Book
-    PatientBook -->|Needs review| Pending[Pending Appointment Request]
+    PatientBook -->|Needs review| Pending[Pending Existing-Patient Request]
     Pending --> RD
-    PD --> PatientBills[Patient Bills / Online Payment]
-    PatientBills --> Razorpay[Razorpay Checkout + Webhook]
-    Razorpay --> FinalBill
+
+    PD --> PatientBills[Patient Bills]
+    PatientBills --> Razorpay[Razorpay Checkout]
+    Razorpay --> Webhook[Verified Webhook]
+    Webhook --> PaidBill[Bill Marked Paid]
 ```
 
 ## Demo Choreography
 
-This sequence works well when presenting the system to teammates or evaluators.
+This sequence works well when presenting the system:
 
 ```text
-Scene 1: Landing And Login
-Show that staff use username/password while patients use phone OTP.
+Scene 1: Landing and login
+Show staff login, patient OTP login, and first-time request entry.
 
-Scene 2: Receptionist Intake
-Search by phone, register a new patient if needed, then book an appointment.
+Scene 2: Receptionist intake
+Search for a patient, register one if needed, and book a same-day slot.
 
-Scene 3: Queue Movement
-Book a same-day appointment and show the queue token being created.
+Scene 3: Queue movement
+Show the queue token appearing and the patient entering the doctor queue.
 
-Scene 4: Doctor Consultation
-Log in as the doctor, complete the appointment, and open diagnosis.
+Scene 4: Doctor consultation
+Log in as the doctor, open diagnosis, and save diagnosis plus prescription.
 
-Scene 5: Diagnosis To Billing
-Save diagnosis and prescription, then show that billing becomes available.
+Scene 5: Diagnosis to billing
+Show that the consultation becomes completed and billing becomes available.
 
-Scene 6: Exception Handling
-Mark a doctor unavailable, show blocked slots, and show alternative doctors.
+Scene 6: Patient portal
+Log in as a patient, request a future slot, and show either pending review or auto-approval.
 
-Scene 7: Patient Portal
-Log in as a patient, book a request, show pending confirmation, then approve it from the receptionist dashboard.
+Scene 7: Payment
+Open a pending bill from the patient dashboard and explain order creation plus webhook confirmation.
 
-Scene 8: Online Payment
-Open a patient bill, start Razorpay checkout, and explain that the bill is marked paid only after the verified webhook.
+Scene 8: Exceptions
+Show doctor unavailability, blocked slots, and receptionist-controlled reassignment.
 ```
 
-<details>
-<summary><strong>Presentation Tip: Make It Feel Animated</strong></summary>
+## 1. Access And Login Flow
 
-When sharing this file, reveal it section by section instead of scrolling all at once:
+HealthDesk currently offers three access paths:
 
-1. Start with the big picture flow.
-2. Demonstrate the receptionist journey.
-3. Demonstrate the doctor journey.
-4. Finish with billing and data flow.
+- staff login,
+- patient OTP login,
+- first-time appointment request.
 
-This gives the walkthrough a natural "animation" effect even in plain Markdown.
+### Staff login
 
-</details>
+1. Staff opens `/login`.
+2. The user enters username and password.
+3. Python reads `Backend/data/users.txt`.
+4. The stored password is checked in Python.
+5. Receptionists are redirected to `/receptionist_dashboard`.
+6. Doctors are redirected to `/doctor`.
+7. Invalid login stays on the same page with an error.
 
-## 1. Login Flow
+Important current rules:
 
-1. User opens the HealthDesk system.
-2. The landing page offers staff login, existing patient login, and first-time appointment request.
-3. Staff enter username and password.
-4. System checks the login account in Python and verifies the stored password hash.
-5. If the user is a receptionist, the system opens the receptionist dashboard.
-6. If the user is a doctor, the system opens the doctor dashboard.
-7. Existing patients enter their registered 10-digit phone number and receive a 6-digit OTP.
-8. OTPs are stored as SHA-256 hashes, expire after 5 minutes, and are invalidated after 3 wrong attempts.
-9. If patient OTP verification succeeds, the system opens the patient dashboard.
-10. If credentials or OTP are wrong, login fails and the user remains on the correct login page.
+- unsupported roles are rejected,
+- a doctor account must be linked to a valid doctor ID,
+- login is no longer delegated to `auth.exe`.
+
+### Patient OTP login
+
+1. Patient opens `/patient/login`.
+2. Patient enters a registered 10-digit phone number.
+3. Python verifies that the phone exists in `patients.txt`.
+4. A six-digit OTP is generated and sent through the SMS service.
+5. The OTP is stored only as a hash in memory.
+6. The OTP expires after 5 minutes.
+7. Three wrong attempts invalidate the OTP.
+8. Successful verification creates a patient session and opens `/patient/dashboard`.
+
+Important rule:
+
+- this path is only for already registered patients.
 
 ## 2. Receptionist Dashboard Flow
 
-The receptionist dashboard is the starting point for reception staff.
+The receptionist dashboard is the front-desk command center.
 
-It shows:
+It provides:
 
-- Pending patient portal requests, when any exist
-- Waiting patient count
-- Completed patient count
-- Booked appointment count
-- Cancelled appointment count
-- Available doctor count
+- pending existing-patient booking requests,
+- pending first-time requests,
+- queue summary counts,
+- appointment counts,
+- doctor availability summary,
+- quick links into the main operational pages.
 
-From here, the receptionist can go to:
+### Pending request review
 
-- Reception
-- Appointments
-- Queue
-- Doctors
-- Billing
+The dashboard now has active workflow responsibility, not just summary cards.
 
-Pending request handling:
+1. Existing-patient requests are loaded from `pending_appointments.txt`.
+2. First-time requests are loaded from `new_patient_requests.txt`.
+3. Reception can approve an existing-patient request.
+4. Reception can register and approve a first-time request.
+5. Reception can reject either kind of request.
+6. Rejection requires a receptionist note.
+7. Approval re-checks that the requested slot is still free before booking.
 
-1. Receptionist reviews existing patient requests from `Backend/data/pending_appointments.txt`.
-2. Receptionist can also review first-time requests from `Backend/data/new_patient_requests.txt`.
-3. Approve re-checks the slot before booking.
-4. Existing patient approval calls the appointment module and links the request to the created appointment ID.
-5. First-time approval creates the patient record first, then books the appointment.
-6. Reject requires a receptionist reason and sends the patient an SMS.
-7. Requests expire after 2 hours if they are not reviewed.
+### What approval does
+
+For an existing-patient request:
+
+1. the slot is rechecked,
+2. the appointment is booked,
+3. the request is updated with final status and appointment ID,
+4. the patient receives a confirmation SMS.
+
+For a first-time request:
+
+1. the slot is rechecked,
+2. the patient record is created,
+3. the appointment is booked,
+4. the request is updated with final status, patient ID, and appointment ID,
+5. the patient receives a confirmation SMS.
+
+### Request expiry
+
+- requests expire after 2 hours if not reviewed,
+- expiry is processed through the pending-request module,
+- expired requests generate notifications so the patient knows to submit again or call.
 
 ## 3. Reception Page Flow
 
-The reception page is used for patient intake and appointment booking.
+The reception page is used for patient intake and staff-driven booking.
 
 ```mermaid
 flowchart TD
@@ -150,118 +186,174 @@ flowchart TD
     C --> E[Select Department]
     E --> F[Select Doctor]
     F --> G[Select Date]
-    G --> H{Slots Available?}
-    H -->|Yes| I[Book Slot]
-    H -->|No| J[Show Alternative Doctors]
-    J --> F
-    I --> K{Appointment Today?}
-    K -->|Yes| L[Create Queue Token]
-    K -->|No| M[Save Future Appointment]
+    G --> H[Load Slots]
+    H --> I{Slot Available?}
+    I -->|Yes| J[Book Slot]
+    I -->|No| K[Suggest Alternative Doctors]
+    J --> L{Today or Future?}
+    L -->|Today| M[Create Queue Token]
+    L -->|Future| N[Save Future Appointment]
 ```
 
-1. Receptionist enters the patient's phone number.
-2. System searches existing patient records.
-3. If the patient exists, the patient profile is shown.
-4. If the patient does not exist, the registration form is shown.
-5. Receptionist registers the patient with name, age, gender, phone, address, symptoms, visit type, priority, and department.
-6. After registration, the patient profile appears.
-7. Receptionist selects department, doctor, and appointment date.
-8. System shows doctor information and available slots.
-9. If the selected doctor is unavailable, off, or in emergency status, slots appear blocked.
-10. System suggests alternative doctors from the same department when available.
-11. Receptionist selects an available slot.
-12. Appointment is booked only if the selected date is today or a future date.
-13. If the appointment is for today, the patient is added to the queue.
-14. System shows booking confirmation and queue token if created.
+Detailed flow:
 
-## 4. Appointment Flow
+1. Receptionist enters a phone number.
+2. The system looks up the patient.
+3. If the patient exists, the profile is shown.
+4. If the patient does not exist, the receptionist fills the registration form.
+5. Registration captures name, age, gender, phone, address, symptoms, visit type, priority, and department.
+6. After registration, the patient profile is reloaded.
+7. Reception selects department, doctor, date, and slot.
+8. The system loads doctor info, available slots, and alternative doctors when useful.
+9. The selected date must be today or a future date.
+10. Once booked, same-day appointments create a queue token.
 
-The appointments page is used to view, book, cancel, reschedule, reassign, and mark no-show appointments.
+Important current rule:
 
-1. Receptionist opens the appointments page.
-2. Receptionist filters by department, doctor, and date.
-3. System shows the slot board for the selected doctor.
+- only staff-driven same-day bookings create queue entries directly.
+
+## 4. Appointments Page Flow
+
+The appointments page is the operational control page for appointment maintenance.
+
+It supports:
+
+- slot browsing,
+- patient-ID based booking,
+- cancellation,
+- reschedule,
+- no-show,
+- reassignment.
+
+### Slot-board flow
+
+1. Reception opens `/appointments`.
+2. Reception chooses department, doctor, and date.
+3. The system loads the doctor's slot board.
 4. Available slots can be booked by entering a patient ID.
-5. Booked, completed, cancelled, rescheduled, no-show, and blocked slots are displayed.
-6. If a doctor/date/time slot is already booked, the same slot cannot be booked again.
-7. Past-date booking and past-date rescheduling are rejected.
-8. Receptionist can cancel an appointment.
-9. Receptionist can reschedule an appointment.
-10. Rescheduling marks the old appointment as `Rescheduled` and creates a new `Booked` appointment.
-11. Receptionist can mark appointments as no-show when needed.
-12. Consultation completion is not a receptionist action; it happens when the doctor saves diagnosis and prescription.
-13. If a doctor becomes unavailable, the system checks for alternative doctors in the same department.
+5. The page also shows a short seven-day availability overview for the selected doctor.
+
+### Current appointment rules
+
+1. A past date cannot be booked.
+2. A past date cannot be used for reschedule.
+3. If the slot is no longer available, the action is rejected.
+4. Reception cannot complete a consultation from this page.
+5. Consultation completion belongs to the doctor diagnosis flow.
+
+### Reassignment flow
+
+This flow is now more conservative than the older system notes.
+
+1. Reception chooses a replacement doctor, date, and slot.
+2. Patient confirmation must be recorded.
+3. A short confirmation note is required.
+4. The replacement slot is checked again before booking.
+5. The replacement appointment is booked first.
+6. The original appointment is cancelled only after the replacement booking succeeds.
+7. If the replacement appointment is for today, a queue row is created for the new doctor.
+8. The patient receives an SMS about the change.
+
+Important rule:
+
+- doctor unavailability does not silently auto-move booked patients anymore.
 
 ## 5. Queue Flow
 
-The queue manages same-day patients waiting for consultation.
+The queue manages same-day patients who are ready for consultation.
 
 ```mermaid
 flowchart LR
-    A[Same-Day Booking] --> B[Queue Token Created]
+    A[Same-Day Staff Booking] --> B[Queue Token Created]
     B --> C{Priority}
-    C -->|Urgent| D[Shown First]
-    C -->|Normal| E[Shown After Urgent]
+    C -->|Urgent| D[Urgent First]
+    C -->|Normal| E[Normal After Urgent]
     D --> F[Doctor Consultation]
     E --> F
-    F --> G[Consultation Completed]
-    G --> H[Queue Status Completed]
+    F --> G[Diagnosis Saved]
+    G --> H[Queue Row Completed]
 ```
 
-1. A patient is added to the queue when a same-day appointment is booked.
-2. Queue stores token, patient ID, doctor ID, priority, and status.
-3. Urgent patients are shown before normal patients.
-4. Receptionist can view waiting and completed queue counts.
-5. Receptionist monitors separate doctor queues on the queue page instead of manually serving the next patient.
-6. When a doctor saves diagnosis and prescription, the patient's queue status becomes completed automatically.
-7. Cancelled, rescheduled, no-show, or completed appointments update the related queue entry so stale patients do not remain waiting.
+Detailed flow:
 
-## 6. Doctor Management Flow
+1. Same-day staff booking creates a queue token.
+2. Queue rows store token, patient ID, doctor ID, priority, and status.
+3. Urgent rows are ordered before normal rows.
+4. Reception sees grouped queues by doctor instead of one undifferentiated list.
+5. Queue rows are reconciled against appointment state.
+6. If an appointment is cancelled, rescheduled, completed, or marked no-show, the queue row is updated too.
+7. When diagnosis is saved, the queue row becomes completed automatically.
 
-The doctors page is used by the receptionist to manage doctor profiles and availability.
+Important rule:
 
-1. Receptionist opens the doctors page.
-2. System lists doctors with department, experience, daily status, current status, and login username.
-3. Receptionist can add a new doctor.
-4. When a doctor is added, a doctor login account is created.
-5. Receptionist can update doctor availability.
-6. Daily status can be available, unavailable, or off.
-7. Current status can be free, busy, or emergency.
-8. If a doctor is unavailable, off, or in emergency status, appointment slots are blocked.
-9. The system attempts to suggest or reassign future appointments to alternative doctors in the same department.
+- queue is not advanced by a manual "serve next" button; it stays consistent with appointment and diagnosis state.
+
+## 6. Doctors Page Flow
+
+The doctors page is the receptionist's doctor-management interface.
+
+It supports:
+
+- viewing the doctor directory,
+- adding new doctors,
+- showing generated login credentials,
+- updating doctor status.
+
+### Add-doctor flow
+
+1. Reception enters doctor details.
+2. If username or password is left blank, Python generates them.
+3. The doctor profile is created through `doctor.exe`.
+4. The login account is created in `users.txt`.
+5. The generated credentials are shown back in the UI.
+
+### Doctor status flow
+
+1. Reception sets `daily_status` and `current_status`.
+2. If the doctor is unavailable or off, an effective end date is also stored.
+3. Python writes extra timing metadata to `doctor_status_meta.json`.
+4. Future slots are blocked according to that metadata.
+
+Important statuses:
+
+- `daily_status`: `Available`, `Unavailable`, `Off`
+- `current_status`: `Free`, `Busy`, `Emergency`
 
 ## 7. Doctor Dashboard Flow
 
-The doctor dashboard is the starting point for doctors.
+The doctor dashboard is the doctor's operational home page.
 
 It shows:
 
-- Upcoming appointments
-- Live queue patients
-- Doctor availability controls
-- Billing context after diagnosis, when available
+- doctor identity and current status,
+- status update controls,
+- live queue patients,
+- future booked appointments,
+- billing-result context after a diagnosis save.
 
-Upcoming appointments flow:
+### Upcoming appointments
 
-1. Doctor sees appointment ID, patient ID, date, slot, and status.
-2. Future booked visits remain informational until their consultation day arrives.
-3. Due-now consultations move into the live queue flow.
+1. The doctor sees booked future appointments.
+2. These remain informational until their consultation day arrives.
+3. Once due, the practical work moves into the live consultation flow.
 
-Live queue patients flow:
+### Live queue patients
 
-1. Doctor sees queue token, patient ID, patient name, and priority.
-2. Urgent patients appear first.
-3. Doctor opens diagnosis for the assigned patient.
-4. Saving diagnosis and prescription completes the appointment and clears the queue entry automatically.
+1. The doctor sees same-day waiting patients assigned to them.
+2. The list shows token, patient name, patient ID, and priority.
+3. The doctor starts the consultation from this page.
+4. The consultation opens in the diagnosis page with appointment context.
 
-Availability flow:
+### Doctor self-status updates
 
-1. Doctor updates daily status and current status.
-2. If doctor becomes unavailable, off, or emergency, future booked appointments may be reassigned if alternatives exist.
+1. The doctor can update daily status and current status.
+2. Unavailable, off, and emergency states can block future dates.
+3. Existing patients are not reassigned automatically.
+4. Reception must still confirm changes with the patient before reassignment.
 
 ## 8. Diagnosis Flow
 
-The diagnosis page is used by doctors to review patient history and record consultation details.
+The diagnosis page is the doctor's consultation workspace.
 
 ```mermaid
 sequenceDiagram
@@ -273,240 +365,354 @@ sequenceDiagram
     Doctor->>DiagnosisPage: Open assigned patient
     DiagnosisPage->>Files: Load patient and history
     Files-->>DiagnosisPage: Patient details and previous diagnoses
-    Doctor->>DiagnosisPage: Enter diagnosis and prescription
+    Doctor->>DiagnosisPage: Enter date, diagnosis, prescription
     DiagnosisPage->>Files: Save diagnosis
-    DiagnosisPage->>Billing: Link completed appointment to billing
-    Billing-->>Doctor: Return to dashboard with billing context
+    DiagnosisPage->>Files: Complete appointment and queue state
+    DiagnosisPage->>Billing: Prepare bill context
+    Billing-->>Doctor: Return with billing-ready result
 ```
 
-1. Doctor opens diagnosis page for an assigned patient.
-2. System shows patient details.
-3. System shows previous diagnosis history.
-4. Doctor enters diagnosis.
-5. Doctor enters prescription.
-6. Doctor saves the record.
-7. Diagnosis is stored.
-8. System marks the linked appointment as completed if it was still active.
-9. System closes the related queue entry automatically.
-10. System links the consultation to billing through the completed appointment and auto-creates the bill record.
-11. Doctor returns to dashboard with billing context available.
+Detailed flow:
+
+1. The doctor opens consultation for an assigned patient.
+2. The system loads patient context and diagnosis history.
+3. The doctor enters consultation date, diagnosis, and prescription.
+4. All of those fields are required.
+5. If the appointment is still active, the system completes it.
+6. The diagnosis record is saved to `diagnosis.txt`.
+7. The queue row is marked completed.
+8. Billing context is prepared automatically.
+9. The doctor is redirected back with billing-related follow-up context.
+
+Important rule:
+
+- diagnosis save is what makes the consultation truly completed in the workflow.
 
 ## 9. Billing Flow
 
-Billing is handled by the receptionist after consultation is completed. Patients can later view their own bills and pay pending bills online.
+Billing is handled by reception after consultation completion.
 
 ```mermaid
 flowchart TD
     A[Select Patient] --> B{Completed Appointment Exists?}
     B -->|No| C[Billing Blocked]
-    B -->|Yes| D[Load Patient, Doctor, Department]
+    B -->|Yes| D[Load Completed Appointment Context]
     D --> E{Bill Already Exists?}
     E -->|Yes| F[Show Existing Bill]
     E -->|No| G[Add Treatments, Lab Tests, Medicines]
     G --> H[Calculate Total]
     H --> I[Save Bill]
-    I --> J[Preview / Download PDF]
+    I --> J[Preview / PDF Download]
 ```
 
-1. Receptionist opens the billing page.
-2. Receptionist selects a patient.
-3. System checks the patient's latest completed appointment.
-4. If there is no completed appointment, billing is blocked.
-5. If a completed appointment exists, billing details are loaded.
-6. System links billing to the completed appointment, doctor, department, and patient.
-7. Completed patients and existing bill records are visible directly from the billing page.
-8. Receptionist can add treatments, lab tests, medicine amount, medicine notes, and payment status.
-9. System calculates doctor fee, treatment total, lab total, medicine total, and final total.
-10. Bill is saved.
-11. If a bill already exists for the completed appointment, duplicate billing is prevented.
-12. Receptionist can preview and download the bill PDF.
-13. Counter-paid bills store `payment_method=counter` and a paid timestamp.
-14. Pending bills appear in the patient dashboard with a Pay Now action.
-15. Online payment creates a Razorpay order from the server-side bill total only.
-16. The bill stores `initiated_at` while Razorpay checkout is in progress; `paid_at` stays empty until capture.
-17. Browser redirect never marks the bill paid.
-18. The Razorpay webhook verifies HMAC first, then marks the bill `PAID` or returns it to `PENDING` on failure.
-19. Paid bill PDFs include payment method, payment reference, and paid timestamp when available.
+Detailed flow:
 
-## 10. Patient Portal Flow
+1. Reception opens `/billing`.
+2. The page loads patients, appointments, doctors, bills, and pricing data.
+3. The system builds a billing lookup in Python.
+4. Billing is allowed only if there is a completed appointment context.
+5. If a bill already exists for that completed appointment, duplicate generation is blocked.
+6. Reception selects treatments, lab tests, medicine amount, and notes.
+7. Doctor fee comes from the pricing catalog.
+8. Totals are calculated by Python.
+9. The bill is saved through the billing helper.
+10. The page shows a preview and PDF download option.
 
-Existing patient flow:
+### Bill status behavior
 
-1. Patient opens `/patient/login`.
-2. Patient requests an OTP for the phone number already stored in `patients.txt`.
-3. After OTP verification, the patient lands on `/patient/dashboard`.
-4. Dashboard shows upcoming appointments, pending/rejected/expired requests, appointment history, medical records, bills, and read-only profile details.
-5. Patient opens `/patient/book`, chooses department, doctor or any available doctor, future date, slot, reason, and visit type.
-6. Standard new visits during clinic review hours can be auto-approved.
-7. Follow-up visits, unavailable doctor cases, or outside-hours submissions go to `pending_appointments.txt`.
-8. Confirmed appointments can be cancelled by the patient only when more than 24 hours remain.
-9. Patient bill PDFs are served only after checking that the bill belongs to the logged-in patient.
+Bills can be in statuses such as:
 
-First-time request flow:
+- `PENDING`
+- `INITIATED`
+- `PAID`
+- `WAIVED`
+- `REFUNDED`
 
-1. A new visitor opens `/patient/new`.
-2. They submit demographics, phone, address, department, doctor, date, slot, and reason.
-3. The request is stored in `new_patient_requests.txt`.
-4. No official patient record is created until receptionist approval.
-5. On approval, the receptionist creates the patient record and books the appointment.
-6. On rejection or expiry, the patient receives the reason or expiry notice by SMS when SMS is configured.
+Important rules:
 
-## 11. Complete End-To-End Patient Flow
+- counter-paid bills record payment method and paid time,
+- online payment uses `INITIATED` first,
+- final online payment status comes only from webhook verification.
 
-This is the normal full patient journey.
+## 10. Existing Patient Portal Flow
 
-1. Receptionist logs in.
-2. Receptionist searches patient by phone.
-3. If patient is new, receptionist registers patient.
-4. Receptionist selects department and doctor.
-5. Receptionist selects date and available slot.
-6. Appointment is booked.
-7. If appointment is today, patient is added to queue.
-8. Doctor logs in.
-9. Doctor sees assigned appointment or assigned queue patient.
-10. Doctor opens diagnosis from the live queue or due appointment.
-11. Doctor adds diagnosis and prescription.
-12. System completes the appointment, clears the queue entry, and creates billing context automatically.
-13. Receptionist opens billing.
-14. Receptionist reviews the completed patient and generates or previews the bill.
-15. Bill can be previewed or downloaded.
+The existing patient portal is now a full workflow, not just a read-only dashboard.
 
-## 12. Unavailable Doctor Flow
+### Booking request flow
 
-This flow happens when a doctor cannot take appointments.
+1. Patient logs in through OTP.
+2. Patient opens `/patient/book`.
+3. Patient chooses department, doctor or `any doctor`, future date, slot, reason, and visit type.
+4. Python applies triage rules.
+
+### Auto-approved path
+
+Auto-approval happens only when:
+
+- the request is submitted during clinic review hours,
+- doctor availability does not require manual review,
+- visit type is `New`.
+
+If auto-approved:
+
+1. the slot is checked again,
+2. the appointment is booked immediately,
+3. an approved request audit row is still saved,
+4. the patient receives confirmation SMS.
+
+### Pending-review path
+
+If auto-approval conditions are not met:
+
+1. the slot is checked again,
+2. a pending request is stored in `pending_appointments.txt`,
+3. the requested slot is soft-locked,
+4. reception is notified,
+5. the patient sees that confirmation is pending.
+
+### Patient bill access
+
+From the portal, the patient can:
+
+- view bills,
+- download owned bill PDFs,
+- start online payment for eligible pending bills.
+
+Important rule:
+
+- ownership is checked before bill download or payment start.
+
+## 11. First-Time Patient Request Flow
+
+This path is for people who do not yet have a patient record.
+
+1. The visitor opens `/patient/new`.
+2. The visitor fills personal details, phone, address, department, doctor, future date, slot, and reason.
+3. The phone is validated.
+4. Age is validated.
+5. If the phone already belongs to a registered patient, the visitor is redirected toward OTP login instead.
+6. The slot is checked before the request is saved.
+7. The request is written to `new_patient_requests.txt`.
+8. Reception sees the request on the dashboard.
+9. Approval creates the patient first and books the appointment after that.
+
+Important rule:
+
+- this flow is future-request based and does not create a same-day queue token directly.
+
+## 12. Patient Dashboard Flow
+
+After OTP login, the patient dashboard becomes the self-service home page.
+
+It shows:
+
+- upcoming appointments,
+- pending booking requests,
+- appointment history,
+- diagnosis history,
+- bills,
+- payment actions,
+- profile details,
+- cancellation actions where allowed.
+
+### Patient cancellation rule
+
+The patient can cancel only if:
+
+- the appointment belongs to that patient,
+- the appointment is still `Booked`,
+- more than 24 hours remain before the appointment time.
+
+If the appointment is inside the 24-hour window:
+
+- self-cancel is blocked,
+- the patient is told to call the clinic.
+
+## 13. Online Payment Flow
+
+```mermaid
+flowchart TD
+    A[Patient Opens Pending Bill] --> B[Create Razorpay Order]
+    B --> C[Bill Marked INITIATED]
+    C --> D[Checkout Continues]
+    D --> E[Webhook Arrives]
+    E --> F{Signature Valid?}
+    F -->|No| G[Reject Webhook]
+    F -->|Yes| H{Captured or Failed?}
+    H -->|Captured| I[Bill Marked PAID]
+    H -->|Failed| J[Bill Reset to PENDING]
+```
+
+Detailed flow:
+
+1. The patient clicks Pay Now on an eligible bill.
+2. The system checks ownership and payment eligibility.
+3. A Razorpay order is created or resumed.
+4. The bill enters `INITIATED` state.
+5. Razorpay posts the payment result to `/payment/webhook`.
+6. The webhook signature is verified.
+7. If the payment is captured, the bill becomes `PAID`.
+8. If the payment fails, the bill returns to `PENDING`.
+9. SMS confirmation or failure notice is sent to the patient.
+
+Important rules:
+
+- the browser callback does not finalize payment,
+- only the verified webhook can do that.
+
+## 14. Doctor Unavailable And Reassignment Flow
+
+This is where older descriptions were most out of date. The current flow is more cautious.
 
 ```mermaid
 flowchart TD
     A[Doctor Status Updated] --> B{Unavailable, Off, or Emergency?}
     B -->|No| C[Doctor Remains Bookable]
-    B -->|Yes| D[Block Doctor Slots]
-    D --> E[Check Future Booked Appointments]
-    E --> F{Alternative Same-Department Doctor?}
-    F -->|Yes| G[Suggest / Reassign]
-    F -->|No| H[Show No Alternative Available]
-    H --> I[Receptionist Manually Reschedules]
+    B -->|Yes| D[Store Status + End Date]
+    D --> E[Block Future Slots]
+    E --> F[Existing Appointments Stay In Place]
+    F --> G[Reception Contacts Patient]
+    G --> H[Manual Reassignment If Confirmed]
 ```
 
-1. Receptionist or doctor updates doctor status to unavailable, off, or emergency.
-2. System blocks that doctor's slots.
-3. Existing future booked appointments are checked.
-4. System searches same-department doctors.
-5. If an alternative doctor has the same slot available, appointment is reassigned automatically.
-6. If no alternative exists, system shows that no suitable doctor is available.
-7. Receptionist can manually choose another doctor or reschedule.
+Detailed flow:
 
-## 13. Cancel Flow
+1. Reception or the doctor updates doctor status.
+2. Python stores the effective block end date in `doctor_status_meta.json`.
+3. Future slots for affected dates become blocked.
+4. Existing appointments are not moved automatically.
+5. Reception must confirm with the patient before making a reassignment.
+6. Reassignment is done manually from the appointments page.
 
-1. Receptionist opens appointments page.
-2. Receptionist selects the appointment.
-3. Receptionist cancels it.
-4. Appointment status becomes `Cancelled`.
-5. If the patient was waiting in queue for that appointment, queue status is updated.
-6. The slot becomes available again for future booking.
+This behavior reduces the risk of silent schedule changes.
 
-## 14. Reschedule Flow
+## 15. Cancel, Reschedule, And No-Show Flow
 
-1. Receptionist opens appointments page.
-2. Receptionist selects the appointment.
-3. Receptionist enters new date and time.
-4. System checks whether the new slot is available.
-5. Old appointment becomes `Rescheduled`.
-6. New appointment is created as `Booked`.
-7. If the new appointment is today, patient is added to queue.
-8. If the patient had a waiting queue entry for the old appointment, it is marked rescheduled.
+### Cancel flow
 
-## 15. No-Show Flow
+1. Reception chooses an appointment to cancel.
+2. Appointment status becomes `Cancelled`.
+3. Related queue rows are updated so waiting state does not linger.
+4. The slot becomes available again if appropriate.
 
-1. Appointment exists but patient does not arrive.
-2. Receptionist marks appointment as no-show.
-3. Appointment status becomes `No-show`.
-4. Queue entry is updated if needed.
-5. The slot is not treated as a normal completed consultation.
+### Reschedule flow
 
-## 16. Billing Rule
+1. Reception chooses a new date and time.
+2. The new date must not be in the past.
+3. The old appointment becomes `Rescheduled`.
+4. A new booked appointment is created.
+5. If the new appointment is today, a queue row is created for it.
+6. The old queue state is updated so the patient does not remain waiting on the old booking.
 
-Billing is allowed only after an appointment is completed.
+### No-show flow
 
-If a patient has a future booked appointment but also has a completed appointment, the system bills the latest completed appointment, not the future booking.
+1. Reception can mark a patient as `No-show`.
+2. The queue row is updated if there is one.
+3. Stale booked appointments from previous days can also be converted automatically during cleanup.
 
-## 17. Data Flow Summary
+## 16. Data Flow Summary
 
-- Patient registration updates `Backend/data/patients.txt`.
-- First-time portal requests update `Backend/data/new_patient_requests.txt`.
-- Existing patient booking requests update `Backend/data/pending_appointments.txt`.
-- `Backend/c_modules/pending_request.exe` owns pending request add/list/update/expiry/soft-lock file operations using linked-list structs.
-- Appointment booking, cancellation, reschedule, completion, reassignment, and no-show update `Backend/data/appointment.txt`.
-- Same-day booking and consultation status update `Backend/data/queue.txt`.
-- Diagnosis updates `Backend/data/diagnosis.txt`.
-- Billing and payment status updates `Backend/data/billing.txt`.
-- Doctor availability updates `Backend/data/doctors.txt`.
-- Login uses `Backend/data/users.txt`.
-- Patient OTPs are in memory only and are not written to disk.
+The main data updates happen like this:
+
+- patient registration updates `patients.txt`,
+- staff booking updates `appointment.txt`,
+- same-day staff booking also updates `queue.txt`,
+- existing-patient portal requests update `pending_appointments.txt`,
+- first-time requests update `new_patient_requests.txt`,
+- receptionist approval of a first-time request updates `patients.txt`, `appointment.txt`, and the request file,
+- diagnosis save updates `diagnosis.txt`, `appointment.txt`, and `queue.txt`,
+- bill generation updates `billing.txt`,
+- doctor status updates `doctors.txt` and `doctor_status_meta.json`,
+- online payment updates `billing.txt`,
+- OTP state stays in memory and is not written to disk.
+
+## 17. Complete End-To-End Examples
+
+### Standard receptionist same-day visit
+
+1. Reception searches or registers the patient.
+2. Reception books a same-day slot.
+3. Queue token is created.
+4. Doctor opens the patient from the live queue.
+5. Doctor saves diagnosis and prescription.
+6. Appointment and queue are completed.
+7. Reception opens billing and generates the bill.
+
+### Existing patient future self-booking
+
+1. Patient logs in with OTP.
+2. Patient requests a future slot.
+3. The system either auto-approves or creates a pending review request.
+4. Reception may approve later if review is required.
+5. The confirmed appointment appears in the patient dashboard.
+6. Billing comes later only after the consultation is completed.
+
+### First-time online request
+
+1. A new patient submits a request from `/patient/new`.
+2. Reception reviews the request from the dashboard.
+3. On approval, the patient record is created.
+4. The appointment is booked.
+5. The patient receives a confirmation SMS and can later use OTP login as a registered patient.
 
 ## 18. Final Flow Map
 
 ```text
-Login
-  -> Landing Page
-      -> Staff Login
-      -> Patient OTP Login
-      -> First-Time Request
+Landing Page
+  -> Staff Login
+      -> Receptionist Dashboard
+          -> Review pending portal requests
+          -> Reception page
+          -> Appointments page
+          -> Queue page
+          -> Doctors page
+          -> Billing page
+      -> Doctor Dashboard
+          -> Live queue patients
+          -> Upcoming appointments
+          -> Diagnosis flow
+          -> Doctor status update
 
-Staff Login
-  -> Receptionist Dashboard
-      -> Pending Patient Portal Requests
-          -> Approve Existing Patient Request
-          -> Register And Approve First-Time Request
-          -> Reject With Reason
-      -> Reception
-          -> Search Patient
-          -> Register Patient
-          -> Select Department / Doctor / Date
-          -> Book Appointment
-          -> Add To Queue If Today
-      -> Appointments
-          -> View Slots
-          -> Book
-          -> Cancel
-          -> Reschedule
-          -> Mark No-show
-          -> Reassign
-          -> Handle Unavailable Doctor
-      -> Queue
-          -> View Waiting By Doctor
-          -> Urgent Before Normal
-      -> Doctors
-          -> Add Doctor
-          -> Update Availability
-          -> Suggest / Auto-Reassign Appointments
-      -> Billing
-          -> Select Completed Patient
-          -> Generate Bill
-          -> Preview / Download PDF
-          -> Record Counter Payment
+Landing Page
+  -> Patient OTP Login
+      -> Patient Dashboard
+          -> Upcoming appointments
+          -> Pending requests
+          -> Appointment history
+          -> Diagnosis history
+          -> Bills
+          -> Online payment
+          -> Eligible self-cancel
+          -> Existing patient booking
 
-Staff Login
-  -> Doctor Dashboard
-      -> View Upcoming Appointments
-      -> View Live Queue Patients
-      -> Diagnosis
-          -> View History
-          -> Add Diagnosis
-          -> Add Prescription
-          -> Complete Appointment + Queue
-          -> Trigger Billing Context
-      -> Update Availability
+Landing Page
+  -> First-Time Request
+      -> new_patient_requests.txt
+      -> Receptionist review
+      -> Patient creation on approval
+      -> Appointment booking on approval
 
-Patient OTP Login
-  -> Patient Dashboard
-      -> View Appointments
-      -> Book Appointment Request
-          -> Auto-Approve Or Pending Review
-      -> Cancel Appointment If More Than 24 Hours Away
-      -> View Diagnosis History
-      -> View Bills
-          -> Download PDF
-          -> Pay Pending Bill Online
-              -> Razorpay Order
-              -> Verified Webhook Updates Bill
+Core clinical thread
+  -> Appointment booked
+  -> if same day, queue token created
+  -> doctor opens consultation
+  -> diagnosis and prescription saved
+  -> appointment completed
+  -> queue completed
+  -> billing context ready
+  -> bill generated
+  -> bill may later be paid online
 ```
+
+## 19. Core Operating Principles
+
+The current system follows these principles:
+
+- text files remain the system of record,
+- Python owns business rules and cross-file consistency,
+- C helpers own low-level record operations,
+- patient portal requests do not bypass reception safeguards when review is required,
+- diagnosis completion is the handoff into billing,
+- queue state follows appointment and diagnosis state,
+- online payment is final only after verified webhook handling,
+- doctor unavailability blocks future slots but does not silently move booked patients.

@@ -1,203 +1,430 @@
 {% extends "index.html" %}
-
 {% block content %}
-
 <style>
-    .docx-shell { display:grid; gap:20px; }
-    .docx-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:20px; }
-    .docx-card { background:#fff; border:1px solid #dfe8ef; border-radius:22px; box-shadow:0 16px 40px rgba(24,44,71,0.06); }
-    .docx-card-body { padding:20px; }
-    .docx-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px; }
-    .docx-title { margin:0 0 4px; font-size:1.02rem; font-weight:700; color:#21364d; }
-    .docx-sub { margin:0; color:#6b7d8e; font-size:0.88rem; }
-    .docx-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
-    .docx-flow { display:grid; gap:20px; }
-    .docx-metric { padding:18px; border-radius:18px; background:linear-gradient(180deg,#ffffff 0%,#f8fbfd 100%); border:1px solid #e3ebf2; }
-    .docx-metric small { display:block; color:#708496; margin-bottom:6px; }
-    .docx-metric strong { font-size:1.35rem; color:#19324b; }
-    .docx-panel { padding:18px; border-radius:18px; background:#f8fbfd; border:1px solid #e5edf3; }
-    .docx-panel-grid { display:grid; gap:14px; }
-    .docx-summary-list { display:grid; gap:10px; }
-    .docx-summary-line { display:flex; justify-content:space-between; gap:10px; padding:13px 14px; border-radius:14px; background:#fff; border:1px solid #e2ebf1; }
-    .docx-summary-line small { color:#6f8396; }
-    .docx-table-wrap { overflow:auto; }
-    @media (max-width: 991.98px) {
-        .docx-grid, .docx-summary { grid-template-columns:1fr; }
+/* Doctor Dashboard */
+.dd-shell { display: grid; gap: 20px; }
+
+.dd-hero {
+    position: relative;
+    overflow: hidden;
+    padding: clamp(22px, 4vw, 32px);
+    border-radius: var(--hd-radius);
+    color: #fff;
+    background: radial-gradient(ellipse at 90% 0%, rgba(255,255,255,.13) 0%, transparent 40%),
+                linear-gradient(135deg, #0f5132 0%, #1a9e5c 100%);
+    box-shadow: 0 8px 28px rgba(15,81,50,.22);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 20px;
+    align-items: center;
+}
+.dd-hero::after {
+    content: "";
+    position: absolute;
+    right: -40px;
+    bottom: -40px;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.05);
+    pointer-events: none;
+}
+.dd-hero-eyebrow {
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.65);
+    margin-bottom: 8px;
+}
+.dd-hero h4 {
+    margin: 0 0 6px;
+    font-size: clamp(1.4rem, 2.8vw, 1.9rem);
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -.03em;
+}
+.dd-hero p {
+    margin: 0;
+    color: rgba(255,255,255,.72);
+    font-size: .88rem;
+    line-height: 1.55;
+}
+
+.dd-hero-status {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
+    z-index: 1;
+    flex-shrink: 0;
+}
+.dd-status-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.dd-status-form select {
+    min-height: 38px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.15);
+    border: 1px solid rgba(255,255,255,.25);
+    color: #fff;
+    font-family: inherit;
+    font-size: .82rem;
+    font-weight: 600;
+    appearance: none;
+    cursor: pointer;
+    min-width: 140px;
+}
+.dd-status-form input[type="date"] {
+    min-height: 38px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.15);
+    border: 1px solid rgba(255,255,255,.25);
+    color: #fff;
+    font-family: inherit;
+    font-size: .82rem;
+    font-weight: 600;
+    min-width: 160px;
+}
+.dd-status-form input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+}
+.dd-status-form select option {
+    background: #1a4a30;
+    color: #fff;
+}
+.dd-status-save {
+    padding: 8px 16px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.2);
+    border: 1px solid rgba(255,255,255,.3);
+    color: #fff;
+    font-family: inherit;
+    font-size: .82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .18s;
+}
+.dd-status-save:hover { background: rgba(255,255,255,.32); }
+.dd-status-help {
+    font-size: .75rem;
+    color: rgba(255,255,255,.78);
+    max-width: 280px;
+    text-align: right;
+}
+
+.dd-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 14px;
+}
+.dd-stat {
+    padding: 18px 20px;
+    border-radius: var(--hd-radius);
+    background: var(--hd-surface);
+    border: 1px solid var(--hd-border);
+    box-shadow: var(--hd-shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.dd-stat-label {
+    font-size: .72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: var(--hd-text-muted);
+}
+.dd-stat-value {
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: var(--hd-text);
+    line-height: 1;
+}
+
+.dd-card {
+    background: var(--hd-surface);
+    border: 1px solid var(--hd-border);
+    border-radius: var(--hd-radius);
+    box-shadow: var(--hd-shadow);
+}
+.dd-card-body { padding: clamp(16px, 2.5vw, 22px); }
+.dd-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+}
+.dd-card-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--hd-text);
+    margin: 0 0 3px;
+}
+.dd-card-sub {
+    font-size: .82rem;
+    color: var(--hd-text-muted);
+    margin: 0;
+}
+
+.dd-refresh-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: .72rem;
+    color: var(--hd-text-muted);
+    font-weight: 500;
+}
+.dd-refresh-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--hd-accent);
+    animation: dd-pulse 2s ease-in-out infinite;
+}
+@keyframes dd-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: .4; transform: scale(.7); }
+}
+
+.dd-queue { display: grid; gap: 10px; }
+.dd-queue-card {
+    display: grid;
+    grid-template-columns: 44px 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: var(--hd-bg);
+    border: 1px solid var(--hd-border);
+    transition: border-color .18s, box-shadow .18s;
+}
+.dd-queue-card:hover {
+    border-color: rgba(26,158,92,.3);
+    box-shadow: var(--hd-shadow);
+}
+.dd-queue-token {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #0f5132, #1a9e5c);
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+.dd-queue-name {
+    font-size: .92rem;
+    font-weight: 700;
+    color: var(--hd-text);
+    margin: 0 0 3px;
+}
+.dd-queue-meta {
+    font-size: .78rem;
+    color: var(--hd-text-muted);
+    margin: 0;
+}
+
+.dd-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+.dd-empty {
+    padding: 28px 20px;
+    text-align: center;
+    border: 2px dashed var(--hd-border);
+    border-radius: 12px;
+    color: var(--hd-text-muted);
+}
+.dd-empty i {
+    display: block;
+    font-size: 1.8rem;
+    margin-bottom: 10px;
+    opacity: .4;
+}
+.dd-empty p {
+    font-size: .84rem;
+    margin: 0;
+}
+
+@media (max-width: 900px) {
+    .dd-stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .dd-hero { grid-template-columns: 1fr; }
+    .dd-hero-status { align-items: flex-start; }
+    .dd-status-form { flex-direction: row; flex-wrap: wrap; }
+    .dd-status-help { text-align: left; }
+}
+@media (max-width: 560px) {
+    .dd-stats { grid-template-columns: 1fr 1fr; }
+    .dd-queue-card { grid-template-columns: 38px 1fr; }
+    .dd-queue-card .hd-btn { display: none; }
+    .dd-queue-name::after {
+        content: " - tap row to consult";
+        font-size: .72rem;
+        color: var(--hd-primary);
+        font-weight: 400;
     }
-    @media (max-width: 767.98px) {
-        .docx-card-body { padding:16px; }
-        .docx-head { display:block; }
-    }
+}
 </style>
 
 <div class="hd-page-header">
     <h4><i class="bi bi-grid-1x2-fill me-2"></i>Doctor Dashboard</h4>
     {% if doctor_info %}
-    <small>{{ doctor_info.name }} | {{ doctor_info.department }}</small>
+    <small>{{ doctor_info.name }} &middot; {{ doctor_info.department }}</small>
     {% else %}
-    <small>Manage your consultations, queue patients, and live status from one workspace</small>
+    <small>Manage your consultations, queue, and availability</small>
     {% endif %}
 </div>
 
 {% if status_note %}
 <div class="hd-alert info"><i class="bi bi-info-circle me-1"></i> {{ status_note }}</div>
 {% endif %}
-
 {% if billing_patient_id %}
 <div class="hd-alert success">
     <i class="bi bi-check-circle-fill me-1"></i>
-    Diagnosis saved for patient {{ billing_patient_id }}.
-    {% if billing_bill_id %}Bill #{{ billing_bill_id }} generated automatically.{% else %}Billing will be available after completion flow.{% endif %}
+    Diagnosis saved for patient #{{ billing_patient_id }}.
+    {% if billing_bill_id %} Bill #{{ billing_bill_id }} generated automatically.{% endif %}
 </div>
 {% endif %}
 
-<div class="docx-shell">
-    <div class="docx-summary">
-        <div class="docx-metric">
-            <small>Live Queue</small>
-            <strong>{{ live_queue_patients|length }}</strong>
+<div class="dd-shell">
+    <div class="dd-hero">
+        <div>
+            <div class="dd-hero-eyebrow"><i class="bi bi-stethoscope me-1"></i> Doctor Portal</div>
+            <h4>{{ "Dr " + doctor_info.name if doctor_info else "Doctor Dashboard" }}</h4>
+            <p>{{ doctor_info.department + " Department" if doctor_info else "Manage your live queue, upcoming appointments, and availability." }}</p>
         </div>
-        <div class="docx-metric">
-            <small>Appointments</small>
-            <strong>{{ appointments|length }}</strong>
+        {% if doctor_info %}
+        <div class="dd-hero-status">
+            <form action="/doctor_my_status" method="POST" class="dd-status-form" id="ddStatusForm">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <select name="daily_status" aria-label="Duty status" id="ddDailyStatus">
+                    <option value="Available" {% if doctor_info.daily_status == "Available" %}selected{% endif %}>Available</option>
+                    <option value="Unavailable" {% if doctor_info.daily_status == "Unavailable" %}selected{% endif %}>Unavailable</option>
+                    <option value="Off" {% if doctor_info.daily_status == "Off" %}selected{% endif %}>Off Duty</option>
+                </select>
+                <select name="current_status" aria-label="Live status" id="ddCurrentStatus">
+                    {% if doctor_info.current_status not in ["Free", "Busy", "Emergency"] %}
+                    <option value="{{ doctor_info.current_status }}" selected>{{ doctor_info.current_status_label }}</option>
+                    {% endif %}
+                    <option value="Free" {% if doctor_info.current_status == "Free" %}selected{% endif %}>Free</option>
+                    <option value="Busy" {% if doctor_info.current_status == "Busy" %}selected{% endif %}>Busy</option>
+                    <option value="Emergency" {% if doctor_info.current_status == "Emergency" %}selected{% endif %}>Emergency</option>
+                </select>
+                <input type="date"
+                       name="status_until"
+                       id="ddStatusUntil"
+                       min="{{ today_iso }}"
+                       value="{{ doctor_info.status_until if doctor_info and doctor_info.daily_status in ['Unavailable', 'Off'] else today_iso }}">
+                <button class="dd-status-save" type="submit"><i class="bi bi-check2 me-1"></i>Save Status</button>
+            </form>
+            <div class="dd-status-help">Duty Status is for today unless you set an Until date. Live Status is only used while you are available.</div>
         </div>
-        <div class="docx-metric">
-            <small>Daily Status</small>
-            <div class="mt-2">{% if doctor_info %}<span class="hd-badge {{ doctor_info.daily_status|lower }}">{{ doctor_info.daily_status }}</span>{% else %}-{% endif %}</div>
-        </div>
-        <div class="docx-metric">
-            <small>Availability</small>
-            <div class="mt-2">{% if doctor_info %}<span class="hd-badge {{ doctor_info.availability_badge }}">{{ doctor_info.availability_label }}</span>{% else %}-{% endif %}</div>
-        </div>
+        {% endif %}
     </div>
 
-    <div class="docx-grid">
-        <div class="docx-flow">
-            <div class="docx-card">
-                <div class="docx-card-body">
-                    <div class="docx-head">
-                        <div>
-                            <h5 class="docx-title"><i class="bi bi-people-fill me-1"></i> Live Queue</h5>
-                            <p class="docx-sub">Patients waiting right now with a valid consultation for today or an earlier untreated appointment.</p>
-                        </div>
-                    </div>
-                    <div class="docx-table-wrap">
-                        <table class="hd-table">
-                            <thead>
-                                <tr>
-                                    <th>Token</th>
-                                    <th>Patient</th>
-                                    <th>Priority</th>
-                                    <th>Appointment</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for q in live_queue_patients %}
-                                <tr>
-                                    <td><strong>{{ q.token }}</strong></td>
-                                    <td>
-                                        <div>#{{ q.patient_id }}</div>
-                                        <small class="text-muted">{{ q.name or "-" }}</small>
-                                    </td>
-                                    <td><span class="hd-badge {% if q.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ q.priority }}</span></td>
-                                    <td>
-                                        {% if q.appointment_id %}
-                                        <div>#{{ q.appointment_id }}</div>
-                                        <small class="text-muted">{{ q.appointment_date }}</small>
-                                        {% else %}
-                                        <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <a class="hd-btn hd-btn-primary hd-btn-sm" href="/diagnosis?patient_id={{ q.patient_id }}&appointment_id={{ q.appointment_id }}">
-                                            Start Consultation
-                                        </a>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                                {% if not live_queue_patients %}
-                                <tr><td colspan="5" class="text-muted text-center py-3">No patients in your live queue right now.</td></tr>
-                                {% endif %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <div class="docx-card">
-                <div class="docx-card-body">
-                    <div class="docx-head">
-                        <div>
-                            <h5 class="docx-title"><i class="bi bi-activity me-1"></i> Update My Availability</h5>
-                            <p class="docx-sub">Keep your status accurate so reception can route patients correctly.</p>
-                        </div>
-                    </div>
-                    <form action="/doctor_my_status" method="POST" class="docx-panel-grid">
-                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                        <div>
-                            <label class="form-label">Daily Status</label>
-                            <select name="daily_status" class="form-select" required>
-                                <option value="Available" {% if doctor_info and doctor_info.daily_status == "Available" %}selected{% endif %}>Available</option>
-                                <option value="Unavailable" {% if doctor_info and doctor_info.daily_status != "Available" %}selected{% endif %}>Unavailable</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="form-label">Current Status</label>
-                            <select name="current_status" class="form-select" required>
-                                <option value="Free" {% if doctor_info and doctor_info.current_status == "Free" %}selected{% endif %}>Free</option>
-                                <option value="Busy" {% if doctor_info and doctor_info.current_status == "Busy" %}selected{% endif %}>Busy</option>
-                                <option value="Emergency" {% if doctor_info and doctor_info.current_status == "Emergency" %}selected{% endif %}>Emergency</option>
-                            </select>
-                        </div>
-                        <button class="hd-btn hd-btn-primary hd-btn-block"><i class="bi bi-check2"></i> Save Status</button>
-                    </form>
-                </div>
-            </div>
-
-            <div class="docx-card">
-                <div class="docx-card-body">
-                    <div class="docx-head">
-                        <div>
-                            <h5 class="docx-title"><i class="bi bi-calendar2-check-fill me-1"></i> Upcoming Appointments</h5>
-                            <p class="docx-sub">Future scheduled visits assigned to you. These are not in today's live queue yet.</p>
-                        </div>
-                    </div>
-                    <div class="docx-table-wrap">
-                        <table class="hd-table">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Patient</th>
-                                    <th>Date</th>
-                                    <th>Slot</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for a in appointments %}
-                                <tr>
-                                    <td>{{ a.appointment_id }}</td>
-                                    <td>#{{ a.patient_id }}</td>
-                                    <td>{{ a.date }}</td>
-                                    <td>{{ a.time_slot }}</td>
-                                    <td><span class="hd-badge {{ a.status|lower|replace('-', '') }}">{{ a.status }}</span></td>
-                                    <td>
-                                        <span class="text-muted">Moves to live queue on consultation day</span>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                                {% if not appointments %}
-                                <tr><td colspan="6" class="text-muted text-center py-3">No upcoming appointments right now.</td></tr>
-                                {% endif %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div id="ddPanels" data-refresh-url="/doctor/dashboard-panels">
+        {% include "_doctor_dashboard_panels.html" %}
     </div>
 </div>
 
+<script>
+(function() {
+    var countdown = 30;
+    var panels = document.getElementById("ddPanels");
+    var isRefreshing = false;
+
+    function updateLabel() {
+        var label = document.querySelector(".dd-refresh-label");
+        if (label) {
+            label.innerHTML = '<span class="dd-refresh-dot"></span> Auto-refresh ' + countdown + 's';
+        }
+    }
+
+    function refreshPanels() {
+        if (!panels || isRefreshing) return;
+        isRefreshing = true;
+        fetch(panels.getAttribute("data-refresh-url"), {
+            headers: { "X-Requested-With": "XMLHttpRequest" }
+        })
+        .then(function(response) {
+            if (!response.ok) throw new Error("Refresh failed");
+            return response.text();
+        })
+        .then(function(html) {
+            panels.innerHTML = html;
+            countdown = 30;
+            updateLabel();
+        })
+        .catch(function() {
+            countdown = 10;
+            updateLabel();
+        })
+        .finally(function() {
+            isRefreshing = false;
+        });
+    }
+
+    updateLabel();
+    setInterval(function() {
+        countdown--;
+        if (countdown <= 0) {
+            refreshPanels();
+            return;
+        }
+        updateLabel();
+    }, 1000);
+})();
+
+(function() {
+    var dailySelect = document.getElementById("ddDailyStatus");
+    var currentSelect = document.getElementById("ddCurrentStatus");
+    var untilInput = document.getElementById("ddStatusUntil");
+    if (!dailySelect || !currentSelect || !untilInput) return;
+
+    function syncCurrentStatusOptions() {
+        var options = [
+            { value: "Free", text: "Free" },
+            { value: "Busy", text: "Busy" },
+            { value: "Emergency", text: "Emergency" }
+        ];
+
+        if (dailySelect.value === "Unavailable") {
+            options = [{ value: "Unavailable", text: "Unavailable" }];
+        } else if (dailySelect.value === "Off") {
+            options = [{ value: "Off", text: "Off Duty" }];
+        }
+
+        var currentValue = currentSelect.value;
+        currentSelect.innerHTML = "";
+        options.forEach(function(optionDef) {
+            var option = document.createElement("option");
+            option.value = optionDef.value;
+            option.textContent = optionDef.text;
+            if (optionDef.value === currentValue || options.length === 1) {
+                option.selected = true;
+            }
+            currentSelect.appendChild(option);
+        });
+
+        var needsRange = dailySelect.value === "Unavailable" || dailySelect.value === "Off";
+        untilInput.style.display = needsRange ? "" : "none";
+        untilInput.required = needsRange;
+        if (!untilInput.value) {
+            untilInput.value = untilInput.min;
+        }
+    }
+
+    dailySelect.addEventListener("change", syncCurrentStatusOptions);
+    syncCurrentStatusOptions();
+})();
+</script>
 {% endblock %}
