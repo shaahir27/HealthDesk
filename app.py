@@ -31,14 +31,19 @@ PENDING_APPOINTMENTS_FILE = os.path.join(DATA_DIR, "pending_appointments.txt")
 NEW_PATIENT_REQUESTS_FILE = os.path.join(DATA_DIR, "new_patient_requests.txt")
 DOCTOR_STATUS_META_FILE = os.path.join(DATA_DIR, "doctor_status_meta.json")
 BILLING_EXE = os.path.join(BACKEND_DIR, "c_modules", "billing.exe")
+ADVANCE_EXE = os.path.join(BACKEND_DIR, "c_modules", "advance.exe")
 PENDING_REQUEST_EXE = os.path.join(BACKEND_DIR, "c_modules", "pending_request.exe")
 _appointment_lock = threading.Lock()
 _pending_appointment_lock = threading.Lock()
 _new_patient_request_lock = threading.Lock()
 _billing_lock = threading.Lock()
 _otp_lock = threading.Lock()
+_advance_lock = threading.Lock()
 _otp_store = {}
 ALLOWED_PAYMENT_STATUSES = {"PENDING", "INITIATED", "PAID", "WAIVED", "REFUNDED"}
+ADVANCE_DATA_PATH = os.path.join(DATA_DIR, "advances.txt")
+BOOKING_INTENT_PATH = os.path.join(DATA_DIR, "pending_booking_intents.txt")
+ADVANCE_PERCENT = float(os.environ.get("ADVANCE_PERCENT", "20"))
 OTP_EXPIRY_SECONDS = 5 * 60
 OTP_MAX_ATTEMPTS = 3
 PENDING_REQUEST_EXPIRY_HOURS = 2
@@ -357,6 +362,18 @@ def run_billing_command(*args):
         return None
 
 
+def run_advance_command(*args):
+    try:
+        return subprocess.run(
+            [ADVANCE_EXE, *[str(arg) for arg in args]],
+            capture_output=True,
+            text=True,
+            cwd=BASE_DIR
+        )
+    except FileNotFoundError:
+        return None
+
+
 def read_billing_lines_fallback():
     try:
         with open(BILLING_FILE, "r", encoding="utf-8") as f:
@@ -417,7 +434,10 @@ def parse_bill_line(line):
             "razorpay_payment_id": data[20] if len(data) > 20 else "",
             "payment_method": data[21] if len(data) > 21 else "",
             "paid_at": data[22] if len(data) > 22 else "",
-            "initiated_at": data[23] if len(data) > 23 else (data[22] if len(data) > 22 and data[13] == "INITIATED" else "")
+            "initiated_at": data[23] if len(data) > 23 else (data[22] if len(data) > 22 and data[13] == "INITIATED" else ""),
+            "advance_id": safe_int(data[24]) if len(data) > 24 else 0,
+            "advance_amount": float(data[25]) if len(data) > 25 and data[25].strip() else 0.0,
+            "advance_credited_at": data[26].strip() if len(data) > 26 else "",
         }
         bill["total"] = recalculate_bill_total(bill)
         return bill
@@ -446,7 +466,10 @@ def parse_bill_line(line):
             "razorpay_payment_id": "",
             "payment_method": "",
             "paid_at": "",
-            "initiated_at": ""
+            "initiated_at": "",
+            "advance_id": 0,
+            "advance_amount": 0.0,
+            "advance_credited_at": "",
         }
         bill["total"] = recalculate_bill_total(bill)
         return bill
@@ -478,7 +501,10 @@ def parse_bill_line(line):
             "razorpay_payment_id": "",
             "payment_method": "",
             "paid_at": "",
-            "initiated_at": ""
+            "initiated_at": "",
+            "advance_id": 0,
+            "advance_amount": 0.0,
+            "advance_credited_at": "",
         }
         bill["total"] = recalculate_bill_total(bill)
         return bill
@@ -557,7 +583,10 @@ def serialize_bill_record(bill):
         clean_record_field(bill.get("razorpay_payment_id", ""), 80),
         clean_record_field(bill.get("payment_method", ""), 40),
         clean_record_field(bill.get("paid_at", ""), 40),
-        clean_record_field(bill.get("initiated_at", ""), 40)
+        clean_record_field(bill.get("initiated_at", ""), 40),
+        str(int(bill.get("advance_id", 0) or 0)),
+        f"{float(bill.get('advance_amount', 0) or 0):.2f}",
+        clean_record_field(bill.get("advance_credited_at", ""), 40),
     ])
 
 
@@ -567,6 +596,266 @@ def save_bill_record(bill):
         result = run_billing_command("save", line)
         if not result or result.returncode != 0:
             save_bill_line_fallback(line)
+
+
+# ---------------- ADVANCE RECORD HELPERS ----------------
+
+def parse_advance_line(line):
+    line = line.strip()
+    if not line:
+        return None
+    data = line.split("|")
+    if len(data) < 13:
+        data += [""] * (13 - len(data))
+    return {
+        "advance_id": safe_int(data[0]),
+        "patient_id": safe_int(data[1]),
+        "appointment_id": safe_int(data[2]),
+        "doctor_id": safe_int(data[3]),
+        "appointment_date": data[4].strip(),
+        "amount": float(data[5]) if data[5].strip() else 0.0,
+        "status": data[6].strip().upper(),
+        "razorpay_order_id": data[7].strip(),
+        "razorpay_payment_id": data[8].strip(),
+        "created_at": data[9].strip(),
+        "paid_at": data[10].strip(),
+        "settled_at": data[11].strip(),
+        "pending_request_id": safe_int(data[12]),
+    }
+
+
+def serialize_advance_record(adv):
+    return "|".join([
+        str(adv.get("advance_id", 0)),
+        str(adv.get("patient_id", 0)),
+        str(adv.get("appointment_id", 0)),
+        str(adv.get("doctor_id", 0)),
+        str(adv.get("appointment_date", "")),
+        str(adv.get("amount", 0.0)),
+        str(adv.get("status", "PENDING_PAYMENT")),
+        str(adv.get("razorpay_order_id", "")),
+        str(adv.get("razorpay_payment_id", "")),
+        str(adv.get("created_at", "")),
+        str(adv.get("paid_at", "")),
+        str(adv.get("settled_at", "")),
+        str(adv.get("pending_request_id", 0)),
+    ])
+
+
+def _read_advances_unlocked():
+    if not os.path.exists(ADVANCE_DATA_PATH):
+        return []
+    with open(ADVANCE_DATA_PATH, "r", encoding="utf-8") as f:
+        return [record for record in (parse_advance_line(line) for line in f) if record]
+
+
+def read_advances():
+    with _advance_lock:
+        result = run_advance_command("list")
+        if result and result.returncode == 0:
+            return [
+                record for record in
+                (parse_advance_line(line) for line in result.stdout.splitlines())
+                if record
+            ]
+        return _read_advances_unlocked()
+
+
+def _write_all_advances_unlocked(records):
+    os.makedirs(os.path.dirname(ADVANCE_DATA_PATH), exist_ok=True)
+    with open(ADVANCE_DATA_PATH, "w", encoding="utf-8") as f:
+        for record in records:
+            f.write(serialize_advance_record(record) + "\n")
+
+
+def write_all_advances(records):
+    with _advance_lock:
+        _write_all_advances_unlocked(records)
+
+
+def next_advance_id():
+    with _advance_lock:
+        result = run_advance_command("next-id")
+        if result and result.returncode == 0:
+            next_id = safe_int(result.stdout.strip(), 0)
+            if next_id > 0:
+                return next_id
+        records = _read_advances_unlocked()
+        return max((record["advance_id"] for record in records), default=0) + 1
+
+
+def find_advance_by_id(advance_id):
+    with _advance_lock:
+        result = run_advance_command("find-id", advance_id)
+        if result and result.returncode == 0 and result.stdout.strip():
+            return parse_advance_line(result.stdout.strip())
+        return next(
+            (
+                record for record in _read_advances_unlocked()
+                if record["advance_id"] == int(advance_id)
+            ),
+            None
+        )
+
+
+def find_advance_by_appointment_id(appointment_id):
+    with _advance_lock:
+        result = run_advance_command("find-appointment", appointment_id)
+        if result and result.returncode == 0 and result.stdout.strip():
+            return parse_advance_line(result.stdout.strip())
+        return next(
+            (
+                record for record in _read_advances_unlocked()
+                if record["appointment_id"] == int(appointment_id)
+                and record["status"] in {"PAID", "PENDING_PAYMENT"}
+            ),
+            None
+        )
+
+
+def find_advance_by_order_id(order_id):
+    order_id = str(order_id or "").strip()
+    with _advance_lock:
+        result = run_advance_command("find-order", order_id)
+        if result and result.returncode == 0 and result.stdout.strip():
+            return parse_advance_line(result.stdout.strip())
+        return next(
+            (
+                record for record in _read_advances_unlocked()
+                if record["razorpay_order_id"] == order_id
+            ),
+            None
+        )
+
+
+def update_advance_record(updated):
+    line = serialize_advance_record(updated)
+    with _advance_lock:
+        result = run_advance_command("update", updated["advance_id"], line)
+        if result and result.returncode == 0:
+            return True
+        records = _read_advances_unlocked()
+        changed = False
+        for index, record in enumerate(records):
+            if record["advance_id"] == updated["advance_id"]:
+                records[index] = updated
+                changed = True
+                break
+        if changed:
+            _write_all_advances_unlocked(records)
+    return changed
+
+
+def create_advance_record(patient_id, doctor_id, appointment_date, amount, pending_request_id=0):
+    with _advance_lock:
+        records = None
+        result = run_advance_command("next-id")
+        next_id = safe_int(result.stdout.strip(), 0) if result and result.returncode == 0 else 0
+        if next_id <= 0:
+            records = _read_advances_unlocked()
+            next_id = max((record["advance_id"] for record in records), default=0) + 1
+        adv = {
+            "advance_id": next_id,
+            "patient_id": int(patient_id),
+            "appointment_id": 0,
+            "doctor_id": int(doctor_id),
+            "appointment_date": str(appointment_date),
+            "amount": float(amount),
+            "status": "PENDING_PAYMENT",
+            "razorpay_order_id": "",
+            "razorpay_payment_id": "",
+            "created_at": iso_now(),
+            "paid_at": "",
+            "settled_at": "",
+            "pending_request_id": int(pending_request_id),
+        }
+        line = serialize_advance_record(adv)
+        result = run_advance_command("save", line)
+        if not result or result.returncode != 0:
+            if records is None:
+                records = _read_advances_unlocked()
+            records.append(adv)
+            _write_all_advances_unlocked(records)
+    return adv
+
+
+def get_advance_amount_for_department(department):
+    catalog = load_pricing_catalog()
+    fee = catalog.get("doctor_fees", {}).get(department, 0)
+    return round(float(fee) * ADVANCE_PERCENT / 100, 2)
+
+
+# ---------------- BOOKING INTENT HELPERS ----------------
+# Webhooks have no Flask session. Booking intent (slot, reason, visit_type,
+# triage) is persisted server-side in a flat file keyed by advance_id.
+
+def parse_booking_intent_line(line):
+    parts = line.strip().split("|")
+    if len(parts) < 7:
+        return None
+    return {
+        "advance_id": safe_int(parts[0]),
+        "doctor_id": safe_int(parts[1]),
+        "requested_date": parts[2],
+        "requested_slot": parts[3],
+        "reason": parts[4],
+        "visit_type": parts[5],
+        "triage": parts[6],
+    }
+
+
+def serialize_booking_intent(advance_id, doctor_id, requested_date, requested_slot, reason, visit_type, triage):
+    return "|".join([
+        str(int(advance_id)),
+        str(int(doctor_id)),
+        clean_record_field(requested_date, 20),
+        clean_record_field(requested_slot, 32),
+        clean_record_field(reason, 220),
+        clean_record_field(visit_type, 32),
+        clean_record_field(triage, 32),
+    ])
+
+
+def _save_booking_intent_fallback(serialized_line):
+    append_data_line(BOOKING_INTENT_PATH, serialized_line)
+
+
+def _pop_booking_intent_fallback(advance_id):
+    if not os.path.exists(BOOKING_INTENT_PATH):
+        return None
+    kept, found = [], None
+    with open(BOOKING_INTENT_PATH, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            intent = parse_booking_intent_line(line)
+            if intent and intent["advance_id"] == int(advance_id):
+                found = intent
+            else:
+                kept.append(line)
+    with open(BOOKING_INTENT_PATH, "w", encoding="utf-8") as f:
+        f.write("\n".join(kept) + ("\n" if kept else ""))
+    return found
+
+
+def save_booking_intent(advance_id, doctor_id, requested_date, requested_slot, reason, visit_type, triage):
+    os.makedirs(os.path.dirname(BOOKING_INTENT_PATH), exist_ok=True)
+    line = serialize_booking_intent(
+        advance_id, doctor_id, requested_date, requested_slot, reason, visit_type, triage
+    )
+    with _advance_lock:
+        result = run_advance_command("save-intent", line)
+        if not result or result.returncode != 0:
+            _save_booking_intent_fallback(line)
+
+
+def pop_booking_intent(advance_id):
+    with _advance_lock:
+        result = run_advance_command("pop-intent", advance_id)
+        if result and result.returncode == 0 and result.stdout.strip():
+            return parse_booking_intent_line(result.stdout.strip())
+        return _pop_booking_intent_fallback(advance_id)
 
 
 def _write_all_bill_records_unlocked(bills):
@@ -1024,10 +1313,17 @@ def apply_reception_bill_status_update(bill, target_status):
     if target_status == "REFUNDED":
         if current_status != "PAID":
             return False, "Only paid bills can be marked as refunded."
+        payment_id = bill.get("razorpay_payment_id", "")
+        if payment_id:
+            from payment_service import initiate_refund
+            ok_refund, err_refund = initiate_refund(payment_id, bill.get("total", 0))
+            if not ok_refund:
+                return False, (f"Razorpay refund failed: {err_refund}. "
+                               "Refund manually in Razorpay dashboard, then mark as refunded here.")
         bill["status"] = "REFUNDED"
         bill["razorpay_order_id"] = ""
         bill["initiated_at"] = ""
-        return True, f"Bill #{bill['bill_id']} was marked as refunded."
+        return True, f"Bill #{bill['bill_id']} marked as refunded and refund initiated."
 
     return False, "Unsupported bill status update."
 
@@ -1272,7 +1568,7 @@ def reconcile_waiting_queue_entries():
 
 @app.before_request
 def require_login():
-    public_endpoints = {"dashboard", "login", "patient_login", "patient_request_otp", "patient_verify_otp", "new_patient_request", "new_patient_slots", "new_patient_submit", "payment_webhook", "static"}
+    public_endpoints = {"dashboard", "login", "patient_login", "patient_request_otp", "patient_verify_otp", "new_patient_request", "new_patient_slots", "new_patient_submit", "payment_webhook", "payment_webhook_advance", "static"}
     if request.endpoint in public_endpoints:
         return
     if not is_authenticated():
@@ -1282,7 +1578,7 @@ def require_login():
 
 @app.before_request
 def verify_csrf_token():
-    if request.endpoint == "payment_webhook":
+    if request.endpoint in {"payment_webhook", "payment_webhook_advance"}:
         return
     if request.method != "POST":
         return
@@ -1547,7 +1843,8 @@ def build_reception_queue_groups(queue):
             "patient_id": item["patient_id"],
             "priority": item["priority"],
             "name": patient.get("name", ""),
-            "symptoms": patient.get("symptoms", "")
+            "symptoms": patient.get("symptoms", ""),
+            "outstanding_amount": float(item.get("outstanding_amount", 0) or 0),
         })
 
     grouped = list(groups.values())
@@ -2350,7 +2647,111 @@ def run_expiry_check():
             send_sms_notice(row["phone"], f"Your first-time request for {format_human_date(row['requested_date'])}, {row['requested_slot']} expired before confirmation. Please submit again or call the clinic.")
             notify_receptionists(f"First-time booking request from {row['name']} expired unreviewed.")
 
+    _expire_stale_advances()
     return {"pending_changed": pending_changed, "new_changed": new_changed}
+
+
+def _confirm_booking_after_advance(adv):
+    """
+    Called from payment_webhook_advance after payment.captured.
+    Retrieves booking intent and runs the triage path.
+    This function must not raise - a webhook crash causes Razorpay retries.
+    """
+    try:
+        intent = pop_booking_intent(adv["advance_id"])
+        if not intent:
+            print(f"[HealthDesk] WARNING: No booking intent for advance {adv['advance_id']}")
+            return
+
+        patient = find_patient_by_id(adv["patient_id"])
+        if not patient:
+            return
+
+        if intent["triage"] == "auto":
+            ok, message, row = auto_approve_booking(
+                patient, intent["doctor_id"], intent["requested_date"],
+                intent["requested_slot"], intent["reason"], intent["visit_type"]
+            )
+            if ok and row:
+                appointment_id = safe_int(row.get("appointment_id", 0))
+                if appointment_id:
+                    adv["appointment_id"] = appointment_id
+                    update_advance_record(adv)
+                doctor = get_doctor_by_id(intent["doctor_id"]) or {}
+                send_sms_notice(
+                    patient["phone"],
+                    f"Appointment confirmed! {doctor.get('name', 'Doctor')} on "
+                    f"{format_human_date(intent['requested_date'])} at {intent['requested_slot']}. "
+                    f"Advance paid: Rs.{adv['amount']:.0f}."
+                )
+            else:
+                send_sms_notice(
+                    patient["phone"],
+                    f"Advance paid but booking failed: {message}. Please call the clinic."
+                )
+        else:
+            ok, _message, row = exception_queue_booking(
+                patient, intent["doctor_id"], intent["requested_date"],
+                intent["requested_slot"], intent["reason"], intent["visit_type"]
+            )
+            if ok and isinstance(row, dict):
+                adv["pending_request_id"] = row.get("request_id", 0)
+                update_advance_record(adv)
+            send_sms_notice(
+                patient["phone"],
+                f"Advance of Rs.{adv['amount']:.0f} received. "
+                "Your booking request is under review - response within 2 hours."
+            )
+    except Exception as exc:
+        print(f"[HealthDesk] ERROR confirming advance {adv.get('advance_id')}: {exc}")
+
+
+def _expire_stale_advances():
+    """
+    Expires PENDING_PAYMENT advances past their payment window.
+    Auto-approve: 30 min. Exception queue: 2 hours.
+    Called from run_expiry_check().
+    """
+    now = datetime.now()
+    with _advance_lock:
+        records = _read_advances_unlocked()
+        changed = False
+        for adv in records:
+            if adv["status"] != "PENDING_PAYMENT":
+                continue
+            created = parse_iso_datetime(adv.get("created_at", ""))
+            if not created:
+                continue
+            window = timedelta(hours=2) if adv["pending_request_id"] else timedelta(minutes=30)
+            if now - created <= window:
+                continue
+            adv["status"] = "EXPIRED"
+            adv["settled_at"] = iso_now()
+            changed = True
+            if adv["pending_request_id"]:
+                update_pending_status(adv["pending_request_id"], "Expired")
+            patient = find_patient_by_id(adv["patient_id"])
+            if patient:
+                send_sms_notice(
+                    patient["phone"],
+                    "Your HealthDesk booking was not confirmed - the payment window expired. "
+                    "Please try booking again."
+                )
+        if changed:
+            _write_all_advances_unlocked(records)
+
+
+def patient_has_completed_visit_with_doctor(patient_id, doctor_id):
+    """
+    Returns True if the patient has at least one Completed appointment
+    with this specific doctor. Required before allowing Follow-up visit type.
+    """
+    for appt in read_appointments():
+        if (appt.get("patient_id") == int(patient_id)
+                and appt.get("doctor_id") == int(doctor_id)
+                and str(appt.get("status", "")).strip() == "Completed"):
+            return True
+    return False
 
 
 def triage_booking_request(doctor_id, requested_date, visit_type):
@@ -2616,6 +3017,23 @@ def read_bills_for_patient(patient_id):
     pending.sort(key=lambda bill: parse_iso_date(bill.get("date")) or date.min, reverse=True)
     others.sort(key=lambda bill: parse_iso_date(bill.get("date")) or date.min, reverse=True)
     return pending + others
+
+
+def has_blocking_unpaid_bill(patient_id):
+    """
+    Returns True if the patient has a PENDING or INITIATED bill
+    older than 7 days. This gates new portal bookings.
+    7-day grace period allows counter payments to be reconciled.
+    """
+    cutoff = date.today() - timedelta(days=7)
+    for bill in read_bills_for_patient(int(patient_id)):
+        status = str(bill.get("status", "")).upper()
+        if status not in {"PENDING", "INITIATED"}:
+            continue
+        bill_date = parse_iso_date(bill.get("date", ""))
+        if bill_date and bill_date < cutoff:
+            return True
+    return False
 
 
 def get_patient_billing_context(patient_id, latest_appointment=None):
@@ -3054,6 +3472,12 @@ def patient_dashboard():
     pending_requests = read_pending_requests_for_patient(patient_id)
     medical_records = read_diagnosis_for_patient(patient_id)
     bills = read_bills_for_patient(patient_id)
+    has_blocking_bill = has_blocking_unpaid_bill(patient_id)
+    outstanding_total = sum(
+        float(b.get("total", 0))
+        for b in bills
+        if str(b.get("status", "")).upper() in {"PENDING", "INITIATED"}
+    )
     return render_template(
         "patient_dashboard.html",
         patient=patient,
@@ -3064,7 +3488,9 @@ def patient_dashboard():
         bills=bills,
         status_note=request.args.get("status_note", ""),
         clinic_phone=os.environ.get("CLINIC_PHONE", DEFAULT_CLINIC_PHONE),
-        masked_phone=mask_phone(session.get("patient_phone", patient.get("phone", "") if patient else ""))
+        masked_phone=mask_phone(session.get("patient_phone", patient.get("phone", "") if patient else "")),
+        has_blocking_bill=has_blocking_bill,
+        outstanding_total=outstanding_total,
     )
 
 @app.route("/patient/bills/<int:bill_id>/pdf")
@@ -3187,10 +3613,60 @@ def payment_webhook():
 
     return jsonify({"ok": True})
 
+@app.route("/payment/webhook/advance", methods=["POST"])
+def payment_webhook_advance():
+    from payment_service import verify_webhook_signature
+    raw_body = request.get_data()
+    signature = request.headers.get("X-Razorpay-Signature", "")
+    if not verify_webhook_signature(raw_body, signature):
+        return "", 400
+
+    try:
+        payload = json.loads(raw_body)
+    except Exception:
+        return "", 400
+
+    event = payload.get("event", "")
+    payment_entity = payload.get("payload", {}).get("payment", {}).get("entity", {})
+    order_id = payment_entity.get("order_id", "")
+    payment_id = payment_entity.get("id", "")
+
+    adv = find_advance_by_order_id(order_id)
+    if not adv:
+        return "", 200
+
+    if event == "payment.captured":
+        if adv["status"] == "PAID":
+            return "", 200
+        adv["status"] = "PAID"
+        adv["razorpay_payment_id"] = payment_id
+        adv["paid_at"] = iso_now()
+        update_advance_record(adv)
+        _confirm_booking_after_advance(adv)
+    elif event == "payment.failed":
+        adv["status"] = "EXPIRED"
+        adv["settled_at"] = iso_now()
+        update_advance_record(adv)
+        patient = find_patient_by_id(adv["patient_id"])
+        if patient:
+            send_sms_notice(
+                patient["phone"],
+                "Your HealthDesk booking payment failed. No charge was made. Please try booking again."
+            )
+
+    return "", 200
+
 @app.route("/patient/book")
 @require_role("Patient")
 def patient_book():
     patient = find_patient_by_id(session["patient_id"])
+    if not patient:
+        return redirect(url_for("patient_dashboard"))
+    if has_blocking_unpaid_bill(session["patient_id"]):
+        return redirect(url_for(
+            "patient_dashboard",
+            status_note="You have an outstanding bill older than 7 days. Please clear your dues before booking a new appointment."
+        ))
     departments = sorted({doctor["department"] for doctor in get_doctors()})
     doctors = get_doctors()
     week_dates = [(date.today() + timedelta(days=offset)).isoformat() for offset in range(1, 8)]
@@ -3204,6 +3680,62 @@ def patient_book():
         status_note=status_note,
         is_new_patient=False
     )
+
+@app.route("/patient/advance/pay")
+@require_role("Patient")
+def patient_advance_pay():
+    advance_id = safe_int(request.args.get("advance_id", "0"))
+    adv = find_advance_by_id(advance_id)
+    if (not adv
+            or adv["patient_id"] != int(session["patient_id"])
+            or adv["status"] != "PENDING_PAYMENT"):
+        return redirect(url_for(
+            "patient_dashboard",
+            status_note="Booking session expired. Please try booking again."
+        ))
+    doctor = get_doctor_by_id(adv["doctor_id"]) or {}
+    followup_corrected = session.pop("followup_corrected", False)
+    return render_template(
+        "patient_advance_pay.html",
+        advance=adv,
+        doctor=doctor,
+        razorpay_key=get_razorpay_key_id(),
+        payments_configured=payments_configured(),
+        followup_corrected=followup_corrected,
+    )
+
+
+@app.route("/patient/advance/create-order", methods=["POST"])
+@require_role("Patient")
+def patient_advance_create_order():
+    from payment_service import create_advance_order
+    advance_id = safe_int(request.form.get("advance_id", "0"))
+    adv = find_advance_by_id(advance_id)
+    if (not adv
+            or adv["patient_id"] != int(session["patient_id"])
+            or adv["status"] != "PENDING_PAYMENT"):
+        return jsonify({"ok": False, "error": "Invalid or expired booking session."}), 400
+
+    patient = find_patient_by_id(session["patient_id"])
+    ok, error, order = create_advance_order(
+        amount_rupees=adv["amount"],
+        advance_id=adv["advance_id"],
+        patient_name=patient.get("name", "") if patient else "",
+    )
+    if not ok:
+        return jsonify({"ok": False, "error": error}), 503
+
+    adv["razorpay_order_id"] = order.get("id", "")
+    update_advance_record(adv)
+
+    return jsonify({
+        "ok": True,
+        "key": get_razorpay_key_id(),
+        "order_id": order.get("id"),
+        "amount": order.get("amount"),
+        "advance_id": adv["advance_id"],
+        "currency": "INR",
+    })
 
 @app.route("/patient/book/slots")
 @require_role("Patient")
@@ -3272,6 +3804,11 @@ def patient_book_submit():
     patient = find_patient_by_id(session["patient_id"])
     if not patient:
         return redirect(url_for("patient_dashboard"))
+    if has_blocking_unpaid_bill(session["patient_id"]):
+        return redirect(url_for(
+            "patient_dashboard",
+            status_note="You have an outstanding bill older than 7 days. Please clear your dues before booking."
+        ))
     department = clean_record_field(request.form.get("department", ""))
     doctor_id_raw = request.form.get("doctor_id", "")
     requested_date = clean_record_field(request.form.get("requested_date", ""))
@@ -3280,6 +3817,7 @@ def patient_book_submit():
     visit_type = clean_record_field(request.form.get("visit_type", "New"))
     if visit_type not in {"New", "Follow-up"}:
         visit_type = "New"
+    followup_corrected = False
     parsed_date = parse_iso_date(requested_date)
     if not department or not parsed_date or parsed_date <= date.today() or not requested_slot:
         return redirect(url_for("patient_book", status_note="Choose a department, future date, and available slot."))
@@ -3297,12 +3835,28 @@ def patient_book_submit():
         if not slot_is_available(doctor_id, requested_date, requested_slot):
             return redirect(url_for("patient_book", status_note="That slot is no longer available. Please choose another."))
 
+    if visit_type == "Follow-up":
+        if not patient_has_completed_visit_with_doctor(session["patient_id"], doctor_id):
+            visit_type = "New"
+            followup_corrected = True
+
     triage, reasons = triage_booking_request(doctor_id, requested_date, visit_type)
-    if triage == "auto":
-        ok, message, _row = auto_approve_booking(patient, doctor_id, requested_date, requested_slot, reason, visit_type)
-    else:
-        ok, message, _row = exception_queue_booking(patient, doctor_id, requested_date, requested_slot, reason, visit_type, reasons)
-    return redirect(url_for("patient_dashboard", status_note=message if ok else message))
+
+    advance_amount = get_advance_amount_for_department(department)
+    adv = create_advance_record(
+        patient_id=session["patient_id"],
+        doctor_id=doctor_id,
+        appointment_date=requested_date,
+        amount=advance_amount,
+        pending_request_id=0,
+    )
+    save_booking_intent(
+        adv["advance_id"], doctor_id, requested_date,
+        requested_slot, reason, visit_type, triage
+    )
+    if followup_corrected:
+        session["followup_corrected"] = True
+    return redirect(url_for("patient_advance_pay", advance_id=adv["advance_id"]))
 
 @app.route("/patient/cancel", methods=["POST"])
 @require_role("Patient")
@@ -3316,14 +3870,35 @@ def patient_cancel_appointment():
         return redirect(url_for("patient_dashboard", status_note="Only confirmed upcoming appointments can be cancelled."))
     if appointment_dt - datetime.now() <= timedelta(hours=24):
         return redirect(url_for("patient_dashboard", status_note="To cancel within 24 hours, please call the clinic."))
+    adv = find_advance_by_appointment_id(appointment_id)
+    if adv and adv["status"] == "PAID":
+        from payment_service import initiate_refund
+        ok_refund, err_refund = initiate_refund(adv["razorpay_payment_id"], adv["amount"])
+        if not ok_refund:
+            return redirect(url_for(
+                "patient_dashboard",
+                status_note=f"Refund could not be initiated: {err_refund}. Please call the clinic to cancel."
+            ))
+        adv["status"] = "REFUNDED"
+        adv["settled_at"] = iso_now()
+        update_advance_record(adv)
     result = run_appointment_command("cancel", appointment_id)
     if result.returncode == 0:
         update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "Cancelled")
         patient = find_patient_by_id(appointment["patient_id"])
         doctor = get_doctor_by_id(appointment["doctor_id"]) or {}
         if patient:
-            send_sms_notice(patient["phone"], f"Your appointment with {doctor.get('name', 'the doctor')} on {format_human_date(appointment['date'])} has been cancelled.")
-        return redirect(url_for("patient_dashboard", status_note="Your appointment was cancelled."))
+            refund_note = (f" Advance of Rs.{adv['amount']:.0f} refunded in 5-7 business days."
+                          if adv and adv["status"] == "REFUNDED" else "")
+            send_sms_notice(
+                patient["phone"],
+                f"Your appointment with {doctor.get('name', 'the doctor')} on "
+                f"{format_human_date(appointment['date'])} has been cancelled.{refund_note}"
+            )
+        return redirect(url_for(
+            "patient_dashboard",
+            status_note="Your appointment was cancelled." + (" Advance refund initiated." if adv else "")
+        ))
     return redirect(url_for("patient_dashboard", status_note="Could not cancel the appointment. Please call the clinic."))
 
 @app.route("/login", methods=["GET", "POST"])
@@ -3587,8 +4162,22 @@ def reception_reject_request():
     row = update_pending_status(request_id, "Rejected", reason)
     if row:
         patient = find_patient_by_id(row["patient_id"])
+        adv = next((a for a in read_advances()
+                    if a["pending_request_id"] == request_id
+                    and a["status"] == "PAID"), None)
+        if adv:
+            from payment_service import initiate_refund
+            ok_refund, err_refund = initiate_refund(adv["razorpay_payment_id"], adv["amount"])
+            if ok_refund:
+                adv["status"] = "REFUNDED"
+                adv["settled_at"] = iso_now()
+                update_advance_record(adv)
+            else:
+                print(f"[HealthDesk] Advance refund failed on rejection, advance {adv['advance_id']}: {err_refund}")
         if patient:
-            send_sms_notice(patient["phone"], f"Request not confirmed. Reason: {reason}. Log in to rebook.")
+            refund_note = (f" Advance of Rs.{adv['amount']:.0f} refunded in 5-7 business days."
+                          if adv and adv.get("status") == "REFUNDED" else "")
+            send_sms_notice(patient["phone"], f"Request not confirmed. Reason: {reason}. Log in to rebook.{refund_note}")
     return redirect(url_for("receptionist_dashboard_page", status_note="Patient request rejected."))
 
 @app.route("/doctor")
@@ -3655,6 +4244,14 @@ def build_queue_page_context():
     expire_stale_consultations()
     queue = reconcile_waiting_queue_entries()
     queue, next_patient, waiting_count, completed_count = process_queue(queue)
+    for entry in queue:
+        pid = entry.get("patient_id")
+        if pid:
+            pending = [bill for bill in read_bills_for_patient(pid)
+                       if str(bill.get("status", "")).upper() == "PENDING"]
+            entry["outstanding_amount"] = sum(float(bill.get("total", 0)) for bill in pending)
+        else:
+            entry["outstanding_amount"] = 0.0
     queue_groups = build_reception_queue_groups(queue)
     return {
         "queue": queue,
@@ -3897,6 +4494,18 @@ def update_appointment():
         result = run_appointment_command("noshow", appointment_id)
         if result.returncode == 0:
             update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "No-show")
+            adv = find_advance_by_appointment_id(appointment_id)
+            if adv and adv["status"] == "PAID":
+                adv["status"] = "FORFEITED"
+                adv["settled_at"] = iso_now()
+                update_advance_record(adv)
+                patient_ns = find_patient_by_id(appointment["patient_id"])
+                if patient_ns:
+                    send_sms_notice(
+                        patient_ns["phone"],
+                        f"You missed your appointment on {format_human_date(appointment['date'])}. "
+                        f"Your advance of Rs.{adv['amount']:.0f} has been forfeited. Call us to reschedule."
+                    )
     elif action == "reassign":
         if session.get("role") != "Receptionist":
             return redirect("/appointments?status_note=Only reception can reassign appointments")
@@ -4331,6 +4940,26 @@ def generate_bill():
         appointment_id=billing_context["appointment_id"]
     )
     save_bill_record(bill)
+
+    adv = find_advance_by_appointment_id(billing_context["appointment_id"])
+    if adv and adv["status"] == "PAID":
+        adv["status"] = "CREDITED"
+        adv["settled_at"] = iso_now()
+        update_advance_record(adv)
+        bill["advance_id"] = adv["advance_id"]
+        bill["advance_amount"] = adv["amount"]
+        bill["advance_credited_at"] = iso_now()
+        update_bill_record(bill)
+        balance = max(0.0, float(bill.get("total", 0)) - adv["amount"])
+        patient_obj = find_patient_by_id(int(patient_id))
+        if patient_obj:
+            send_sms_notice(
+                patient_obj["phone"],
+                f"Bill generated for your visit on {bill_date}. "
+                f"Total: Rs.{bill['total']:.0f}. "
+                f"Advance paid: Rs.{adv['amount']:.0f}. "
+                f"Balance due: Rs.{balance:.0f}. Pay via portal or at counter."
+            )
     return redirect(
         url_for(
             "billing_page",

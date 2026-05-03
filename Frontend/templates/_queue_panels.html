@@ -93,7 +93,17 @@
                             <td><strong>{{ patient.token }}</strong></td>
                             <td>
                                 <div>#{{ patient.patient_id }}</div>
-                                <small class="text-muted">{{ patient.name or "-" }}</small>
+                                <small class="text-muted">
+                                    {{ patient.name or "-" }}
+                                    {% if patient.outstanding_amount and patient.outstanding_amount > 0 %}
+                                    <span class="hd-badge danger"
+                                          style="margin-left:6px; cursor:pointer;"
+                                          onclick="window.location='/billing?patient_id={{ patient.patient_id }}'"
+                                          title="Outstanding bill - collect before consultation">
+                                      Due ₹{{ patient.outstanding_amount | int }}
+                                    </span>
+                                    {% endif %}
+                                </small>
                             </td>
                             <td>
                                 <span class="hd-badge {% if patient.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">

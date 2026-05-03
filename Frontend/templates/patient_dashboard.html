@@ -219,6 +219,14 @@
     transition: gap .15s;
 }
 .pd-quick-link:hover { gap: 10px; color: var(--hd-primary-dark); }
+button.pd-quick-link {
+    border: none;
+    background: transparent;
+}
+button.pd-quick-link.disabled {
+    opacity: .55;
+    cursor: not-allowed;
+}
 
 /* ─────────────────────────────────────────
    ALERT OVERRIDE (use hd-alert pattern)
@@ -758,10 +766,19 @@ details[open] summary::before { transform: rotate(90deg); }
                 <div class="pd-quick-value">#{{ patient.id }}</div>
             </div>
             {% endif %}
+            {% if not has_blocking_bill %}
             <a href="/patient/book" class="pd-quick-link">
                 <i class="bi bi-calendar-plus"></i> Book appointment
                 <i class="bi bi-arrow-right"></i>
             </a>
+            {% else %}
+            <button class="pd-quick-link disabled" disabled
+                    title="Clear your outstanding bill to enable booking"
+                    type="button">
+                <i class="bi bi-calendar-plus"></i> Book appointment
+                <i class="bi bi-arrow-right"></i>
+            </button>
+            {% endif %}
         </aside>
     </section>
 
@@ -791,6 +808,19 @@ details[open] summary::before { transform: rotate(90deg); }
     {% set unpaid_count   = bills | selectattr('status', 'in', ['PENDING','INITIATED']) | list | length %}
 
     {# ── Tab navigation ── #}
+    {% if has_blocking_bill %}
+    <div class="hd-alert danger pd-alert" role="alert" style="margin-bottom:1.5rem; display:flex; align-items:center; gap:12px;">
+      <i class="bi bi-exclamation-triangle-fill" style="font-size:1.3rem; flex-shrink:0;"></i>
+      <div style="flex:1;">
+        <strong>Outstanding balance - booking suspended</strong><br>
+        You have unpaid dues of <strong>₹{{ outstanding_total | int }}</strong> older than 7 days.
+        Clear your bill before booking a new appointment.
+      </div>
+      <button class="hd-btn hd-btn-sm hd-btn-danger" onclick="switchTab('bills')" type="button">
+        Pay now
+      </button>
+    </div>
+    {% endif %}
     <nav class="pd-tabs" role="tablist" aria-label="Dashboard sections" id="pdTabs">
         <button class="pd-tab active" role="tab" aria-selected="true"  aria-controls="tab-appts"   data-tab="tab-appts">
             <i class="bi bi-calendar2-check-fill"></i>
@@ -823,9 +853,17 @@ details[open] summary::before { transform: rotate(90deg); }
                 <h2 class="pd-panel-title">Appointments</h2>
                 <p class="pd-panel-sub">Upcoming visits, pending requests, and your recent appointment history.</p>
             </div>
+            {% if not has_blocking_bill %}
             <a href="/patient/book" class="hd-btn hd-btn-primary">
                 <i class="bi bi-calendar-plus"></i> Book appointment
             </a>
+            {% else %}
+            <button class="hd-btn hd-btn-primary disabled" disabled
+                    title="Clear your outstanding bill to enable booking"
+                    type="button">
+                <i class="bi bi-calendar-plus"></i> Book appointment
+            </button>
+            {% endif %}
         </div>
 
         {# ── Pending requests ── #}
@@ -906,9 +944,17 @@ details[open] summary::before { transform: rotate(90deg); }
             <div class="pd-empty-icon"><i class="bi bi-calendar-x"></i></div>
             <h3>No upcoming appointments</h3>
             <p>You don't have any scheduled visits right now. Book one and reception will get you set up.</p>
+            {% if not has_blocking_bill %}
             <a href="/patient/book" class="hd-btn hd-btn-primary">
                 <i class="bi bi-calendar-plus"></i> Book an appointment
             </a>
+            {% else %}
+            <button class="hd-btn hd-btn-primary disabled" disabled
+                    title="Clear your outstanding bill to enable booking"
+                    type="button">
+                <i class="bi bi-calendar-plus"></i> Book an appointment
+            </button>
+            {% endif %}
         </div>
         {% endif %}
 
@@ -934,9 +980,17 @@ details[open] summary::before { transform: rotate(90deg); }
                     {% endif %}
                 </p>
                 <div class="pd-card-actions">
+                    {% if not has_blocking_bill %}
                     <a href="/patient/book" class="hd-btn hd-btn-outline hd-btn-sm">
                         <i class="bi bi-arrow-repeat"></i> Book again
                     </a>
+                    {% else %}
+                    <button class="hd-btn hd-btn-outline hd-btn-sm disabled" disabled
+                            title="Clear your outstanding bill to enable booking"
+                            type="button">
+                        <i class="bi bi-arrow-repeat"></i> Book again
+                    </button>
+                    {% endif %}
                 </div>
             </article>
             {% endfor %}
@@ -1016,9 +1070,17 @@ details[open] summary::before { transform: rotate(90deg); }
             <div class="pd-empty-icon"><i class="bi bi-clipboard2-pulse"></i></div>
             <h3>No records yet</h3>
             <p>Your diagnosis notes and prescriptions will appear here after your first consultation with a doctor.</p>
+            {% if not has_blocking_bill %}
             <a href="/patient/book" class="hd-btn hd-btn-outline">
                 <i class="bi bi-calendar-plus"></i> Book a consultation
             </a>
+            {% else %}
+            <button class="hd-btn hd-btn-outline disabled" disabled
+                    title="Clear your outstanding bill to enable booking"
+                    type="button">
+                <i class="bi bi-calendar-plus"></i> Book a consultation
+            </button>
+            {% endif %}
         </div>
         {% endif %}
     </section>
@@ -1230,6 +1292,16 @@ details[open] summary::before { transform: rotate(90deg); }
         });
         try { history.replaceState(null, "", location.pathname + "?tab=" + id); } catch(e) {}
     }
+
+    window.switchTab = function (id) {
+        var tabId = String(id || "");
+        if (tabId && !tabId.startsWith("tab-")) {
+            tabId = "tab-" + tabId;
+        }
+        if (tabId && document.getElementById(tabId)) {
+            activateTab(tabId);
+        }
+    };
 
     tabs.forEach(function (btn) {
         btn.addEventListener("click", function () { activateTab(this.dataset.tab); });

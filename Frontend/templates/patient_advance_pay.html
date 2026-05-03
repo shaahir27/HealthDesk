@@ -1,0 +1,130 @@
+{% extends "index.html" %}
+{% block head_extra %}{% endblock %}
+{% block content %}
+<div class="hd-page-wrap" style="max-width:520px; margin:2.5rem auto; padding:0 1rem;">
+
+  <div class="hd-card" style="padding:2rem;">
+    <h2 class="hd-card-title" style="margin-bottom:0.25rem;">
+      <i class="bi bi-shield-lock me-2"></i>Confirm Booking with Advance
+    </h2>
+    <p style="color:var(--hd-text-muted); font-size:0.9rem; margin-bottom:1.5rem;">
+      Pay a refundable advance to secure your slot.
+    </p>
+
+    {% if followup_corrected %}
+    <div class="hd-alert warning" style="margin-bottom:1rem;">
+      <i class="bi bi-info-circle-fill"></i>
+      Visit type changed to <strong>New Visit</strong> - no prior completed appointment found with this doctor.
+    </div>
+    {% endif %}
+
+    <table class="hd-detail-table" style="width:100%; margin-bottom:1.5rem;">
+      <tr><td class="label">Doctor</td><td>{{ doctor.name | default("—") }}</td></tr>
+      <tr><td class="label">Department</td><td>{{ doctor.department | default("—") }}</td></tr>
+      <tr><td class="label">Date</td><td>{{ advance.appointment_date }}</td></tr>
+      <tr><td class="label">Advance Amount</td>
+          <td><strong style="color:var(--hd-primary);">₹{{ advance.amount | int }}</strong></td></tr>
+    </table>
+
+    <div class="hd-alert info" style="margin-bottom:1.5rem; font-size:0.85rem;">
+      <i class="bi bi-info-circle-fill"></i>
+      <div>
+        This advance is <strong>automatically refunded</strong> if you cancel more than 24 hours before your appointment.
+        It is <strong>non-refundable</strong> if you cancel within 24 hours or do not attend.
+        The advance is deducted from your final bill after the visit.
+      </div>
+    </div>
+
+    <div id="advPayMsg" class="hd-alert" style="display:none; margin-bottom:1rem;"></div>
+
+    {% if payments_configured %}
+    <button id="advPayBtn" class="hd-btn hd-btn-primary" style="width:100%;" type="button">
+      <i class="bi bi-credit-card me-2"></i>Pay Advance — ₹{{ advance.amount | int }}
+    </button>
+    {% else %}
+    <div class="hd-alert warning">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      Online payment is not configured. Please book at the clinic counter.
+    </div>
+    {% endif %}
+
+    <a href="/patient/dashboard" class="hd-btn hd-btn-outline"
+       style="width:100%; margin-top:0.75rem; text-align:center; display:block;">
+      Cancel &amp; go back
+    </a>
+  </div>
+</div>
+
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+(function () {
+  var btn = document.getElementById("advPayBtn");
+  var msg = document.getElementById("advPayMsg");
+  if (!btn) return;
+
+  function showMsg(text, type) {
+    msg.className = "hd-alert " + type;
+    msg.textContent = text;
+    msg.style.display = "flex";
+  }
+
+  btn.addEventListener("click", function () {
+    btn.disabled = true;
+    btn.textContent = "Starting payment...";
+
+    var fd = new FormData();
+    fd.append("advance_id", "{{ advance.advance_id }}");
+    fd.append("_csrf_token", "{{ csrf_token() }}");
+
+    fetch("/patient/advance/create-order", { method: "POST", body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.ok) {
+          showMsg(data.error || "Could not start payment. Please try again.", "danger");
+          btn.disabled = false;
+          btn.textContent = "Pay Advance — ₹{{ advance.amount | int }}";
+          return;
+        }
+        var options = {
+          key:         data.key,
+          amount:      data.amount,
+          currency:    data.currency || "INR",
+          order_id:    data.order_id,
+          name:        "HealthDesk",
+          description: "Appointment Advance",
+          handler: function () {
+            showMsg("Payment received! Confirming your booking... please wait.", "success");
+            btn.style.display = "none";
+            setTimeout(function () {
+              window.location.href = "/patient/dashboard?status_note=Advance paid. Your booking is being confirmed.";
+            }, 3000);
+          },
+          modal: {
+            ondismiss: function () {
+              showMsg("Payment window closed. You can retry or pay at the counter.", "warning");
+              btn.disabled = false;
+              btn.textContent = "Pay Advance — ₹{{ advance.amount | int }}";
+            }
+          },
+          prefill: {
+            contact: "{{ session.get('patient_phone', '') }}"
+          },
+          theme: { color: "#2E86C1" }
+        };
+        var rzp = new Razorpay(options);
+        rzp.on("payment.failed", function () {
+          showMsg("Payment failed. Please try again or pay at the counter.", "danger");
+          btn.disabled = false;
+          btn.textContent = "Pay Advance — ₹{{ advance.amount | int }}";
+        });
+        rzp.open();
+      })
+      .catch(function () {
+        showMsg("Network error. Please check your connection and retry.", "danger");
+        btn.disabled = false;
+        btn.textContent = "Pay Advance — ₹{{ advance.amount | int }}";
+      });
+  });
+}());
+</script>
+{% endblock %}
