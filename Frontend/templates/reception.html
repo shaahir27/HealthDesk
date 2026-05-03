@@ -1,192 +1,264 @@
 {% extends "index.html" %}
-
 {% block content %}
-
 <style>
-    .rcx-shell { display:grid; gap:20px; }
-    .rcx-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:20px; }
-    .rcx-card { background:#fff; border:1px solid #dee7ef; border-radius:22px; box-shadow:0 16px 36px rgba(20,40,66,0.06); }
-    .rcx-body { padding:20px; }
-    .rcx-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px; }
-    .rcx-title { margin:0 0 4px; font-size:1.02rem; font-weight:700; color:#1f3750; }
-    .rcx-sub { margin:0; color:#728598; font-size:0.88rem; }
+/* ── Reception Page ── */
+.rcx-shell { display: grid; gap: 20px; }
+
+/* Card */
+.rcx-card {
+    background: var(--hd-surface); border: 1px solid var(--hd-border);
+    border-radius: var(--hd-radius); box-shadow: var(--hd-shadow);
+}
+.rcx-body { padding: clamp(16px,2.5vw,22px); }
+.rcx-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 14px; margin-bottom: 18px; flex-wrap: wrap;
+}
+.rcx-title { font-size: 1rem; font-weight: 700; color: var(--hd-text); margin: 0 0 3px; }
+.rcx-sub   { font-size: .82rem; color: var(--hd-text-muted); margin: 0; }
+
+/* Step indicator */
+.rcx-stepper {
+    display: flex; gap: 0; overflow-x: auto; scrollbar-width: none;
+    margin-bottom: 6px;
+}
+.rcx-stepper::-webkit-scrollbar { display: none; }
+.rcx-step {
+    display: flex; flex-direction: column; align-items: center;
+    flex: 1; min-width: 64px; position: relative; text-align: center;
+}
+.rcx-step::after {
+    content: ''; position: absolute; top: 16px; left: 50%; right: -50%;
+    height: 2px; background: var(--hd-border); z-index: 0;
+}
+.rcx-step:last-child::after { display: none; }
+.rcx-step.done::after { background: var(--hd-primary); }
+.rcx-step-circle {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .8rem; font-weight: 700; z-index: 1; position: relative;
+    border: 2px solid var(--hd-border); background: var(--hd-surface);
+    color: var(--hd-text-muted); flex-shrink: 0; transition: all .2s;
+}
+.rcx-step.done   .rcx-step-circle { background: var(--hd-primary); border-color: var(--hd-primary); color: #fff; }
+.rcx-step.active .rcx-step-circle { border-color: var(--hd-primary); color: var(--hd-primary); box-shadow: 0 0 0 4px var(--hd-primary-light); }
+.rcx-step-label { font-size: .68rem; font-weight: 600; color: var(--hd-text-muted); margin-top: 6px; line-height: 1.2; }
+.rcx-step.active .rcx-step-label { color: var(--hd-primary); font-weight: 700; }
+.rcx-step.done   .rcx-step-label { color: var(--hd-text); }
+
+/* Profile facts grid */
+.rcx-facts {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 10px;
+}
+.rcx-fact {
+    padding: 12px 14px; border-radius: 10px;
+    background: var(--hd-bg); border: 1px solid var(--hd-border);
+}
+.rcx-fact small { display: block; font-size: .68rem; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--hd-text-muted); margin-bottom: 4px; }
+.rcx-fact strong { font-size: .9rem; color: var(--hd-text); }
+
+/* Doctor info strip */
+.rcx-doc-strip {
+    display: grid; grid-template-columns: repeat(4,minmax(0,1fr));
+    gap: 10px; padding: 14px 16px; border-radius: 12px;
+    background: var(--hd-primary-light); border: 1px solid #c8def2;
+}
+.rcx-doc-strip-item small  { display: block; font-size: .68rem; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--hd-text-muted); margin-bottom: 3px; }
+.rcx-doc-strip-item strong { font-size: .88rem; color: var(--hd-text); }
+
+/* Slot section label */
+.rcx-slot-label {
+    font-size: .68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--hd-text-muted);
+    margin: 16px 0 8px;
+    display: flex; align-items: center; gap: 8px;
+}
+.rcx-slot-label::after { content: ''; flex: 1; height: 1px; background: var(--hd-border); }
+
+/* Responsive */
+@media (max-width: 900px) {
+    .rcx-facts     { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .rcx-doc-strip { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+    .rcx-facts     { grid-template-columns: 1fr 1fr; }
+    .rcx-step-label { display: none; }
+}
 </style>
 
 <div class="hd-page-header">
     <h4><i class="bi bi-person-plus-fill me-2"></i>Reception</h4>
-    <small>Search, register, and schedule patient visits without jumping between multiple screens</small>
+    <small>Search, register, and schedule patient visits without jumping between screens</small>
 </div>
 
 {% if message %}
-<div class="hd-alert info">{{ message }}</div>
+<div class="hd-alert info"><i class="bi bi-info-circle me-1"></i> {{ message }}</div>
 {% endif %}
-
 {% if booking_status == "booked" %}
 <div class="hd-alert success">
     <i class="bi bi-check-circle-fill me-1"></i>
-    Appointment confirmed{% if queue_token %}. Queue token <strong>{{ queue_token }}</strong> created{% endif %}.
+    Appointment confirmed{% if queue_token %}. Queue token <strong>{{ queue_token }}</strong> assigned{% endif %}.
+    {% if booking_status == "booked" and queue_doctor_id == "-1" %}
+    No doctor is currently free — patient is in queue for reassignment.
+    {% endif %}
 </div>
 {% elif booking_status == "failed" %}
 <div class="hd-alert danger">
     <i class="bi bi-x-circle-fill me-1"></i>
-    Appointment could not be booked. Please choose another slot.
+    Appointment could not be booked — slot may have just been taken. Choose another slot.
 </div>
 {% endif %}
 
-<div class="rcx-shell">
-    <div class="rcx-grid">
-        <div class="rcx-card">
-            <div class="rcx-body">
-                <div class="rcx-head">
-                    <div>
-                        <h5 class="rcx-title"><i class="bi bi-search me-1"></i> 1. Find Patient</h5>
-                        <p class="rcx-sub">Search by phone number first to avoid duplicate patient records.</p>
-                    </div>
-                </div>
-                <form action="/reception" method="POST">
-                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="action" value="search">
-                    <div class="row g-3 align-items-end">
-                        <div class="col-12">
-                            <label class="form-label">Phone Number</label>
-                            <input type="tel" name="phone" class="form-control" pattern="[0-9]{10}" value="{{ phone }}" placeholder="Enter 10-digit mobile number" required>
-                        </div>
-                        <div class="col-12">
-                            <button class="hd-btn hd-btn-primary hd-btn-block"><i class="bi bi-search"></i> Search Patient</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
+{# ── Progress stepper ── #}
+<nav class="rcx-stepper" aria-label="Reception workflow steps">
+    <div class="rcx-step {% if not patient and not show_registration %}active{% else %}done{% endif %}">
+        <div class="rcx-step-circle"><i class="bi bi-search"></i></div>
+        <div class="rcx-step-label">Find Patient</div>
+    </div>
+    <div class="rcx-step {% if show_registration %}active{% elif patient %}done{% endif %}">
+        <div class="rcx-step-circle"><i class="bi bi-person-badge"></i></div>
+        <div class="rcx-step-label">{% if show_registration %}Register{% else %}Profile{% endif %}</div>
+    </div>
+    <div class="rcx-step {% if patient and not slots %}active{% elif slots %}done{% endif %}">
+        <div class="rcx-step-circle"><i class="bi bi-calendar3"></i></div>
+        <div class="rcx-step-label">Choose Slot</div>
+    </div>
+    <div class="rcx-step {% if slots %}active{% endif %}">
+        <div class="rcx-step-circle"><i class="bi bi-check2-circle"></i></div>
+        <div class="rcx-step-label">Confirm</div>
+    </div>
+</nav>
 
-        {% if patient %}
-        <div class="rcx-card">
-            <div class="rcx-body">
-                <div class="rcx-head">
-                    <div>
-                        <h5 class="rcx-title"><i class="bi bi-person-badge me-1"></i> 2. Patient Profile</h5>
-                        <p class="rcx-sub">Patient found. Review details before choosing doctor and slot.</p>
-                    </div>
-                </div>
-                <div class="row g-3">
-                    <div class="col-6 col-md-3"><small class="text-muted d-block">ID</small><strong>{{ patient.id }}</strong></div>
-                    <div class="col-6 col-md-3"><small class="text-muted d-block">Name</small><strong>{{ patient.name }}</strong></div>
-                    <div class="col-6 col-md-3"><small class="text-muted d-block">Phone</small>{{ patient.phone }}</div>
-                    <div class="col-6 col-md-3"><small class="text-muted d-block">Department</small><span class="hd-badge booked">{{ patient.department }}</span></div>
-                    <div class="col-6 col-md-3"><small class="text-muted d-block">Age / Gender</small>{{ patient.age }} / {{ patient.gender }}</div>
-                    <div class="col-6 col-md-3"><small class="text-muted d-block">Visit</small>{{ patient.visit_type }}</div>
-                    <div class="col-6 col-md-3"><small class="text-muted d-block">Priority</small><span class="hd-badge {% if patient.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ patient.priority }}</span></div>
-                    <div class="col-12"><small class="text-muted d-block">Symptoms</small>{{ patient.symptoms }}</div>
+<div class="rcx-shell">
+
+    {# ── Step 1: Search ── #}
+    <div class="rcx-card">
+        <div class="rcx-body">
+            <div class="rcx-head">
+                <div>
+                    <h5 class="rcx-title"><i class="bi bi-search me-1"></i> 1. Find Patient</h5>
+                    <p class="rcx-sub">Search by phone number first — prevents duplicate records.</p>
                 </div>
             </div>
-        </div>
-        {% elif show_registration %}
-        <div class="rcx-card">
-            <div class="rcx-body">
-                <div class="rcx-head">
-                    <div>
-                        <h5 class="rcx-title"><i class="bi bi-person-plus me-1"></i> 2. Register Patient</h5>
-                        <p class="rcx-sub">No matching patient found. Add a new record and continue to booking.</p>
+            <form action="/reception" method="POST">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="search">
+                <div class="row g-3 align-items-end">
+                    <div class="col-12 col-md-9">
+                        <label class="form-label">Phone Number</label>
+                        <input type="tel" name="phone" class="form-control" pattern="[0-9]{10}"
+                               value="{{ phone }}" placeholder="10-digit mobile number"
+                               inputmode="numeric" maxlength="10" required>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <button class="hd-btn hd-btn-primary hd-btn-block">
+                            <i class="bi bi-search"></i> Search
+                        </button>
                     </div>
                 </div>
-                <form action="/reception" method="POST">
-                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="action" value="register">
-                    <div class="row g-3">
-                        <div class="col-12 col-md-6"><label class="form-label">Full Name</label><input type="text" name="name" class="form-control" required></div>
-                        <div class="col-6 col-md-3"><label class="form-label">Age</label><input type="number" name="age" class="form-control" min="1" max="120" required></div>
-                        <div class="col-6 col-md-3"><label class="form-label">Gender</label><select name="gender" class="form-select" required><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select></div>
-                        <div class="col-12 col-md-4"><label class="form-label">Phone</label><input type="tel" name="phone" class="form-control" pattern="[0-9]{10}" value="{{ phone }}" required></div>
-                        <div class="col-12 col-md-8"><label class="form-label">Address</label><input type="text" name="address" class="form-control" required></div>
-                        <div class="col-12"><label class="form-label">Symptoms</label><textarea name="symptoms" class="form-control" rows="2" required></textarea></div>
-                        <div class="col-6 col-md-4"><label class="form-label">Visit Type</label><select name="visit_type" class="form-select" required><option value="">Select</option><option>New</option><option>Follow-up</option><option>Emergency</option></select></div>
-                        <div class="col-6 col-md-4"><label class="form-label">Priority</label><select name="priority" class="form-select" required><option value="">Select</option><option>Normal</option><option>Urgent</option></select></div>
-                        <div class="col-12 col-md-4"><label class="form-label">Department</label><select name="department" class="form-select" required><option value="">Select</option><option value="General">General Medicine</option><option value="Cardiology">Cardiology</option><option value="Orthopaedics">Orthopaedics</option><option value="ENT">ENT</option><option value="Neurology">Neurology</option><option value="Dermatology">Dermatology</option><option value="Pediatrics">Pediatrics</option><option value="Other">Other</option></select></div>
-                        <div class="col-12"><button class="hd-btn hd-btn-primary"><i class="bi bi-person-check"></i> Register And Continue</button></div>
-                    </div>
-                </form>
-            </div>
+            </form>
         </div>
-        {% endif %}
     </div>
 
+    {# ── Step 2a: Patient profile ── #}
     {% if patient %}
-    <div class="rcx-grid">
-        <div class="rcx-card">
-            <div class="rcx-body">
-                <div class="rcx-head">
-                    <div>
-                        <h5 class="rcx-title"><i class="bi bi-calendar2-check me-1"></i> 3. Choose Doctor And Date</h5>
-                        <p class="rcx-sub">Load available slots for the selected doctor and appointment day.</p>
-                    </div>
+    <div class="rcx-card">
+        <div class="rcx-body">
+            <div class="rcx-head">
+                <div>
+                    <h5 class="rcx-title"><i class="bi bi-person-badge-fill me-1"></i> 2. Patient Profile</h5>
+                    <p class="rcx-sub">Patient found. Review before booking.</p>
                 </div>
-                <form method="GET" action="/reception">
-                    <input type="hidden" name="patient_id" value="{{ patient.id }}">
-                    <input type="hidden" name="phone" value="{{ patient.phone }}">
-                    <div class="row g-3 align-items-end">
-                        <div class="col-12 col-md-4">
-                            <label class="form-label">Department</label>
-                            <select name="department" class="form-select">
-                                {% for dep in doctors|map(attribute='department')|unique|list %}
-                                <option value="{{ dep }}" {% if selected_department == dep %}selected{% endif %}>{{ dep }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label class="form-label">Doctor</label>
-                            <select name="doctor_id" class="form-select">
-                                {% for d in doctors %}
-                                {% if not selected_department or d.department == selected_department %}
-                                <option value="{{ d.id }}" {% if selected_doctor|int == d.id %}selected{% endif %}>Dr {{ d.name }} ({{ d.department }})</option>
-                                {% endif %}
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-12 col-sm-6 col-md-2">
-                            <label class="form-label">Date</label>
-                            <input type="date" name="date" class="form-control" value="{{ selected_date }}" required>
-                        </div>
-                        <div class="col-12 col-sm-6 col-md-2">
-                            <button class="hd-btn hd-btn-primary hd-btn-block"><i class="bi bi-clock"></i> Load</button>
-                        </div>
-                    </div>
-                </form>
+                <span class="hd-badge completed"><i class="bi bi-check2 me-1"></i>Found</span>
             </div>
-        </div>
-
-        <div class="rcx-card">
-            <div class="rcx-body">
-                <div class="rcx-head">
-                    <div>
-                        <h5 class="rcx-title"><i class="bi bi-person-vcard me-1"></i> Doctor Info</h5>
-                        <p class="rcx-sub">Check live status before confirming the appointment.</p>
-                    </div>
-                </div>
-                {% if selected_doctor_info %}
-                <div class="row g-3">
-                    <div class="col-6"><small class="text-muted d-block">Doctor</small><strong>Dr {{ selected_doctor_info.name }}</strong></div>
-                    <div class="col-6"><small class="text-muted d-block">Department</small>{{ selected_doctor_info.department }}</div>
-                    <div class="col-6"><small class="text-muted d-block">Daily Status</small><span class="hd-badge {{ selected_doctor_info.daily_status|lower }}">{{ selected_doctor_info.daily_status }}</span></div>
-                    <div class="col-6"><small class="text-muted d-block">Availability</small><span class="hd-badge {{ selected_doctor_info.availability_badge }}">{{ selected_doctor_info.availability_label }}</span></div>
-                </div>
-                {% else %}
-                <div class="text-muted">Load a doctor to see availability details.</div>
+            <div class="rcx-facts">
+                <div class="rcx-fact"><small>ID</small><strong>#{{ patient.id }}</strong></div>
+                <div class="rcx-fact"><small>Name</small><strong>{{ patient.name }}</strong></div>
+                <div class="rcx-fact"><small>Phone</small><strong>{{ patient.phone }}</strong></div>
+                <div class="rcx-fact"><small>Department</small><strong><span class="hd-badge booked">{{ patient.department }}</span></strong></div>
+                <div class="rcx-fact"><small>Age / Gender</small><strong>{{ patient.age }} / {{ patient.gender }}</strong></div>
+                <div class="rcx-fact"><small>Visit Type</small><strong>{{ patient.visit_type }}</strong></div>
+                <div class="rcx-fact"><small>Priority</small><strong><span class="hd-badge {% if patient.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">{{ patient.priority }}</span></strong></div>
+                {% if patient.symptoms %}
+                <div class="rcx-fact" style="grid-column:1/-1"><small>Symptoms</small><strong style="font-weight:400;">{{ patient.symptoms }}</strong></div>
                 {% endif %}
             </div>
         </div>
     </div>
 
+    {# ── Step 3: Choose doctor / date ── #}
+    <div class="rcx-card">
+        <div class="rcx-body">
+            <div class="rcx-head">
+                <div>
+                    <h5 class="rcx-title"><i class="bi bi-calendar2-check me-1"></i> 3. Choose Doctor &amp; Date</h5>
+                    <p class="rcx-sub">Filter by department, pick a doctor, then load available slots for that day.</p>
+                </div>
+            </div>
+            <form method="GET" action="/reception">
+                <input type="hidden" name="patient_id" value="{{ patient.id }}">
+                <input type="hidden" name="phone"      value="{{ patient.phone }}">
+                <div class="row g-3 align-items-end">
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">Department</label>
+                        <select name="department" class="form-select">
+                            {% for dep in doctors|map(attribute='department')|unique|list %}
+                            <option value="{{ dep }}" {% if selected_department == dep %}selected{% endif %}>{{ dep }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label">Doctor</label>
+                        <select name="doctor_id" class="form-select">
+                            {% for d in doctors %}
+                            {% if not selected_department or d.department == selected_department %}
+                            <option value="{{ d.id }}" {% if selected_doctor|int == d.id %}selected{% endif %}>
+                                Dr {{ d.name }} ({{ d.department }})
+                            </option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <label class="form-label">Date</label>
+                        <input type="date" name="date" class="form-control" value="{{ selected_date }}" required>
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-2">
+                        <button class="hd-btn hd-btn-primary hd-btn-block">
+                            <i class="bi bi-clock"></i> Load Slots
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            {% if selected_doctor_info %}
+            <div class="rcx-doc-strip mt-3">
+                <div class="rcx-doc-strip-item"><small>Doctor</small><strong>Dr {{ selected_doctor_info.name }}</strong></div>
+                <div class="rcx-doc-strip-item"><small>Department</small><strong>{{ selected_doctor_info.department }}</strong></div>
+                <div class="rcx-doc-strip-item"><small>Daily Status</small><span class="hd-badge {{ selected_doctor_info.daily_status|lower }}">{{ selected_doctor_info.daily_status }}</span></div>
+                <div class="rcx-doc-strip-item"><small>Current Status</small><span class="hd-badge {{ selected_doctor_info.current_status|lower }}">{{ selected_doctor_info.current_status }}</span></div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
     {% if suggested_doctors %}
     <div class="hd-alert info">
-        <i class="bi bi-info-circle me-1"></i> Alternative doctors with available slots:
+        <i class="bi bi-info-circle me-1"></i> Alternative doctors with open slots on this date:
         <div class="d-flex gap-2 flex-wrap mt-2">
             {% for d in suggested_doctors %}
-            <a class="hd-btn hd-btn-outline hd-btn-sm" href="/reception?patient_id={{ patient.id }}&phone={{ patient.phone }}&department={{ d.department }}&doctor_id={{ d.id }}&date={{ selected_date }}">Dr {{ d.name }} | {{ d.available_slots }} slots</a>
+            <a class="hd-btn hd-btn-outline hd-btn-sm"
+               href="/reception?patient_id={{ patient.id }}&phone={{ patient.phone }}&department={{ d.department }}&doctor_id={{ d.id }}&date={{ selected_date }}">
+                Dr {{ d.name }} &middot; {{ d.available_slots }} slots
+            </a>
             {% endfor %}
         </div>
     </div>
     {% endif %}
 
+    {# ── Step 4: Slots ── #}
     {% if slots %}
     <div class="rcx-card">
         <div class="rcx-body">
@@ -196,40 +268,130 @@
                     <p class="rcx-sub">Tap an available slot to book instantly for this patient.</p>
                 </div>
             </div>
-            <div class="hd-slot-grid">
-                {% for slot in slots %}
-                    {% if slot.state == "Available" %}
-                    <form action="/book_appointment" method="POST">
-                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="return_to" value="reception">
-                        <input type="hidden" name="patient_id" value="{{ patient.id }}">
-                        <input type="hidden" name="doctor_id" value="{{ selected_doctor }}">
-                        <input type="hidden" name="appointment_date" value="{{ selected_date }}">
-                        <input type="hidden" name="time_slot" value="{{ slot.time }}">
-                        <button class="hd-slot available w-100">
-                            <div class="hd-slot-time">{{ slot.time }}</div>
-                            <div class="hd-slot-label">Book Now</div>
-                        </button>
-                    </form>
-                    {% else %}
-                    <div class="hd-slot {{ slot.state|lower|replace('-', '-') }}">
+
+            {# Group slots by time of day #}
+            {% set morning   = slots | selectattr('time', 'lt', '12') | list %}
+            {% set afternoon = slots | selectattr('time', 'ge', '12') | selectattr('time', 'lt', '17') | list %}
+            {% set evening   = slots | rejectattr('time', 'lt', '12') | rejectattr('time', 'lt', '17') | list %}
+
+            {% for period, icon, slot_list in [
+                ("Morning",   "bi-sunrise",      slots | selectattr('time', 'defined') | list),
+            ] %}{% endfor %}
+
+            {# Simple flat render with inline period labels #}
+            {% set ns = namespace(last_period='') %}
+            <div class="hd-slot-grid" id="rcxSlotGrid">
+            {% for slot in slots %}
+                {% set h = slot.time[:2]|int %}
+                {% set period = "Morning" if h < 12 else ("Afternoon" if h < 17 else "Evening") %}
+                {% if period != ns.last_period %}
+                    {% set ns.last_period = period %}
+                    {# Close and reopen grid for label — done via JS below for cleanliness #}
+                {% endif %}
+                {% if slot.state == "Available" %}
+                <form action="/book_appointment" method="POST" data-period="{{ period }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="return_to"        value="reception">
+                    <input type="hidden" name="patient_id"       value="{{ patient.id }}">
+                    <input type="hidden" name="doctor_id"        value="{{ selected_doctor }}">
+                    <input type="hidden" name="appointment_date" value="{{ selected_date }}">
+                    <input type="hidden" name="time_slot"        value="{{ slot.time }}">
+                    <button class="hd-slot available w-100" data-period="{{ period }}">
                         <div class="hd-slot-time">{{ slot.time }}</div>
-                        <div class="hd-slot-label">{{ slot.state }}</div>
-                    </div>
-                    {% endif %}
-                {% endfor %}
+                        <div class="hd-slot-label">Book</div>
+                    </button>
+                </form>
+                {% else %}
+                <div class="hd-slot {{ slot.state|lower|replace('-','') }}" data-period="{{ period }}">
+                    <div class="hd-slot-time">{{ slot.time }}</div>
+                    <div class="hd-slot-label">{{ slot.state }}</div>
+                </div>
+                {% endif %}
+            {% endfor %}
             </div>
         </div>
     </div>
     {% endif %}
 
-    {% if booking_status == "booked" and queue_doctor_id == "-1" %}
-    <div class="hd-alert warning">
-        <i class="bi bi-exclamation-triangle-fill me-1"></i>
-        Booking confirmed, but no doctor is currently free. Patient is in queue for reassignment.
+    {% elif show_registration %}
+    {# ── Step 2b: Register new patient ── #}
+    <div class="rcx-card">
+        <div class="rcx-body">
+            <div class="rcx-head">
+                <div>
+                    <h5 class="rcx-title"><i class="bi bi-person-plus-fill me-1"></i> 2. Register New Patient</h5>
+                    <p class="rcx-sub">No record found for this number. Fill in the details to create one.</p>
+                </div>
+                <span class="hd-badge urgent">New Patient</span>
+            </div>
+            <form action="/reception" method="POST">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="register">
+                <div class="row g-3">
+                    <div class="col-12 col-md-6"><label class="form-label">Full Name</label><input type="text" name="name" class="form-control" required></div>
+                    <div class="col-6 col-md-3"><label class="form-label">Age</label><input type="number" name="age" class="form-control" min="1" max="120" required></div>
+                    <div class="col-6 col-md-3"><label class="form-label">Gender</label>
+                        <select name="gender" class="form-select" required>
+                            <option value="">Select</option><option>Male</option><option>Female</option><option>Other</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4"><label class="form-label">Phone</label><input type="tel" name="phone" class="form-control" pattern="[0-9]{10}" value="{{ phone }}" required></div>
+                    <div class="col-12 col-md-8"><label class="form-label">Address</label><input type="text" name="address" class="form-control" required></div>
+                    <div class="col-12"><label class="form-label">Symptoms / Reason for Visit</label><textarea name="symptoms" class="form-control" rows="3" required></textarea></div>
+                    <div class="col-6 col-md-4"><label class="form-label">Visit Type</label>
+                        <select name="visit_type" class="form-select" required>
+                            <option value="">Select</option><option>New</option><option>Follow-up</option><option>Emergency</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-4"><label class="form-label">Priority</label>
+                        <select name="priority" class="form-select" required>
+                            <option value="">Select</option><option>Normal</option><option>Urgent</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4"><label class="form-label">Department</label>
+                        <select name="department" class="form-select" required>
+                            <option value="">Select</option>
+                            <option value="General">General Medicine</option>
+                            <option value="Cardiology">Cardiology</option>
+                            <option value="Orthopaedics">Orthopaedics</option>
+                            <option value="ENT">ENT</option>
+                            <option value="Neurology">Neurology</option>
+                            <option value="Dermatology">Dermatology</option>
+                            <option value="Pediatrics">Pediatrics</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <button class="hd-btn hd-btn-primary">
+                            <i class="bi bi-person-check"></i> Register &amp; Continue to Booking
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
     {% endif %}
-    {% endif %}
+
 </div>
 
+<script>
+/* Inject period labels into slot grid */
+(function() {
+    var grid = document.getElementById("rcxSlotGrid");
+    if (!grid) return;
+    var seen = {};
+    var icons = { Morning: "bi-sunrise", Afternoon: "bi-sun", Evening: "bi-moon-stars" };
+    var children = Array.from(grid.children);
+    children.forEach(function(el) {
+        var period = el.dataset.period || (el.firstElementChild && el.firstElementChild.dataset.period);
+        if (!period || seen[period]) return;
+        seen[period] = true;
+        var lbl = document.createElement("div");
+        lbl.style.cssText = "grid-column:1/-1;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--hd-text-muted);display:flex;align-items:center;gap:8px;margin-top:4px;";
+        lbl.innerHTML = '<i class="bi ' + (icons[period]||"bi-clock") + '"></i>' + period +
+            '<span style="flex:1;height:1px;background:var(--hd-border);display:inline-block;margin-left:4px;"></span>';
+        grid.insertBefore(lbl, el);
+    });
+})();
+</script>
 {% endblock %}
