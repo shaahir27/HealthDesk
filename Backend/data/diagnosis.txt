@@ -4,3 +4,5 @@
 4|15|6|2026-04-30|Dust allergy|Cetirizine once daily
 5|20|6|2026-04-30|Acne flare|Benzoyl gel at night
 6|2|2|2026-04-15|Cardiac follow-up|Repeat ECG in two weeks
+7|21|6|2026-04-20|Severe acne|Oral antibiotics and topical cream
+8|21|10|2026-04-18|Post-inflammatory acne with mild pigmentation|Topical retinoid, sunscreen, and gentle face wash

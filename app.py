@@ -650,12 +650,18 @@ def build_bill_preview_text(bill):
         "---------------------------------------------------------",
         f"Payment Status: {bill['status']}"
     ])
-    if str(bill.get("status", "")).upper() == "PAID":
-        lines.append(f"Payment Method: {payment_method_label(bill.get('payment_method'))}")
+    payment_status = str(bill.get("status", "")).upper()
+    if payment_status in {"PAID", "REFUNDED"} and bill.get("payment_method"):
+        method_label = "Payment Method" if payment_status == "PAID" else "Original Payment Method"
+        lines.append(f"{method_label}: {payment_method_label(bill.get('payment_method'))}")
         if bill.get("razorpay_payment_id"):
             lines.append(f"Payment Reference: {bill['razorpay_payment_id']}")
         if bill.get("paid_at"):
             lines.append(f"Paid On: {payment_timestamp_label(bill.get('paid_at'))}")
+    if payment_status == "WAIVED":
+        lines.append("This bill was waived by the clinic.")
+    elif payment_status == "REFUNDED":
+        lines.append("This bill was refunded by the clinic.")
     if bill["medicine_notes"]:
         lines.append(f"Medicine Notes : {bill['medicine_notes']}")
     lines.extend([
@@ -732,12 +738,18 @@ def build_bill_pdf(bill):
     rule()
     text_line(f"Total: Rs {bill['total']:.0f}", size=12, bold=True, gap=18)
     text_line(f"Payment Status: {bill['status']}", bold=True)
-    if str(bill.get("status", "")).upper() == "PAID":
-        text_line(f"Payment Method: {payment_method_label(bill.get('payment_method'))}")
+    payment_status = str(bill.get("status", "")).upper()
+    if payment_status in {"PAID", "REFUNDED"} and bill.get("payment_method"):
+        method_label = "Payment Method" if payment_status == "PAID" else "Original Payment Method"
+        text_line(f"{method_label}: {payment_method_label(bill.get('payment_method'))}")
         if bill.get("razorpay_payment_id"):
             text_line(f"Payment Reference: {bill['razorpay_payment_id']}")
         if bill.get("paid_at"):
             text_line(f"Paid On: {payment_timestamp_label(bill.get('paid_at'))}")
+    if payment_status == "WAIVED":
+        text_line("This bill was waived by the clinic.")
+    elif payment_status == "REFUNDED":
+        text_line("This bill was refunded by the clinic.")
     if bill["medicine_notes"]:
         text_line("Medicine Notes:", bold=True)
         for note_line in re.findall(r".{1,85}(?:\s+|$)", bill["medicine_notes"]) or [bill["medicine_notes"]]:
@@ -982,6 +994,32 @@ def revert_stale_initiated_payments():
         if changed:
             _write_all_bill_records_unlocked(rows)
         return changed
+
+
+def apply_reception_bill_status_update(bill, target_status):
+    target_status = str(target_status or "").upper()
+    current_status = str(bill.get("status", "")).upper()
+
+    if target_status == "WAIVED":
+        if current_status != "PENDING":
+            return False, "Only pending bills can be waived."
+        bill["status"] = "WAIVED"
+        bill["razorpay_order_id"] = ""
+        bill["razorpay_payment_id"] = ""
+        bill["payment_method"] = ""
+        bill["paid_at"] = ""
+        bill["initiated_at"] = ""
+        return True, f"Bill #{bill['bill_id']} was marked as waived."
+
+    if target_status == "REFUNDED":
+        if current_status != "PAID":
+            return False, "Only paid bills can be marked as refunded."
+        bill["status"] = "REFUNDED"
+        bill["razorpay_order_id"] = ""
+        bill["initiated_at"] = ""
+        return True, f"Bill #{bill['bill_id']} was marked as refunded."
+
+    return False, "Unsupported bill status update."
 
 
 def parse_booked_appointment_id(result):
@@ -1356,6 +1394,35 @@ def count_available_doctors():
         pass
     return count
 
+def doctor_availability_view(daily_status, current_status):
+    daily = str(daily_status or "").strip()
+    current = str(current_status or "").strip()
+
+    if daily == "Off":
+        return {
+            "availability_label": "Not On Duty",
+            "availability_badge": "waived"
+        }
+    if daily == "Unavailable":
+        return {
+            "availability_label": "Unavailable Today",
+            "availability_badge": "cancelled"
+        }
+    if current == "Emergency":
+        return {
+            "availability_label": "Emergency",
+            "availability_badge": "cancelled"
+        }
+    if current == "Busy":
+        return {
+            "availability_label": "Busy",
+            "availability_badge": "pending"
+        }
+    return {
+        "availability_label": "Free",
+        "availability_badge": "booked"
+    }
+
 
 def get_doctors():
     doctors = []
@@ -1366,13 +1433,15 @@ def get_doctors():
                 data = line.strip().split("|")
                 if len(data) < 6:
                     continue
+                availability = doctor_availability_view(data[4], data[5])
                 doctors.append({
                     "id": int(data[0]),
                     "name": data[1],
                     "department": data[2],
                     "experience": int(data[3]),
                     "daily_status": data[4],
-                    "current_status": data[5]
+                    "current_status": data[5],
+                    **availability
                 })
     except:
         pass
@@ -3827,6 +3896,31 @@ def generate_bill():
             preview_bill_id=bill["bill_id"]
         )
     )
+
+
+@app.route("/billing/update-status", methods=["POST"])
+@require_role("Receptionist")
+def billing_update_status():
+    bill_id = safe_int(request.form.get("bill_id", "0"))
+    target_status = request.form.get("target_status", "").strip().upper()
+    patient_id = request.form.get("return_patient_id", "").strip()
+    preview_bill_id = request.form.get("return_preview_bill_id", "").strip()
+
+    bill = find_bill_by_id(bill_id)
+    if not bill:
+        return redirect(url_for("billing_page", status_note="Bill not found."))
+
+    ok, message = apply_reception_bill_status_update(bill, target_status)
+    if ok and not update_bill_record(bill):
+        ok = False
+        message = "Could not update the bill status. Please try again."
+
+    redirect_args = {"status_note": message}
+    if patient_id:
+        redirect_args["patient_id"] = patient_id
+    if preview_bill_id:
+        redirect_args["preview_bill_id"] = preview_bill_id
+    return redirect(url_for("billing_page", **redirect_args))
 
 
 @app.route("/billing/download/<int:bill_id>")

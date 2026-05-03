@@ -66,8 +66,8 @@
             <div class="mt-2">{% if doctor_info %}<span class="hd-badge {{ doctor_info.daily_status|lower }}">{{ doctor_info.daily_status }}</span>{% else %}-{% endif %}</div>
         </div>
         <div class="docx-metric">
-            <small>Current Status</small>
-            <div class="mt-2">{% if doctor_info %}<span class="hd-badge {{ doctor_info.current_status|lower }}">{{ doctor_info.current_status }}</span>{% else %}-{% endif %}</div>
+            <small>Availability</small>
+            <div class="mt-2">{% if doctor_info %}<span class="hd-badge {{ doctor_info.availability_badge }}">{{ doctor_info.availability_label }}</span>{% else %}-{% endif %}</div>
         </div>
     </div>
 

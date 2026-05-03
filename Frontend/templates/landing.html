@@ -2,200 +2,1082 @@
 
 {% block head_extra %}
 <style>
+    /* ── Hide topbar & sidebar overlay on the landing page ── */
     .hd-topbar,
     .hd-overlay {
         display: none !important;
+    }
+    .hd-main.ms-0 {
+        padding: 0 !important;
+    }
+
+    /* ════════════════════════════════════════
+       LANDING PAGE — FULL REDESIGN
+       ════════════════════════════════════════ */
+
+    /* ── Reset body BG for landing ── */
+    body { background: #f0f4f8; }
+
+    /* ── Root overrides ── */
+    :root {
+        --ld-blue:       #2E86C1;
+        --ld-navy:       #1B4F72;
+        --ld-green:      #1a9e5c;
+        --ld-teal:       #0d8a8a;
+        --ld-amber:      #d97706;
+        --ld-surface:    #ffffff;
+        --ld-bg:         #f0f4f8;
+        --ld-border:     #dce6f0;
+        --ld-text:       #1e2d3d;
+        --ld-muted:      #52677a;
+        --ld-radius:     20px;
+        --ld-r-sm:       12px;
+        --ld-shadow-sm:  0 2px 8px rgba(27,79,114,.07);
+        --ld-shadow-md:  0 6px 24px rgba(27,79,114,.11);
+        --ld-shadow-lg:  0 16px 48px rgba(27,79,114,.15);
+    }
+
+    /* ─────────────────────────────────────────
+       SHELL
+    ───────────────────────────────────────── */
+    .ld-shell {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* ─────────────────────────────────────────
+       NAV BAR
+    ───────────────────────────────────────── */
+    .ld-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 clamp(16px, 4vw, 48px);
+        height: 68px;
+        background: rgba(255,255,255,.92);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--ld-border);
+        position: sticky;
+        top: 0;
+        z-index: 200;
+    }
+    .ld-nav-brand {
+        display: flex;
+        align-items: baseline;
+        gap: 2px;
+        text-decoration: none;
+    }
+    .ld-nav-brand .brand-health {
+        font-family: 'Satisfy', cursive;
+        font-size: 1.55rem;
+        color: var(--ld-blue);
+        line-height: 1;
+    }
+    .ld-nav-brand .brand-desk {
+        font-family: 'MonteCarlo', cursive;
+        font-size: 1.75rem;
+        background: linear-gradient(135deg, var(--ld-blue), var(--ld-navy));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        line-height: 1;
+    }
+    .ld-nav-badge {
+        margin-left: 10px;
+        padding: 3px 10px;
+        background: var(--ld-navy);
+        color: #fff;
+        border-radius: 20px;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        align-self: center;
+    }
+    .ld-nav-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .ld-nav-btn {
+        padding: 8px 20px;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all .18s ease;
+        white-space: nowrap;
+    }
+    .ld-nav-btn-ghost {
+        color: var(--ld-navy);
+        border: 1.5px solid var(--ld-border);
+        background: transparent;
+    }
+    .ld-nav-btn-ghost:hover {
+        border-color: var(--ld-blue);
+        color: var(--ld-blue);
+        background: rgba(46,134,193,.05);
+    }
+    .ld-nav-btn-solid {
+        background: linear-gradient(135deg, var(--ld-blue), var(--ld-navy));
+        color: #fff !important;
+        border: none;
+        box-shadow: 0 3px 12px rgba(46,134,193,.32);
+    }
+    .ld-nav-btn-solid:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(46,134,193,.38);
+        color: #fff;
+    }
+
+    /* Dropdown Styles */
+    .ld-dropdown-wrap {
+        position: relative;
+        display: inline-block;
+    }
+    .ld-dropdown-menu {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 10px;
+        background: #fff;
+        border: 1px solid var(--ld-border);
+        border-radius: 12px;
+        box-shadow: var(--ld-shadow-lg);
+        width: 200px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-10px);
+        transition: all 0.2s ease;
+        z-index: 300;
+        overflow: hidden;
+    }
+    .ld-dropdown-wrap:hover .ld-dropdown-menu {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+    }
+    .ld-dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        text-decoration: none;
+        color: var(--ld-text);
+        font-size: 0.9rem;
+        font-weight: 600;
+        transition: background 0.15s ease;
+    }
+    .ld-dropdown-item:hover {
+        background: var(--ld-bg);
+        color: var(--ld-blue);
+    }
+    .ld-dropdown-item i {
+        font-size: 1.1rem;
+    }
+    .ld-dropdown-item.staff i { color: var(--ld-blue); }
+    .ld-dropdown-item.patient i { color: var(--ld-green); }
+
+    /* ─────────────────────────────────────────
+       HERO
+    ───────────────────────────────────────── */
+    .ld-hero {
+        flex: none;
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(145deg, var(--ld-navy) 0%, #1a5e8a 55%, var(--ld-blue) 100%);
+        padding: clamp(48px, 8vw, 96px) clamp(16px, 5vw, 80px) clamp(48px, 8vw, 88px);
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: center;
+        gap: 32px;
+        color: #fff;
+    }
+
+    /* Decorative circles */
+    .ld-hero::before,
+    .ld-hero::after {
+        content: '';
+        position: absolute;
+        border-radius: 50%;
+        pointer-events: none;
+    }
+    .ld-hero::before {
+        width: 480px; height: 480px;
+        background: radial-gradient(circle, rgba(255,255,255,.07) 0%, transparent 70%);
+        top: -140px; right: -80px;
+    }
+    .ld-hero::after {
+        width: 300px; height: 300px;
+        background: radial-gradient(circle, rgba(255,255,255,.05) 0%, transparent 70%);
+        bottom: -120px; left: 10%;
+    }
+
+    .ld-hero-text { position: relative; z-index: 1; }
+
+    .ld-hero-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 5px 14px;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.2);
+        border-radius: 30px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        color: rgba(255,255,255,.9);
+        margin-bottom: 20px;
+    }
+    .ld-hero-eyebrow i { font-size: 0.75rem; }
+
+    .ld-hero h1 {
+        font-size: clamp(2rem, 3.8vw, 3.2rem);
+        font-weight: 700;
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+        margin: 0 0 16px;
+        color: #fff;
+    }
+    .ld-hero h1 .accent-word {
+        background: linear-gradient(90deg, #7ecfff, #a8e6cf);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .ld-hero-desc {
+        font-size: clamp(0.9rem, 1.4vw, 1.05rem);
+        color: rgba(255,255,255,.75);
+        line-height: 1.65;
+        max-width: 480px;
+        margin: 0 0 32px;
+    }
+
+    .ld-hero-cta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+    }
+    .ld-cta-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 26px;
+        background: #fff;
+        color: var(--ld-navy) !important;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        text-decoration: none;
+        box-shadow: 0 4px 16px rgba(0,0,0,.15);
+        transition: all .2s ease;
+    }
+    .ld-cta-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0,0,0,.2);
+        color: var(--ld-navy);
+    }
+    .ld-cta-ghost {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        border: 1.5px solid rgba(255,255,255,.35);
+        color: rgba(255,255,255,.9) !important;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-decoration: none;
+        backdrop-filter: blur(4px);
+        transition: all .2s ease;
+    }
+    .ld-cta-ghost:hover {
+        border-color: rgba(255,255,255,.6);
+        background: rgba(255,255,255,.08);
+        color: #fff;
+    }
+
+    /* Stats strip */
+    .ld-hero-stats {
+        display: flex;
+        gap: 28px;
+        margin-top: 36px;
+        padding-top: 28px;
+        border-top: 1px solid rgba(255,255,255,.15);
+        flex-wrap: wrap;
+    }
+    .ld-stat-item { display: flex; flex-direction: column; gap: 2px; }
+    .ld-stat-num {
+        font-size: 1.55rem;
+        font-weight: 700;
+        color: #fff;
+        line-height: 1;
+    }
+    .ld-stat-label {
+        font-size: 0.72rem;
+        color: rgba(255,255,255,.6);
+        font-weight: 500;
+        letter-spacing: .5px;
+    }
+
+    /* Right panel — role selector cards */
+    .ld-hero-cards {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .ld-role-card {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 18px 20px;
+        background: rgba(255,255,255,.1);
+        border: 1px solid rgba(255,255,255,.2);
+        border-radius: 16px;
+        color: #fff;
+        text-decoration: none;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        transition: all .22s ease;
+        cursor: pointer;
+    }
+    .ld-role-card:hover {
+        background: rgba(255,255,255,.18);
+        border-color: rgba(255,255,255,.45);
+        transform: translateX(4px);
+        color: #fff;
+        box-shadow: 0 8px 28px rgba(0,0,0,.18);
+    }
+    .ld-role-icon {
+        width: 48px; height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        flex-shrink: 0;
+    }
+    .ld-role-icon.staff   { background: rgba(255,255,255,.2); }
+    .ld-role-icon.patient { background: rgba(26,158,92,.35); }
+    .ld-role-icon.new-pt  { background: rgba(217,119,6,.35); }
+    .ld-role-body { flex: 1; }
+    .ld-role-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        margin: 0 0 2px;
+        line-height: 1;
+    }
+    .ld-role-desc {
+        font-size: 0.78rem;
+        color: rgba(255,255,255,.68);
+        line-height: 1.35;
+        margin: 0;
+    }
+    .ld-role-arrow {
+        font-size: 1rem;
+        opacity: .55;
+        transition: opacity .18s, transform .18s;
+    }
+    .ld-role-card:hover .ld-role-arrow {
+        opacity: 1;
+        transform: translateX(4px);
+    }
+
+    /* ─────────────────────────────────────────
+       FEATURES SECTION
+    ───────────────────────────────────────── */
+    .ld-section {
+        padding: clamp(40px, 6vw, 72px) clamp(16px, 5vw, 80px);
+    }
+    .ld-section-label {
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: var(--ld-blue);
+        margin-bottom: 10px;
+    }
+    .ld-section-heading {
+        font-size: clamp(1.5rem, 3vw, 2.25rem);
+        font-weight: 700;
+        color: var(--ld-text);
+        letter-spacing: -0.03em;
+        margin: 0 0 12px;
+        line-height: 1.15;
+    }
+    .ld-section-sub {
+        font-size: 0.97rem;
+        color: var(--ld-muted);
+        line-height: 1.6;
+        max-width: 520px;
+        margin: 0 0 40px;
+    }
+
+    .ld-features-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+    }
+    .ld-feat-card {
+        background: var(--ld-surface);
+        border: 1px solid var(--ld-border);
+        border-radius: var(--ld-radius);
+        padding: 28px 24px;
+        transition: all .22s ease;
+    }
+    .ld-feat-card:hover {
+        box-shadow: var(--ld-shadow-md);
+        border-color: rgba(46,134,193,.25);
+        transform: translateY(-3px);
+    }
+    .ld-feat-icon-wrap {
+        width: 50px; height: 50px;
+        border-radius: 13px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        margin-bottom: 16px;
+        color: #fff;
+    }
+    .fi-blue   { background: linear-gradient(135deg, var(--ld-blue), var(--ld-navy)); }
+    .fi-green  { background: linear-gradient(135deg, #1a9e5c, #0f7a44); }
+    .fi-teal   { background: linear-gradient(135deg, #0d8a8a, #0a6a6a); }
+    .fi-amber  { background: linear-gradient(135deg, #d97706, #b45309); }
+    .fi-purple { background: linear-gradient(135deg, #7c3aed, #5b21b6); }
+    .fi-rose   { background: linear-gradient(135deg, #e11d48, #be123c); }
+
+    .ld-feat-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--ld-text);
+        margin: 0 0 8px;
+    }
+    .ld-feat-desc {
+        font-size: 0.84rem;
+        color: var(--ld-muted);
+        line-height: 1.55;
+        margin: 0;
+    }
+
+    /* ─────────────────────────────────────────
+       FLOW SECTION (How It Works)
+    ───────────────────────────────────────── */
+    .ld-flow-section {
+        background: var(--ld-surface);
+        border-top: 1px solid var(--ld-border);
+        border-bottom: 1px solid var(--ld-border);
+    }
+    .ld-flow-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0;
+        position: relative;
+    }
+    .ld-flow-grid::before {
+        content: '';
+        position: absolute;
+        top: 34px;
+        left: calc(12.5% + 20px);
+        right: calc(12.5% + 20px);
+        height: 2px;
+        background: linear-gradient(90deg, var(--ld-blue), var(--ld-green));
+        z-index: 0;
+    }
+    .ld-flow-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 36px 20px 28px;
+        position: relative;
+        z-index: 1;
+    }
+    .ld-step-num {
+        width: 52px; height: 52px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin-bottom: 16px;
+        position: relative;
+        z-index: 2;
+    }
+    .ld-step-num.s1 { background: linear-gradient(135deg, var(--ld-blue), var(--ld-navy)); color: #fff; }
+    .ld-step-num.s2 { background: linear-gradient(135deg, #0d8a8a, #0a6a6a); color: #fff; }
+    .ld-step-num.s3 { background: linear-gradient(135deg, var(--ld-green), #0f7a44); color: #fff; }
+    .ld-step-num.s4 { background: linear-gradient(135deg, #d97706, #b45309); color: #fff; }
+    .ld-step-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--ld-text);
+        margin: 0 0 6px;
+    }
+    .ld-step-desc {
+        font-size: 0.78rem;
+        color: var(--ld-muted);
+        line-height: 1.5;
+        margin: 0;
+    }
+
+    /* ─────────────────────────────────────────
+       ROLES SECTION (full-width cards strip)
+    ───────────────────────────────────────── */
+    .ld-roles-section { background: var(--ld-bg); }
+    .ld-roles-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+    }
+    .ld-portal-card {
+        background: var(--ld-surface);
+        border: 1px solid var(--ld-border);
+        border-radius: var(--ld-radius);
+        overflow: hidden;
+        transition: all .22s ease;
+        text-decoration: none;
+        display: flex;
+        flex-direction: column;
+    }
+    .ld-portal-card:hover {
+        box-shadow: var(--ld-shadow-lg);
+        transform: translateY(-4px);
+        border-color: transparent;
+    }
+    .ld-portal-header {
+        padding: 28px 24px 22px;
+        color: #fff;
+    }
+    .ld-portal-header.ph-staff  { background: linear-gradient(135deg, var(--ld-navy), #1a5e8a); }
+    .ld-portal-header.ph-patient{ background: linear-gradient(135deg, #0f7a44, var(--ld-green)); }
+    .ld-portal-header.ph-new    { background: linear-gradient(135deg, #b45309, var(--ld-amber)); }
+    .ld-portal-icon-lg {
+        width: 56px; height: 56px;
+        border-radius: 16px;
+        background: rgba(255,255,255,.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-bottom: 16px;
+    }
+    .ld-portal-header h3 {
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin: 0 0 6px;
+        color: #fff;
+    }
+    .ld-portal-header p {
+        font-size: 0.82rem;
+        color: rgba(255,255,255,.75);
+        margin: 0;
+        line-height: 1.5;
+    }
+    .ld-portal-body {
+        padding: 20px 24px;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    .ld-portal-list {
+        list-style: none;
+        margin: 0 0 auto;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+    }
+    .ld-portal-list li {
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        font-size: 0.83rem;
+        color: var(--ld-muted);
+        line-height: 1.4;
+    }
+    .ld-portal-list li i {
+        margin-top: 1px;
+        flex-shrink: 0;
+        font-size: 0.85rem;
+    }
+    .li-staff   i { color: var(--ld-blue); }
+    .li-patient i { color: var(--ld-green); }
+    .li-new     i { color: var(--ld-amber); }
+    .ld-portal-footer {
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid var(--ld-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .ld-portal-link {
+        font-size: 0.85rem;
+        font-weight: 700;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: gap .18s;
+    }
+    .ld-portal-link:hover { gap: 10px; }
+    .pl-staff   { color: var(--ld-navy); }
+    .pl-patient { color: #0f7a44; }
+    .pl-new     { color: #b45309; }
+
+    /* ─────────────────────────────────────────
+       SECURITY TRUST STRIP
+    ───────────────────────────────────────── */
+    .ld-trust {
+        background: linear-gradient(135deg, var(--ld-navy), #1a5e8a);
+        padding: clamp(32px, 5vw, 56px) clamp(16px, 5vw, 80px);
+    }
+    .ld-trust-grid {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 40px;
+    }
+    .ld-trust-headline {
+        font-size: clamp(1.3rem, 2.5vw, 1.8rem);
+        font-weight: 700;
+        color: #fff;
+        letter-spacing: -0.02em;
+        margin: 0 0 8px;
+    }
+    .ld-trust-sub {
+        font-size: 0.9rem;
+        color: rgba(255,255,255,.7);
+        margin: 0;
+        line-height: 1.5;
+    }
+    .ld-trust-badges {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    .ld-trust-badge {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 10px 16px;
+        background: rgba(255,255,255,.1);
+        border: 1px solid rgba(255,255,255,.18);
+        border-radius: 10px;
+        color: rgba(255,255,255,.9);
+        font-size: 0.78rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .ld-trust-badge i { font-size: 0.95rem; opacity: .9; }
+
+    /* ─────────────────────────────────────────
+       FOOTER
+    ───────────────────────────────────────── */
+    .ld-footer {
+        background: var(--ld-surface);
+        border-top: 1px solid var(--ld-border);
+        padding: 24px clamp(16px, 5vw, 80px);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .ld-footer-brand { display: flex; align-items: baseline; gap: 2px; text-decoration: none; }
+    .ld-footer-brand .brand-health {
+        font-family: 'Satisfy', cursive;
+        font-size: 1.1rem;
+        color: var(--ld-blue);
+    }
+    .ld-footer-brand .brand-desk {
+        font-family: 'MonteCarlo', cursive;
+        font-size: 1.25rem;
+        background: linear-gradient(135deg, var(--ld-blue), var(--ld-navy));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .ld-footer-text {
+        font-size: 0.78rem;
+        color: var(--ld-muted);
+    }
+    .ld-footer-links {
+        display: flex;
+        gap: 20px;
+    }
+    .ld-footer-links a {
+        font-size: 0.78rem;
+        color: var(--ld-muted);
+        text-decoration: none;
+    }
+    .ld-footer-links a:hover { color: var(--ld-blue); }
+
+    /* ─────────────────────────────────────────
+       SCROLL ANIMATION
+    ───────────────────────────────────────── */
+    .ld-fade-up {
+        opacity: 0;
+        transform: translateY(24px);
+        transition: opacity .5s ease, transform .5s ease;
+    }
+    .ld-fade-up.visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    .ld-fade-up:nth-child(2) { transition-delay: .08s; }
+    .ld-fade-up:nth-child(3) { transition-delay: .16s; }
+    .ld-fade-up:nth-child(4) { transition-delay: .24s; }
+    .ld-fade-up:nth-child(5) { transition-delay: .32s; }
+    .ld-fade-up:nth-child(6) { transition-delay: .4s; }
+
+    /* ─────────────────────────────────────────
+       RESPONSIVE
+    ───────────────────────────────────────── */
+
+    /* Tablet (≤1024px) */
+    @media (max-width: 1024px) {
+        .ld-hero {
+            grid-template-columns: 1fr;
+        }
+        .ld-hero-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+        .ld-role-card:hover { transform: translateY(-2px); }
+        .ld-features-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .ld-flow-grid { grid-template-columns: repeat(2, 1fr); }
+        .ld-flow-grid::before { display: none; }
+        .ld-roles-grid { grid-template-columns: 1fr 1fr; }
+        .ld-trust-grid { grid-template-columns: 1fr; }
+        .ld-trust-badges { justify-content: flex-start; }
+    }
+
+    /* Mobile landscape / small tablet (≤768px) */
+    @media (max-width: 768px) {
+        .ld-nav-badge { display: none; }
+        .ld-hero-cards {
+            grid-template-columns: 1fr;
+        }
+        .ld-hero-stats { gap: 20px; }
+        .ld-roles-grid { grid-template-columns: 1fr; }
+        .ld-flow-grid { grid-template-columns: 1fr 1fr; }
+        .ld-footer { flex-direction: column; align-items: flex-start; }
+    }
+
+    /* Mobile (≤480px) */
+    @media (max-width: 480px) {
+        .ld-nav-actions .ld-nav-btn-ghost { display: none; }
+        .ld-features-grid { grid-template-columns: 1fr; }
+        .ld-flow-grid { grid-template-columns: 1fr; }
+        .ld-flow-grid::before { display: none; }
+        .ld-hero-cta-row { flex-direction: column; align-items: flex-start; }
+        .ld-trust-badges { gap: 8px; }
+        .ld-trust-badge { font-size: 0.72rem; padding: 8px 12px; }
+        .ld-footer-links { flex-wrap: wrap; gap: 12px; }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<style>
-    .landing-shell {
-        min-height: calc(100vh - 56px);
-        display: grid;
-        place-items: center;
-        padding: clamp(12px, 3vw, 28px) 0;
-    }
-    .landing-card {
-        width: min(100%, 1120px);
-        overflow: hidden;
-        border-radius: 24px;
-        background: var(--hd-surface);
-        border: 1px solid rgba(27, 79, 114, 0.1);
-        box-shadow: var(--hd-shadow-hover);
-    }
-    .landing-hero {
-        padding: clamp(26px, 4vw, 42px);
-        color: #fff;
-        background:
-            radial-gradient(circle at 85% 20%, rgba(255, 255, 255, 0.16), transparent 28%),
-            linear-gradient(135deg, var(--hd-primary-dark), var(--hd-primary));
-    }
-    .landing-kicker {
-        margin-bottom: 10px;
-        color: rgba(255, 255, 255, 0.72);
-        font-size: 0.75rem;
-        font-weight: 700;
-        letter-spacing: 1.8px;
-        text-transform: uppercase;
-    }
-    .landing-hero h1 {
-        margin: 0 0 8px;
-        max-width: 760px;
-        font-size: clamp(2rem, 4.5vw, 3.25rem);
-        line-height: 1.05;
-        letter-spacing: -0.04em;
-    }
-    .landing-hero p {
-        margin: 0;
-        max-width: 720px;
-        color: rgba(255, 255, 255, 0.8);
-        font-size: 1rem;
-        line-height: 1.55;
-    }
-    .landing-options {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 16px;
-        padding: clamp(16px, 3vw, 24px);
-    }
-    .landing-option {
-        display: grid;
-        grid-template-rows: auto 1fr auto;
-        gap: 12px;
-        min-height: 220px;
-        padding: clamp(18px, 2.4vw, 24px);
-        border-radius: 18px;
-        border: 1px solid var(--hd-border);
-        color: var(--hd-text);
-        text-decoration: none;
-        background: var(--hd-surface);
-        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-    }
-    .landing-option:hover,
-    .landing-option:focus {
-        color: var(--hd-primary-dark);
-        transform: translateY(-3px);
-        border-color: var(--hd-primary);
-        box-shadow: var(--hd-shadow-hover);
-    }
-    .landing-option:focus-visible {
-        outline: 3px solid rgba(46,134,193,0.32);
-        outline-offset: 3px;
-    }
-    .landing-icon {
-        width: 52px;
-        height: 52px;
-        display: grid;
-        place-items: center;
-        border-radius: 14px;
-        color: #fff;
-        font-size: 1.4rem;
-        background: linear-gradient(135deg, var(--hd-primary), var(--hd-primary-dark));
-    }
-    .patient .landing-icon {
-        background: linear-gradient(135deg, var(--hd-primary), var(--hd-primary-dark));
-    }
-    .landing-option strong {
-        display: block;
-        margin-bottom: 4px;
-        font-size: 1.2rem;
-    }
-    .landing-option span {
-        color: var(--hd-text-muted);
-        line-height: 1.45;
-    }
-    .landing-cta {
-        align-self: end;
-        display: inline-flex;
-        align-items: center;
-        min-height: 44px;
-        color: var(--hd-primary);
-        font-weight: 700;
-    }
-    .landing-cta::after {
-        content: "\F138";
-        margin-left: 8px;
-        font-family: "bootstrap-icons";
-        font-size: 0.95rem;
-    }
-    @media (max-width: 991.98px) {
-        .landing-options {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-        .landing-option:first-child {
-            grid-column: 1 / -1;
-            min-height: 170px;
-        }
-    }
-    @media (max-width: 767.98px) {
-        .landing-shell {
-            min-height: auto;
-            place-items: start center;
-            padding: 0;
-        }
-        .landing-card {
-            border-radius: 18px;
-        }
-        .landing-options {
-            grid-template-columns: 1fr;
-            padding: 14px;
-        }
-        .landing-option,
-        .landing-option:first-child {
-            grid-column: auto;
-            min-height: 0;
-            padding: 18px;
-        }
-        .landing-hero {
-            padding: 26px 20px;
-        }
-    }
-    @media (max-width: 420px) {
-        .landing-hero h1 {
-            font-size: 1.85rem;
-        }
-        .landing-icon {
-            width: 46px;
-            height: 46px;
-        }
-    }
-</style>
+<div class="ld-shell">
 
-<div class="landing-shell">
-    <section class="landing-card">
-        <div class="landing-hero">
-            <div class="landing-kicker">HealthDesk Access</div>
-            <h1>Choose how you want to sign in</h1>
-            <p>Staff can continue with username and password. Existing patients can use phone OTP, and first-time patients can request an appointment for receptionist verification.</p>
+    <!-- ── NAVBAR ── -->
+    <nav class="ld-nav" aria-label="Site navigation">
+        <a href="/" class="ld-nav-brand" aria-label="HealthDesk home">
+            <span class="brand-health">Health</span><span class="brand-desk">Desk</span>
+        </a>
+        <span class="ld-nav-badge">v2.0</span>
+        <div class="ld-nav-actions">
+            <a href="/patient/new"  class="ld-nav-btn ld-nav-btn-ghost">New Patient</a>
+            <div class="ld-dropdown-wrap">
+                <div class="ld-nav-btn ld-nav-btn-solid" style="cursor: pointer;">
+                    <i class="bi bi-box-arrow-in-right" style="margin-right:4px;"></i>Sign In <i class="bi bi-chevron-down" style="font-size: 0.75rem; margin-left: 4px;"></i>
+                </div>
+                <div class="ld-dropdown-menu">
+                    <a href="/login" class="ld-dropdown-item staff">
+                        <i class="bi bi-hospital-fill"></i> Clinical Staff
+                    </a>
+                    <a href="/patient/login" class="ld-dropdown-item patient">
+                        <i class="bi bi-heart-pulse-fill"></i> Patient Portal
+                    </a>
+                </div>
+            </div>
         </div>
-        <div class="landing-options">
-            <a class="landing-option" href="/login">
-                <div class="landing-icon"><i class="bi bi-hospital"></i></div>
-                <div>
-                    <strong>Clinical Staff</strong>
-                    <span>Receptionists and doctors sign in here to manage appointments, queue, diagnosis, and billing.</span>
+    </nav>
+
+    <!-- ── HERO ── -->
+    <section class="ld-hero" aria-label="Hero">
+        <div class="ld-hero-text">
+            <div class="ld-hero-eyebrow">
+                <i class="bi bi-hospital-fill"></i>
+                Clinical Management System
+            </div>
+            <h1>Healthcare,<br><span class="accent-word">Streamlined</span><br>End-to-End</h1>
+            <p class="ld-hero-desc">
+                HealthDesk connects reception, doctors, and patients in one unified workflow — from appointment booking to diagnosis, billing, and online payments.
+            </p>
+            <div class="ld-hero-stats">
+                <div class="ld-stat-item">
+                    <span class="ld-stat-num">3</span>
+                    <span class="ld-stat-label">User Roles</span>
                 </div>
-                <div class="landing-cta">Open staff login</div>
+                <div class="ld-stat-item">
+                    <span class="ld-stat-num">OTP</span>
+                    <span class="ld-stat-label">Patient Auth</span>
+                </div>
+                <div class="ld-stat-item">
+                    <span class="ld-stat-num">Live</span>
+                    <span class="ld-stat-label">Queue Tracking</span>
+                </div>
+                <div class="ld-stat-item">
+                    <span class="ld-stat-num">RZP</span>
+                    <span class="ld-stat-label">Online Payment</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick access role cards -->
+        <div class="ld-hero-cards" role="navigation" aria-label="Quick access">
+            <a class="ld-role-card" href="/login">
+                <div class="ld-role-icon staff"><i class="bi bi-hospital-fill"></i></div>
+                <div class="ld-role-body">
+                    <p class="ld-role-title">Clinical Staff</p>
+                    <p class="ld-role-desc">Receptionists &amp; doctors — username + password</p>
+                </div>
+                <i class="bi bi-chevron-right ld-role-arrow"></i>
             </a>
-            <a class="landing-option patient" href="/patient/login">
-                <div class="landing-icon"><i class="bi bi-heart-pulse"></i></div>
-                <div>
-                    <strong>Patient Portal</strong>
-                    <span>Patients sign in with their registered phone number. No password needed.</span>
+            <a class="ld-role-card" href="/patient/login">
+                <div class="ld-role-icon patient"><i class="bi bi-heart-pulse-fill"></i></div>
+                <div class="ld-role-body">
+                    <p class="ld-role-title">Patient Portal</p>
+                    <p class="ld-role-desc">Registered patients — phone OTP, no password</p>
                 </div>
-                <div class="landing-cta">Open patient login</div>
+                <i class="bi bi-chevron-right ld-role-arrow"></i>
             </a>
-            <a class="landing-option patient" href="/patient/new">
-                <div class="landing-icon"><i class="bi bi-person-plus"></i></div>
-                <div>
-                    <strong>First-Time Patient</strong>
-                    <span>Send a request online. Reception verifies your details before creating the official record.</span>
+            <a class="ld-role-card" href="/patient/new">
+                <div class="ld-role-icon new-pt"><i class="bi bi-person-plus-fill"></i></div>
+                <div class="ld-role-body">
+                    <p class="ld-role-title">First-Time Patient</p>
+                    <p class="ld-role-desc">Submit a request — reception verifies &amp; registers you</p>
                 </div>
-                <div class="landing-cta">Request appointment</div>
+                <i class="bi bi-chevron-right ld-role-arrow"></i>
             </a>
         </div>
     </section>
+
+    <!-- ── FEATURES ── -->
+    <section class="ld-section ld-roles-section" aria-label="Features">
+        <div class="ld-section-label">Platform Capabilities</div>
+        <h2 class="ld-section-heading">Everything a clinic needs,<br>nothing it doesn't</h2>
+        <p class="ld-section-sub">
+            A tightly-integrated suite covering intake, scheduling, diagnosis, and billing — all in one system with role-based access.
+        </p>
+        <div class="ld-features-grid">
+            <div class="ld-feat-card ld-fade-up">
+                <div class="ld-feat-icon-wrap fi-blue"><i class="bi bi-calendar2-check-fill"></i></div>
+                <h3 class="ld-feat-title">Appointment Management</h3>
+                <p class="ld-feat-desc">Book slots by department and doctor. Future appointments are saved; same-day ones auto-join the live queue.</p>
+            </div>
+            <div class="ld-feat-card ld-fade-up">
+                <div class="ld-feat-icon-wrap fi-teal"><i class="bi bi-people-fill"></i></div>
+                <h3 class="ld-feat-title">Live Queue Tracking</h3>
+                <p class="ld-feat-desc">Real-time token management with wait estimates. Doctors see their queue; receptionists control the flow.</p>
+            </div>
+            <div class="ld-feat-card ld-fade-up">
+                <div class="ld-feat-icon-wrap fi-green"><i class="bi bi-clipboard2-pulse-fill"></i></div>
+                <h3 class="ld-feat-title">Diagnosis &amp; Prescription</h3>
+                <p class="ld-feat-desc">Doctors complete consultations, record diagnoses, and write prescriptions — which auto-trigger billing.</p>
+            </div>
+            <div class="ld-feat-card ld-fade-up">
+                <div class="ld-feat-icon-wrap fi-amber"><i class="bi bi-receipt-cutoff"></i></div>
+                <h3 class="ld-feat-title">Billing &amp; PDF Export</h3>
+                <p class="ld-feat-desc">Structured bills generated from completed consultations. Print-ready PDF export available for every invoice.</p>
+            </div>
+            <div class="ld-feat-card ld-fade-up">
+                <div class="ld-feat-icon-wrap fi-purple"><i class="bi bi-credit-card-2-front-fill"></i></div>
+                <h3 class="ld-feat-title">Online Payments</h3>
+                <p class="ld-feat-desc">Razorpay-powered checkout. Bills are marked paid only after webhook verification — no manual reconciliation.</p>
+            </div>
+            <div class="ld-feat-card ld-fade-up">
+                <div class="ld-feat-icon-wrap fi-rose"><i class="bi bi-chat-dots-fill"></i></div>
+                <h3 class="ld-feat-title">SMS Notifications</h3>
+                <p class="ld-feat-desc">Automated OTP delivery and appointment status SMS keep patients informed without any app install.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── HOW IT WORKS ── -->
+    <section class="ld-section ld-flow-section" aria-label="How it works">
+        <div class="ld-section-label">Workflow</div>
+        <h2 class="ld-section-heading">How a visit flows through HealthDesk</h2>
+        <div class="ld-flow-grid">
+            <div class="ld-flow-step">
+                <div class="ld-step-num s1"><i class="bi bi-person-lines-fill"></i></div>
+                <h4 class="ld-step-title">Patient Intake</h4>
+                <p class="ld-step-desc">Reception searches by phone, registers if new, selects doctor &amp; slot, and confirms the booking.</p>
+            </div>
+            <div class="ld-flow-step">
+                <div class="ld-step-num s2"><i class="bi bi-people-fill"></i></div>
+                <h4 class="ld-step-title">Queue Assignment</h4>
+                <p class="ld-step-desc">Same-day bookings auto-create a queue token. Live position is visible to both staff and patients.</p>
+            </div>
+            <div class="ld-flow-step">
+                <div class="ld-step-num s3"><i class="bi bi-heart-pulse"></i></div>
+                <h4 class="ld-step-title">Consultation</h4>
+                <p class="ld-step-desc">Doctor opens the patient's diagnosis form, records findings, and writes a prescription — closing the appointment.</p>
+            </div>
+            <div class="ld-flow-step">
+                <div class="ld-step-num s4"><i class="bi bi-receipt"></i></div>
+                <h4 class="ld-step-title">Billing &amp; Payment</h4>
+                <p class="ld-step-desc">Bill is generated automatically. Patient can pay online via Razorpay or at the counter. PDF issued on completion.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── PORTALS / ROLES ── -->
+    <section class="ld-section ld-roles-section" aria-label="Access portals">
+        <div class="ld-section-label">Access Portals</div>
+        <h2 class="ld-section-heading">Three roles, one platform</h2>
+        <p class="ld-section-sub">
+            Each role has a purpose-built view with the exact tools it needs — nothing more, nothing less.
+        </p>
+        <div class="ld-roles-grid">
+
+            <!-- Staff -->
+            <a class="ld-portal-card" href="/login">
+                <div class="ld-portal-header ph-staff">
+                    <div class="ld-portal-icon-lg"><i class="bi bi-hospital-fill"></i></div>
+                    <h3>Clinical Staff</h3>
+                    <p>Receptionists manage intake &amp; scheduling. Doctors manage their queue &amp; consultations.</p>
+                </div>
+                <div class="ld-portal-body">
+                    <ul class="ld-portal-list">
+                        <li class="li-staff"><i class="bi bi-check-circle-fill"></i>Patient registration &amp; search</li>
+                        <li class="li-staff"><i class="bi bi-check-circle-fill"></i>Appointment booking &amp; management</li>
+                        <li class="li-staff"><i class="bi bi-check-circle-fill"></i>Live queue monitoring &amp; control</li>
+                        <li class="li-staff"><i class="bi bi-check-circle-fill"></i>Diagnosis, prescription &amp; billing</li>
+                        <li class="li-staff"><i class="bi bi-check-circle-fill"></i>Doctor availability management</li>
+                    </ul>
+                    <div class="ld-portal-footer">
+                        <span class="ld-portal-link pl-staff">
+                            Staff login <i class="bi bi-arrow-right"></i>
+                        </span>
+                        <span style="font-size:0.75rem; color:var(--ld-muted);">Username + Password</span>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Patient -->
+            <a class="ld-portal-card" href="/patient/login">
+                <div class="ld-portal-header ph-patient">
+                    <div class="ld-portal-icon-lg"><i class="bi bi-heart-pulse-fill"></i></div>
+                    <h3>Patient Portal</h3>
+                    <p>Registered patients access their health records, book appointments, and pay bills online.</p>
+                </div>
+                <div class="ld-portal-body">
+                    <ul class="ld-portal-list">
+                        <li class="li-patient"><i class="bi bi-check-circle-fill"></i>Phone OTP login — no password needed</li>
+                        <li class="li-patient"><i class="bi bi-check-circle-fill"></i>View &amp; request appointments</li>
+                        <li class="li-patient"><i class="bi bi-check-circle-fill"></i>Track queue position in real time</li>
+                        <li class="li-patient"><i class="bi bi-check-circle-fill"></i>View bills &amp; pay online via Razorpay</li>
+                        <li class="li-patient"><i class="bi bi-check-circle-fill"></i>Access diagnosis history</li>
+                    </ul>
+                    <div class="ld-portal-footer">
+                        <span class="ld-portal-link pl-patient">
+                            Patient login <i class="bi bi-arrow-right"></i>
+                        </span>
+                        <span style="font-size:0.75rem; color:var(--ld-muted);">OTP via SMS</span>
+                    </div>
+                </div>
+            </a>
+
+            <!-- New patient -->
+            <a class="ld-portal-card" href="/patient/new">
+                <div class="ld-portal-header ph-new">
+                    <div class="ld-portal-icon-lg"><i class="bi bi-person-plus-fill"></i></div>
+                    <h3>First-Time Patient</h3>
+                    <p>No account yet? Submit an appointment request — reception verifies and creates your record.</p>
+                </div>
+                <div class="ld-portal-body">
+                    <ul class="ld-portal-list">
+                        <li class="li-new"><i class="bi bi-check-circle-fill"></i>Fill a short intake form online</li>
+                        <li class="li-new"><i class="bi bi-check-circle-fill"></i>Choose preferred department &amp; time</li>
+                        <li class="li-new"><i class="bi bi-check-circle-fill"></i>Reception reviews within 2 hours</li>
+                        <li class="li-new"><i class="bi bi-check-circle-fill"></i>SMS confirmation once approved</li>
+                        <li class="li-new"><i class="bi bi-check-circle-fill"></i>Patient record created on approval</li>
+                    </ul>
+                    <div class="ld-portal-footer">
+                        <span class="ld-portal-link pl-new">
+                            Request appointment <i class="bi bi-arrow-right"></i>
+                        </span>
+                        <span style="font-size:0.75rem; color:var(--ld-muted);">No account needed</span>
+                    </div>
+                </div>
+            </a>
+
+        </div>
+    </section>
+
+    <!-- ── SECURITY / TRUST ── -->
+    <div class="ld-trust" role="complementary" aria-label="Security and trust">
+        <div class="ld-trust-grid">
+            <div>
+                <p class="ld-trust-headline">Built with security in mind</p>
+                <p class="ld-trust-sub">Hashed credentials, OTP expiry, CSRF protection, and session management keep patient data protected at every step.</p>
+            </div>
+            <div class="ld-trust-badges">
+                <div class="ld-trust-badge"><i class="bi bi-shield-lock-fill"></i> SHA-256 Passwords</div>
+                <div class="ld-trust-badge"><i class="bi bi-clock-fill"></i> 5-min OTP Expiry</div>
+                <div class="ld-trust-badge"><i class="bi bi-lock-fill"></i> CSRF Protected</div>
+                <div class="ld-trust-badge"><i class="bi bi-person-badge-fill"></i> Role-Based Access</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── FOOTER ── -->
+    <footer class="ld-footer">
+        <a href="/" class="ld-footer-brand" aria-label="HealthDesk home">
+            <span class="brand-health">Health</span><span class="brand-desk">Desk</span>
+        </a>
+        <p class="ld-footer-text">© 2026 HealthDesk · Clinical Management System</p>
+        <nav class="ld-footer-links" aria-label="Footer navigation">
+            <a href="/login">Staff Login</a>
+            <a href="/patient/login">Patient Portal</a>
+            <a href="/patient/new">New Patient</a>
+        </nav>
+    </footer>
 </div>
+
+<script>
+    // Intersection Observer for fade-up animations
+    const els = document.querySelectorAll('.ld-fade-up');
+    if ('IntersectionObserver' in window) {
+        const io = new IntersectionObserver((entries) => {
+            entries.forEach(e => {
+                if (e.isIntersecting) {
+                    e.target.classList.add('visible');
+                    io.unobserve(e.target);
+                }
+            });
+        }, { threshold: 0.12 });
+        els.forEach(el => io.observe(el));
+    } else {
+        els.forEach(el => el.classList.add('visible'));
+    }
+</script>
 {% endblock %}

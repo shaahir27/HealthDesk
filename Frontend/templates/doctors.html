@@ -112,7 +112,7 @@
                                 <td><code>{{ d.username or "Not assigned" }}</code></td>
                                 <td>
                                     <div><span class="hd-badge {{ d.daily_status|lower }}">{{ d.daily_status }}</span></div>
-                                    <div class="mt-1"><span class="hd-badge {{ d.current_status|lower }}">{{ d.current_status }}</span></div>
+                                    <div class="mt-1"><span class="hd-badge {{ d.availability_badge }}">{{ d.availability_label }}</span></div>
                                 </td>
                                 <td>
                                     <form action="/doctor_status" method="POST" class="hd-table-action-form">

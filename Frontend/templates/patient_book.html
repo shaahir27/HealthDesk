@@ -1,223 +1,878 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HealthDesk - Book Appointment</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <style>
-        :root { --ink:#2C3E50; --muted:#52677a; --sea:#2E86C1; --leaf:#1B4F72; --accent:#27ae60; --line:#e2e8f0; --paper:#ffffff; --shadow:0 4px 16px rgba(0,0,0,.06); }
-        * { box-sizing:border-box; }
-        body { margin:0; min-height:100vh; font-family:"Poppins",sans-serif; color:var(--ink); background:#f0f2f5; }
-        .shell { width:min(980px,calc(100% - 28px)); margin:0 auto; padding:28px 0 48px; }
-        .hero,.card { border:1px solid var(--line); border-radius:22px; background:var(--paper); box-shadow:var(--shadow); }
-        .hero { margin-bottom:18px; padding:32px; color:#fff; background:radial-gradient(circle at 84% 18%,rgba(255,255,255,.16),transparent 28%),linear-gradient(135deg,var(--leaf),var(--sea)); }
-        .hero h1 { margin:0 0 8px; font-size:clamp(2rem,7vw,3.8rem); letter-spacing:-.06em; }
-        .hero p { margin:0; max-width:680px; color:rgba(255,255,255,.78); line-height:1.55; }
-        .card { padding:24px; margin-bottom:18px; }
-        .step { display:grid; gap:16px; }
-        .step-title { margin:0; font-size:1.2rem; }
-        .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
-        label { display:block; margin-bottom:8px; color:#395567; font-weight:700; }
-        select,input,textarea { width:100%; min-height:50px; border:1px solid var(--line); border-radius:16px; padding:12px 14px; font:inherit; color:var(--ink); background:#fff; outline:none; }
-        textarea { min-height:100px; resize:vertical; }
-        select:focus,input:focus,textarea:focus { border-color:var(--sea); box-shadow:0 0 0 3px rgba(46,134,193,.12); }
-        .department-grid,.doctor-grid,.date-grid,.slot-grid { display:grid; gap:12px; }
-        .department-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
-        .doctor-grid,.date-grid,.slot-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
-        .choice { min-height:72px; border:1px solid var(--line); border-radius:18px; padding:14px; background:#fff; cursor:pointer; text-align:left; font:inherit; color:var(--ink); }
-        .choice strong { display:block; margin-bottom:4px; }
-        .choice small { color:var(--muted); }
-        .choice.active { border-color:var(--sea); background:#eaf3fb; box-shadow:0 0 0 3px rgba(46,134,193,.12); }
-        .slot.available { border-color:#b7dcf2; background:#eaf3fb; }
-        .slot.pending { border-color:#efd08a; background:#fff6df; cursor:not-allowed; }
-        .slot.blocked,.slot.booked,.slot.completed,.slot.noshow { color:#7b8794; background:#eef2f7; cursor:not-allowed; }
-        .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; }
-        .btn { min-height:46px; display:inline-flex; align-items:center; justify-content:center; gap:8px; border:0; border-radius:14px; padding:12px 18px; color:#fff; background:linear-gradient(135deg,var(--sea),var(--leaf)); font:inherit; font-weight:700; text-decoration:none; cursor:pointer; }
-        .btn.secondary { color:var(--sea); background:#fff; border:1px solid rgba(46,134,193,.24); }
-        .btn:disabled { color:#7b8794; background:#eef2f7; border:1px solid #d9e1ea; cursor:not-allowed; }
-        .flash,.summary { padding:14px 16px; border-radius:18px; background:#eff7fc; color:#31526b; border:1px solid #d8eaf5; }
-        .hidden { display:none; }
-        .top { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px; }
-        .top a { color:var(--sea); font-weight:800; text-decoration:none; }
-        @media (max-width:800px) { .department-grid,.doctor-grid,.date-grid,.slot-grid,.grid { grid-template-columns:1fr; } .hero,.card { padding:22px; border-radius:24px; } }
-    </style>
-</head>
-<body>
-    <main class="shell">
-        <div class="top">
-            <a href="{% if is_new_patient %}/{% else %}/patient/dashboard{% endif %}"><i class="bi bi-arrow-left"></i> Back</a>
-            {% if is_new_patient %}<a href="/patient/login">Existing patient login</a>{% endif %}
+{% extends "index.html" %}
+
+{% block head_extra %}
+<title>HealthDesk — {% if is_new_patient %}Request Appointment{% else %}Book Appointment{% endif %}</title>
+<style>
+/* ══════════════════════════════════════════════
+   PATIENT BOOKING PAGE
+   Inherits hd- design tokens, Bootstrap, BI icons
+   ══════════════════════════════════════════════ */
+
+/* ── hide staff chrome ── */
+.hd-topbar, .hd-overlay, .hd-sidebar { display: none !important; }
+.hd-layout  { display: block !important; }
+.hd-main    { margin-left: 0 !important; padding: 0 !important; min-height: unset !important; }
+
+:root {
+    --pb-green:        #1a9e5c;
+    --pb-green-light:  #e6f9f0;
+    --pb-green-border: #a3d9bc;
+    --pb-amber:        #b45309;
+    --pb-amber-light:  #fef3e2;
+    --pb-red:          #b42318;
+    --pb-red-light:    #fff1ef;
+}
+
+/* ── topbar ── */
+.pb-topbar {
+    position: sticky; top: 0; z-index: 200;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    height: 64px; padding: 0 clamp(16px,4vw,40px);
+    background: linear-gradient(90deg, var(--hd-primary-dark), var(--hd-primary));
+    box-shadow: 0 2px 12px rgba(27,79,114,.2);
+}
+.pb-brand { display: flex; align-items: baseline; gap: 2px; text-decoration: none; }
+.pb-brand .brand-health { font-family: 'Satisfy', cursive; font-size: 1.4rem; color: #fff; }
+.pb-brand .brand-desk   { font-family: 'MonteCarlo', cursive; font-size: 1.6rem; color: #D6EAF8; margin-left: 2px; }
+.pb-back {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 16px; border-radius: 10px;
+    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22);
+    color: #fff; font-size: 0.83rem; font-weight: 600; text-decoration: none;
+    transition: background .18s;
+}
+.pb-back:hover { background: rgba(255,255,255,.22); color: #fff; }
+
+/* ── shell ── */
+.pb-shell {
+    width: min(880px, calc(100% - clamp(24px, 4vw, 64px)));
+    margin: 0 auto;
+    padding: clamp(24px, 4vw, 40px) 0 60px;
+}
+
+/* ── hero ── */
+.pb-hero {
+    position: relative; overflow: hidden;
+    padding: clamp(24px,4vw,36px);
+    border-radius: 22px; margin-bottom: 28px; color: #fff;
+    background:
+        radial-gradient(ellipse at 90% 15%, rgba(255,255,255,.13) 0%, transparent 40%),
+        linear-gradient(135deg, var(--hd-primary-dark), var(--hd-primary));
+    box-shadow: 0 8px 28px rgba(27,79,114,.22);
+}
+.pb-hero::after {
+    content: ''; position: absolute; right: -30px; bottom: -30px;
+    width: 200px; height: 200px; border-radius: 50%;
+    background: rgba(255,255,255,.04); pointer-events: none;
+}
+.pb-hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; margin-bottom: 12px;
+    background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22);
+    border-radius: 30px; font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 1.4px; text-transform: uppercase; color: rgba(255,255,255,.88);
+}
+.pb-hero h1 {
+    font-size: clamp(1.5rem, 3.2vw, 2.2rem); font-weight: 700;
+    letter-spacing: -.03em; line-height: 1.1; margin: 0 0 10px; color: #fff;
+}
+.pb-hero p { margin: 0; color: rgba(255,255,255,.72); font-size: .9rem; line-height: 1.6; max-width: 560px; }
+
+/* ── flash alert ── */
+.pb-alert {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 13px 16px; border-radius: 12px; font-size: .86rem;
+    border: 1px solid transparent; margin-bottom: 20px;
+}
+.pb-alert.info    { background: var(--hd-primary-light); border-color: #b6d4fe; color: var(--hd-primary-dark); }
+.pb-alert.success { background: var(--pb-green-light); border-color: var(--pb-green-border); color: var(--pb-green); }
+.pb-alert.danger  { background: var(--pb-red-light); border-color: #f5c4bc; color: var(--pb-red); }
+
+/* ── stepper ── */
+.pb-stepper {
+    display: flex; align-items: flex-start; gap: 0;
+    margin-bottom: 28px; overflow-x: auto; scrollbar-width: none;
+}
+.pb-stepper::-webkit-scrollbar { display: none; }
+.pb-step {
+    display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 72px;
+    position: relative; text-align: center;
+}
+.pb-step::after {
+    content: ''; position: absolute; top: 18px; left: 50%; right: -50%;
+    height: 2px; background: var(--hd-border); z-index: 0;
+}
+.pb-step:last-child::after { display: none; }
+.pb-step.done::after    { background: var(--hd-primary); }
+.pb-step.active::after  { background: var(--hd-border); }
+
+.pb-step-circle {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .82rem; font-weight: 700; z-index: 1; position: relative;
+    border: 2px solid var(--hd-border); background: var(--hd-surface);
+    color: var(--hd-text-muted); transition: all .2s;
+}
+.pb-step.done   .pb-step-circle { background: var(--hd-primary); border-color: var(--hd-primary); color: #fff; }
+.pb-step.active .pb-step-circle { background: var(--hd-surface); border-color: var(--hd-primary); color: var(--hd-primary); box-shadow: 0 0 0 4px var(--hd-primary-light); }
+.pb-step-label { font-size: .7rem; font-weight: 600; color: var(--hd-text-muted); margin-top: 7px; line-height: 1.2; }
+.pb-step.active .pb-step-label { color: var(--hd-primary); font-weight: 700; }
+.pb-step.done   .pb-step-label { color: var(--hd-text); }
+
+/* ── step card ── */
+.pb-card {
+    background: var(--hd-surface); border: 1px solid var(--hd-border);
+    border-radius: 20px; margin-bottom: 16px; overflow: hidden;
+    transition: box-shadow .2s;
+}
+.pb-card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 22px 14px; border-bottom: 1px solid var(--hd-border);
+}
+.pb-step-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .75rem; font-weight: 700; flex-shrink: 0;
+    background: var(--hd-primary); color: #fff;
+    box-shadow: 0 2px 8px rgba(46,134,193,.3);
+}
+.pb-card-title {
+    font-size: 1rem; font-weight: 700; color: var(--hd-text);
+    margin: 0; letter-spacing: -.01em;
+}
+.pb-card-sub { font-size: .78rem; color: var(--hd-text-muted); margin: 2px 0 0; }
+.pb-card-body { padding: 20px 22px; }
+
+/* ── form inputs ── */
+.pb-label {
+    display: block; font-size: .78rem; font-weight: 700;
+    color: var(--hd-text-muted); letter-spacing: .5px; text-transform: uppercase;
+    margin-bottom: 7px;
+}
+.pb-input, .pb-select, .pb-textarea {
+    width: 100%; min-height: 46px; padding: 10px 14px;
+    border: 1px solid var(--hd-border); border-radius: 12px;
+    font-family: inherit; font-size: .9rem; color: var(--hd-text);
+    background: var(--hd-surface); outline: none; transition: border-color .18s, box-shadow .18s;
+}
+.pb-textarea { min-height: 90px; resize: vertical; }
+.pb-input:focus, .pb-select:focus, .pb-textarea:focus {
+    border-color: var(--hd-primary);
+    box-shadow: 0 0 0 3px rgba(46,134,193,.12);
+}
+
+/* ── patient details 2-col grid ── */
+.pb-details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 14px;
+}
+.pb-full { grid-column: 1 / -1; }
+
+/* ── department chips ── */
+.pb-dept-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0,1fr));
+    gap: 12px;
+}
+.pb-chip {
+    position: relative; display: flex; flex-direction: column; gap: 4px;
+    padding: 14px 16px; border: 1.5px solid var(--hd-border); border-radius: 14px;
+    background: var(--hd-surface); cursor: pointer; text-align: left;
+    font-family: inherit; transition: all .18s; min-height: 68px;
+}
+.pb-chip:hover { border-color: var(--hd-primary); background: var(--hd-primary-light); }
+.pb-chip.active {
+    border-color: var(--hd-primary); background: var(--hd-primary-light);
+    box-shadow: 0 0 0 3px rgba(46,134,193,.12);
+}
+.pb-chip-check {
+    position: absolute; top: 10px; right: 10px;
+    width: 20px; height: 20px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .7rem; background: var(--hd-primary); color: #fff;
+    opacity: 0; transform: scale(0); transition: all .15s;
+}
+.pb-chip.active .pb-chip-check { opacity: 1; transform: scale(1); }
+.pb-chip-name { font-size: .9rem; font-weight: 700; color: var(--hd-text); }
+.pb-chip-desc { font-size: .74rem; color: var(--hd-text-muted); line-height: 1.35; }
+
+/* ── doctor select ── */
+.pb-doctor-select-wrap { position: relative; }
+.pb-doctor-select-wrap::after {
+    content: '\F282'; font-family: 'bootstrap-icons';
+    position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--hd-text-muted); pointer-events: none; font-size: .9rem;
+}
+.pb-doctor-select-wrap .pb-select { padding-right: 38px; appearance: none; }
+
+/* ── date strip ── */
+.pb-date-strip {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0,1fr));
+    gap: 8px; margin-bottom: 20px;
+}
+.pb-date-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 10px 6px; border: 1.5px solid var(--hd-border); border-radius: 12px;
+    background: var(--hd-surface); cursor: pointer; font-family: inherit;
+    transition: all .18s; min-height: 60px; justify-content: center;
+}
+.pb-date-btn:hover { border-color: var(--hd-primary); background: var(--hd-primary-light); }
+.pb-date-btn.active {
+    border-color: var(--hd-primary); background: var(--hd-primary-light);
+    box-shadow: 0 0 0 3px rgba(46,134,193,.12);
+}
+.pb-date-day  { font-size: .68rem; font-weight: 700; text-transform: uppercase; color: var(--hd-text-muted); letter-spacing: .5px; }
+.pb-date-num  { font-size: 1.1rem; font-weight: 700; color: var(--hd-text); line-height: 1; }
+.pb-date-mon  { font-size: .68rem; color: var(--hd-text-muted); }
+.pb-date-btn.active .pb-date-day,
+.pb-date-btn.active .pb-date-num,
+.pb-date-btn.active .pb-date-mon { color: var(--hd-primary-dark); }
+
+/* ── slot grid ── */
+.pb-slot-section-label {
+    font-size: .68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--hd-text-muted); margin: 16px 0 8px;
+    display: flex; align-items: center; gap: 8px;
+}
+.pb-slot-section-label::after { content: ''; flex: 1; height: 1px; background: var(--hd-border); }
+
+.pb-slot-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 10px;
+}
+.pb-slot {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 12px 8px; border: 1.5px solid var(--hd-border); border-radius: 12px;
+    background: var(--hd-surface); cursor: pointer; font-family: inherit;
+    transition: all .18s; text-align: center;
+}
+.pb-slot-time  { font-size: .82rem; font-weight: 700; color: var(--hd-text); }
+.pb-slot-state { font-size: .68rem; color: var(--hd-text-muted); }
+.pb-slot-doc   { font-size: .66rem; color: var(--hd-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+.pb-slot.available { border-color: rgba(46,134,193,.35); background: var(--hd-primary-light); }
+.pb-slot.available:hover { border-color: var(--hd-primary); box-shadow: 0 0 0 3px rgba(46,134,193,.12); }
+.pb-slot.available .pb-slot-time  { color: var(--hd-primary-dark); }
+.pb-slot.available .pb-slot-state { color: var(--pb-green); font-weight: 600; }
+
+.pb-slot.active {
+    border-color: var(--hd-primary); background: var(--hd-primary-light);
+    box-shadow: 0 0 0 3px rgba(46,134,193,.18);
+}
+.pb-slot.active .pb-slot-time { color: var(--hd-primary-dark); }
+
+.pb-slot.pending   { border-color: #f0c97a; background: var(--pb-amber-light); cursor: not-allowed; }
+.pb-slot.pending   .pb-slot-state { color: var(--pb-amber); }
+.pb-slot.blocked,
+.pb-slot.booked,
+.pb-slot.completed,
+.pb-slot.noshow    { background: #f3f4f6; cursor: not-allowed; opacity: .7; }
+.pb-slot.blocked   .pb-slot-state,
+.pb-slot.booked    .pb-slot-state,
+.pb-slot.completed .pb-slot-state,
+.pb-slot.noshow    .pb-slot-state { color: var(--hd-text-muted); }
+
+/* slot loading / empty */
+.pb-slot-skeleton {
+    display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px;
+}
+.pb-skeleton-box {
+    height: 68px; border-radius: 12px;
+    background: linear-gradient(90deg, #eef2f6 25%, #e4eaf0 50%, #eef2f6 75%);
+    background-size: 200% 100%;
+    animation: pb-shimmer 1.4s infinite;
+}
+@keyframes pb-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+.pb-slot-empty {
+    grid-column: 1/-1; padding: 24px; text-align: center;
+    border: 2px dashed var(--hd-border); border-radius: 14px;
+    color: var(--hd-text-muted); font-size: .84rem;
+}
+
+/* ── summary box ── */
+.pb-summary {
+    padding: 14px 18px; border-radius: 14px;
+    background: var(--hd-primary-light); border: 1px solid #c8def2;
+    font-size: .86rem; color: var(--hd-primary-dark);
+    display: flex; align-items: flex-start; gap: 9px;
+    transition: all .2s;
+}
+.pb-summary i { flex-shrink: 0; margin-top: 2px; }
+.pb-summary.confirmed { background: var(--pb-green-light); border-color: var(--pb-green-border); color: var(--pb-green); }
+
+/* ── action row ── */
+.pb-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+
+/* ── visit type row ── */
+.pb-visit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+
+/* ═══════════════ RESPONSIVE ═══════════════ */
+/* Tablet ≤900 */
+@media (max-width: 900px) {
+    .pb-dept-grid  { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .pb-slot-grid  { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .pb-date-strip { grid-template-columns: repeat(4, minmax(0,1fr)); }
+}
+/* Mobile ≤640 */
+@media (max-width: 640px) {
+    .pb-details-grid { grid-template-columns: 1fr; }
+    .pb-dept-grid    { grid-template-columns: 1fr 1fr; }
+    .pb-slot-grid    { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .pb-date-strip   { grid-template-columns: repeat(4, minmax(0,1fr)); }
+    .pb-visit-row    { grid-template-columns: 1fr; }
+    .pb-step-label   { display: none; }
+    .pb-card-head    { padding: 14px 16px 12px; }
+    .pb-card-body    { padding: 16px; }
+    .pb-slot-skeleton{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .pb-actions      { flex-direction: column; }
+    .pb-actions .hd-btn { width: 100%; justify-content: center; }
+}
+/* Very small ≤380 */
+@media (max-width: 380px) {
+    .pb-dept-grid  { grid-template-columns: 1fr; }
+    .pb-date-strip { grid-template-columns: repeat(3, minmax(0,1fr)); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<header class="pb-topbar">
+    <a href="/patient/dashboard" class="pb-brand" aria-label="HealthDesk">
+        <span class="brand-health">Health</span><span class="brand-desk">Desk</span>
+    </a>
+    <div style="display:flex;align-items:center;gap:10px;">
+        {% if is_new_patient %}
+        <a href="/patient/login" class="pb-back" style="background:rgba(255,255,255,.08);">
+            Existing patient? Log in
+        </a>
+        {% endif %}
+        <a href="{% if is_new_patient %}/{% else %}/patient/dashboard{% endif %}" class="pb-back">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+    </div>
+</header>
+
+<div class="pb-shell">
+
+    {# ── Hero ── #}
+    <div class="pb-hero">
+        <div class="pb-hero-eyebrow">
+            <i class="bi bi-calendar-plus-fill"></i>
+            {% if is_new_patient %}First-Time Request{% else %}Book Appointment{% endif %}
         </div>
-        <section class="hero">
-            <h1>{% if is_new_patient %}First-time appointment request{% else %}Book an appointment{% endif %}</h1>
-            <p>{% if is_new_patient %}Submit your details for receptionist verification. Your official patient record is created only after the clinic approves the request.{% else %}Choose a department, doctor, date, and slot. Standard new visits may be confirmed instantly; exceptions go to reception for review.{% endif %}</p>
-        </section>
+        <h1>{% if is_new_patient %}Request your first appointment{% else %}Book an appointment{% endif %}</h1>
+        <p>{% if is_new_patient %}Fill in your details below and choose a time slot. Reception will review and confirm your record within 2 hours during clinic hours.{% else %}Choose a department, doctor, date, and time slot. Confirmed instantly where possible — complex requests go to reception.{% endif %}</p>
+    </div>
 
-        {% if status_note %}<div class="flash">{{ status_note }}</div>{% endif %}
+    {# ── Alert ── #}
+    {% if status_note %}
+    <div class="pb-alert info" role="alert">
+        <i class="bi bi-info-circle-fill"></i> <span>{{ status_note }}</span>
+    </div>
+    {% endif %}
 
-        <form id="bookingForm" method="POST" action="{% if is_new_patient %}/patient/new/submit{% else %}/patient/book/submit{% endif %}">
-            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" id="selectedDoctorId" name="doctor_id" value="">
-            <input type="hidden" id="selectedSlot" name="requested_slot" value="">
+    {# ── Progress stepper ── #}
+    {% set step_count = 5 if is_new_patient else 4 %}
+    <nav class="pb-stepper" aria-label="Booking steps">
+        {% if is_new_patient %}
+        <div class="pb-step active" aria-current="step">
+            <div class="pb-step-circle"><i class="bi bi-person-fill"></i></div>
+            <div class="pb-step-label">Your Details</div>
+        </div>
+        {% endif %}
+        <div class="pb-step {% if not is_new_patient %}active{% endif %}">
+            <div class="pb-step-circle"><i class="bi bi-grid-3x3-gap"></i></div>
+            <div class="pb-step-label">Department</div>
+        </div>
+        <div class="pb-step">
+            <div class="pb-step-circle"><i class="bi bi-person-badge"></i></div>
+            <div class="pb-step-label">Doctor</div>
+        </div>
+        <div class="pb-step">
+            <div class="pb-step-circle"><i class="bi bi-calendar3"></i></div>
+            <div class="pb-step-label">Date &amp; Slot</div>
+        </div>
+        <div class="pb-step">
+            <div class="pb-step-circle"><i class="bi bi-check2-circle"></i></div>
+            <div class="pb-step-label">Confirm</div>
+        </div>
+    </nav>
 
-            {% if is_new_patient %}
-            <section class="card step">
-                <h2 class="step-title">1. Your details</h2>
-                <div class="grid">
-                    <div><label>Full name</label><input name="name" required></div>
-                    <div><label>Phone</label><input name="phone" type="tel" inputmode="numeric" maxlength="10" pattern="[0-9]{10}" required></div>
-                    <div><label>Age</label><input name="age" type="number" min="1" max="120" required></div>
-                    <div><label>Gender</label><select name="gender" required><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select></div>
-                    <div style="grid-column:1/-1;"><label>Address</label><input name="address" required></div>
+    <form id="bookingForm" method="POST"
+          action="{% if is_new_patient %}/patient/new/submit{% else %}/patient/book/submit{% endif %}">
+        <input type="hidden" name="_csrf_token"      value="{{ csrf_token() }}">
+        <input type="hidden" id="selectedDoctorId"   name="doctor_id"        value="">
+        <input type="hidden" id="selectedSlot"       name="requested_slot"   value="">
+        <input type="hidden" id="departmentInput"    name="department"       value="">
+
+        {# ════ STEP 1 (new patients only) — Your Details ════ #}
+        {% if is_new_patient %}
+        <div class="pb-card">
+            <div class="pb-card-head">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div class="pb-step-num">1</div>
+                    <div>
+                        <div class="pb-card-title">Your details</div>
+                        <div class="pb-card-sub">Used to create your patient record after approval</div>
+                    </div>
                 </div>
-            </section>
-            {% endif %}
+            </div>
+            <div class="pb-card-body">
+                <div class="pb-details-grid">
+                    <div>
+                        <label class="pb-label" for="inp_name">Full Name</label>
+                        <input class="pb-input" id="inp_name" name="name" required autocomplete="name" placeholder="As on ID">
+                    </div>
+                    <div>
+                        <label class="pb-label" for="inp_phone">Phone Number</label>
+                        <input class="pb-input" id="inp_phone" name="phone" type="tel" inputmode="numeric" maxlength="10" pattern="[0-9]{10}" required placeholder="10-digit mobile number">
+                    </div>
+                    <div>
+                        <label class="pb-label" for="inp_age">Age</label>
+                        <input class="pb-input" id="inp_age" name="age" type="number" min="1" max="120" required placeholder="Years">
+                    </div>
+                    <div>
+                        <label class="pb-label" for="inp_gender">Gender</label>
+                        <select class="pb-select" id="inp_gender" name="gender" required>
+                            <option value="">Select gender</option>
+                            <option>Male</option><option>Female</option><option>Other</option>
+                        </select>
+                    </div>
+                    <div class="pb-full">
+                        <label class="pb-label" for="inp_address">Address</label>
+                        <input class="pb-input" id="inp_address" name="address" required placeholder="Street, city, state">
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
-            <section class="card step">
-                <h2 class="step-title">{% if is_new_patient %}2{% else %}1{% endif %}. Choose department</h2>
-                <input type="hidden" id="departmentInput" name="department" value="">
-                <div class="department-grid">
-                    {% for department in departments %}
-                    <button class="choice department-choice" type="button" data-department="{{ department }}">
-                        <strong>{{ department }}</strong>
-                        <small>{{ {"General":"Fever, cough, general health", "Cardiology":"Heart, chest pain, palpitations", "Orthopaedics":"Bones, joints, injuries", "ENT":"Ear, nose, throat", "Neurology":"Headache, nerves, seizures", "Dermatology":"Skin, hair, allergy", "Pediatrics":"Children and vaccination"}.get(department, "Clinic care") }}</small>
+        {# ════ STEP — Choose Department ════ #}
+        <div class="pb-card">
+            <div class="pb-card-head">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div class="pb-step-num">{% if is_new_patient %}2{% else %}1{% endif %}</div>
+                    <div>
+                        <div class="pb-card-title">Choose department</div>
+                        <div class="pb-card-sub">Doctors are filtered to your selection</div>
+                    </div>
+                </div>
+                <span id="deptConfirmed" style="display:none;" class="hd-badge completed">
+                    <i class="bi bi-check2"></i> <span id="deptConfirmedName"></span>
+                </span>
+            </div>
+            <div class="pb-card-body">
+                {% set dept_desc = {
+                    "General":"Fever, cough, general health",
+                    "Cardiology":"Heart, chest pain, palpitations",
+                    "Orthopaedics":"Bones, joints, injuries",
+                    "ENT":"Ear, nose, throat",
+                    "Neurology":"Headache, nerves, seizures",
+                    "Dermatology":"Skin, hair, allergy",
+                    "Pediatrics":"Children and vaccination"
+                } %}
+                <div class="pb-dept-grid" id="deptGrid">
+                    {% for dept in departments %}
+                    <button class="pb-chip department-choice" type="button" data-department="{{ dept }}"
+                            aria-pressed="false">
+                        <div class="pb-chip-check"><i class="bi bi-check2"></i></div>
+                        <div class="pb-chip-name">{{ dept }}</div>
+                        <div class="pb-chip-desc">{{ dept_desc.get(dept, 'Specialist care') }}</div>
                     </button>
                     {% endfor %}
                 </div>
-            </section>
+            </div>
+        </div>
 
-            <section class="card step">
-                <h2 class="step-title">{% if is_new_patient %}3{% else %}2{% endif %}. Choose doctor</h2>
-                <select id="doctorSelect">
-                    <option value="">Choose department first</option>
+        {# ════ STEP — Choose Doctor ════ #}
+        <div class="pb-card">
+            <div class="pb-card-head">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div class="pb-step-num">{% if is_new_patient %}3{% else %}2{% endif %}</div>
+                    <div>
+                        <div class="pb-card-title">Choose doctor</div>
+                        <div class="pb-card-sub">Available doctors in the selected department</div>
+                    </div>
+                </div>
+            </div>
+            <div class="pb-card-body">
+                <div class="pb-doctor-select-wrap">
+                    <select class="pb-select" id="doctorSelect" aria-label="Select doctor">
+                        <option value="">Select a department first</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        {# ════ STEP — Date & Slot ════ #}
+        <div class="pb-card">
+            <div class="pb-card-head">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div class="pb-step-num">{% if is_new_patient %}4{% else %}3{% endif %}</div>
+                    <div>
+                        <div class="pb-card-title">Choose date &amp; time slot</div>
+                        <div class="pb-card-sub">Next 7 available days</div>
+                    </div>
+                </div>
+            </div>
+            <div class="pb-card-body">
+                {# Date strip — JS renders the visual; hidden select carries the value #}
+                <select id="dateSelect" name="requested_date" required style="display:none;">
+                    {% for d in week_dates %}
+                    <option value="{{ d }}">{{ d }}</option>
+                    {% endfor %}
                 </select>
-            </section>
+                <div class="pb-date-strip" id="dateStrip" role="group" aria-label="Select date"></div>
 
-            <section class="card step">
-                <h2 class="step-title">{% if is_new_patient %}4{% else %}3{% endif %}. Choose date and slot</h2>
-                <div>
-                    <label>Date</label>
-                    <select id="dateSelect" name="requested_date" required>
-                        {% for item in week_dates %}
-                        <option value="{{ item }}">{{ item }}</option>
-                        {% endfor %}
-                    </select>
+                <div id="slotArea">
+                    <div class="pb-slot-section-label">Select a department and doctor to see slots</div>
+                    <div class="pb-slot-skeleton" id="slotSkeleton" style="display:none;">
+                        {% for i in range(8) %}<div class="pb-skeleton-box"></div>{% endfor %}
+                    </div>
+                    <div class="pb-slot-grid" id="slotGrid"></div>
                 </div>
-                <div id="slotGrid" class="slot-grid"></div>
-            </section>
+            </div>
+        </div>
 
-            <section class="card step">
-                <h2 class="step-title">{% if is_new_patient %}5{% else %}4{% endif %}. Reason and visit type</h2>
-                <div>
-                    <label>Brief reason for visit</label>
-                    <textarea name="reason" maxlength="200" placeholder="Example: Fever and cough for 3 days" {% if is_new_patient %}required{% endif %}></textarea>
+        {# ════ STEP — Reason & Confirm ════ #}
+        <div class="pb-card">
+            <div class="pb-card-head">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div class="pb-step-num">{% if is_new_patient %}5{% else %}4{% endif %}</div>
+                    <div>
+                        <div class="pb-card-title">Reason &amp; confirm</div>
+                        <div class="pb-card-sub">Review your request before submitting</div>
+                    </div>
                 </div>
-                <div>
-                    <label>Visit type</label>
-                    <select name="visit_type">
-                        <option value="New">New visit</option>
-                        <option value="Follow-up">Follow-up</option>
-                    </select>
+            </div>
+            <div class="pb-card-body">
+                <div class="pb-visit-row">
+                    <div>
+                        <label class="pb-label" for="inp_reason">Reason for visit</label>
+                        <textarea class="pb-textarea" id="inp_reason" name="reason" maxlength="200"
+                                  placeholder="E.g. Fever and cough for 3 days"
+                                  {% if is_new_patient %}required{% endif %}></textarea>
+                    </div>
+                    <div>
+                        <label class="pb-label" for="inp_visit_type">Visit type</label>
+                        <select class="pb-select" id="inp_visit_type" name="visit_type">
+                            <option value="New">New visit</option>
+                            <option value="Follow-up">Follow-up</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="summary" id="summaryBox">Choose a department, doctor, date, and slot to review your request.</div>
-                <div class="actions">
-                    <button class="btn" id="submitBtn" type="submit" disabled>Confirm request</button>
-                    <a class="btn secondary" href="{% if is_new_patient %}/{% else %}/patient/dashboard{% endif %}">Cancel</a>
-                </div>
-            </section>
-        </form>
-    </main>
 
-    <script>
-        const doctors = {{ doctors|tojson }};
-        const isNewPatient = {{ "true" if is_new_patient else "false" }};
-        const departmentInput = document.getElementById("departmentInput");
-        const doctorSelect = document.getElementById("doctorSelect");
-        const dateSelect = document.getElementById("dateSelect");
-        const slotGrid = document.getElementById("slotGrid");
-        const selectedDoctorId = document.getElementById("selectedDoctorId");
-        const selectedSlot = document.getElementById("selectedSlot");
-        const submitBtn = document.getElementById("submitBtn");
-        const summaryBox = document.getElementById("summaryBox");
+                <div class="pb-summary" id="summaryBox" aria-live="polite">
+                    <i class="bi bi-info-circle-fill"></i>
+                    <span id="summaryText">Choose a department, doctor, date, and slot to review your booking.</span>
+                </div>
 
-        function renderDoctors() {
-            const department = departmentInput.value;
-            doctorSelect.innerHTML = "";
-            if (!department) {
-                doctorSelect.innerHTML = '<option value="">Choose department first</option>';
-                return;
-            }
-            if (!isNewPatient) {
-                doctorSelect.append(new Option("Any available doctor", "any"));
-            }
-            doctors.filter((doctor) => doctor.department === department).forEach((doctor) => {
-                doctorSelect.append(new Option(`${doctor.name} (${doctor.current_status})`, doctor.id));
-            });
+                <div class="pb-actions">
+                    <button class="hd-btn hd-btn-primary" id="submitBtn" type="submit" disabled>
+                        <i class="bi bi-calendar-check-fill"></i>
+                        {% if is_new_patient %}Submit request{% else %}Confirm booking{% endif %}
+                    </button>
+                    <a class="hd-btn hd-btn-outline"
+                       href="{% if is_new_patient %}/{% else %}/patient/dashboard{% endif %}">
+                        Cancel
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </form>
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    const ALL_DOCTORS   = {{ doctors|tojson }};
+    const WEEK_DATES    = {{ week_dates|tojson }};
+    const IS_NEW        = {{ "true" if is_new_patient else "false" }};
+    const SLOT_ENDPOINT = IS_NEW ? "/patient/new/slots" : "/patient/book/slots";
+
+    const deptInput   = document.getElementById("departmentInput");
+    const docSelect   = document.getElementById("doctorSelect");
+    const dateSelect  = document.getElementById("dateSelect");
+    const slotGrid    = document.getElementById("slotGrid");
+    const slotSkel    = document.getElementById("slotSkeleton");
+    const hiddenDoc   = document.getElementById("selectedDoctorId");
+    const hiddenSlot  = document.getElementById("selectedSlot");
+    const submitBtn   = document.getElementById("submitBtn");
+    const summaryText = document.getElementById("summaryText");
+    const summaryBox  = document.getElementById("summaryBox");
+    const dateStrip   = document.getElementById("dateStrip");
+    const deptBadgeName = document.getElementById("deptConfirmedName");
+    const deptBadge   = document.getElementById("deptConfirmed");
+    const stepItems   = Array.from(document.querySelectorAll(".pb-stepper .pb-step"));
+    const detailInputs = IS_NEW
+        ? Array.from(document.querySelectorAll("#inp_name, #inp_phone, #inp_age, #inp_gender, #inp_address"))
+        : [];
+
+    function newPatientDetailsComplete() {
+        if (!IS_NEW) return true;
+        return detailInputs.every(function (el) {
+            return el && String(el.value || "").trim() !== "";
+        });
+    }
+
+    function getActiveStepIndex() {
+        var hasDetails = newPatientDetailsComplete();
+        var hasDept = !!deptInput.value;
+        var hasDoctor = !!docSelect.value;
+        var hasSlot = !!hiddenSlot.value;
+
+        if (IS_NEW) {
+            if (!hasDetails) return 0;
+            if (!hasDept) return 1;
+            if (!hasDoctor) return 2;
+            if (!hasSlot) return 3;
+            return 4;
         }
 
-        async function loadSlots() {
-            selectedSlot.value = "";
-            selectedDoctorId.value = "";
-            submitBtn.disabled = true;
-            updateSummary();
-            if (!departmentInput.value || !doctorSelect.value || !dateSelect.value) {
-                slotGrid.innerHTML = "";
-                return;
+        if (!hasDept) return 0;
+        if (!hasDoctor) return 1;
+        if (!hasSlot) return 2;
+        return 3;
+    }
+
+    function refreshStepper() {
+        var activeIndex = getActiveStepIndex();
+        stepItems.forEach(function (step, index) {
+            step.classList.toggle("done", index < activeIndex);
+            step.classList.toggle("active", index === activeIndex);
+            if (index === activeIndex) {
+                step.setAttribute("aria-current", "step");
+            } else {
+                step.removeAttribute("aria-current");
             }
-            const params = new URLSearchParams({ department: departmentInput.value, doctor_id: doctorSelect.value, date: dateSelect.value });
-            const slotEndpoint = isNewPatient ? "/patient/new/slots" : "/patient/book/slots";
-            const response = await fetch(`${slotEndpoint}?${params.toString()}`);
-            const data = await response.json();
-            if (!response.ok || !data.ok) {
-                slotGrid.innerHTML = `<div class="flash">${data.error || "Could not load slots."}</div>`;
-                return;
-            }
+        });
+    }
+
+    /* ── Build date strip ── */
+    const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const MON_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    WEEK_DATES.forEach(function (iso, i) {
+        var d = new Date(iso + "T00:00:00");
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "pb-date-btn" + (i === 0 ? " active" : "");
+        btn.dataset.date = iso;
+        btn.setAttribute("aria-pressed", i === 0 ? "true" : "false");
+        btn.innerHTML =
+            '<span class="pb-date-day">' + DAY_NAMES[d.getDay()] + '</span>' +
+            '<span class="pb-date-num">' + d.getDate() + '</span>' +
+            '<span class="pb-date-mon">' + MON_NAMES[d.getMonth()] + '</span>';
+        btn.addEventListener("click", function () {
+            document.querySelectorAll(".pb-date-btn").forEach(function (b) {
+                b.classList.remove("active"); b.setAttribute("aria-pressed","false");
+            });
+            btn.classList.add("active"); btn.setAttribute("aria-pressed","true");
+            dateSelect.value = iso;
+            loadSlots();
+            refreshStepper();
+        });
+        dateStrip.appendChild(btn);
+    });
+    dateSelect.value = WEEK_DATES[0];
+
+    /* ── Department selection ── */
+    document.querySelectorAll(".department-choice").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            document.querySelectorAll(".department-choice").forEach(function (b) {
+                b.classList.remove("active"); b.setAttribute("aria-pressed","false");
+            });
+            btn.classList.add("active"); btn.setAttribute("aria-pressed","true");
+            deptInput.value = btn.dataset.department;
+            deptBadgeName.textContent = btn.dataset.department;
+            deptBadge.style.display = "";
+            populateDoctors();
+            refreshStepper();
+        });
+    });
+
+    /* ── Doctor dropdown ── */
+    function populateDoctors() {
+        var dept = deptInput.value;
+        docSelect.innerHTML = "";
+        if (!dept) {
+            docSelect.add(new Option("Select a department first", ""));
+            refreshStepper();
+            return;
+        }
+        if (!IS_NEW) docSelect.add(new Option("Any available doctor", "any"));
+        ALL_DOCTORS
+            .filter(function (d) { return d.department === dept; })
+            .forEach(function (d) {
+                docSelect.add(new Option(d.name + " (" + d.current_status + ")", d.id));
+            });
+        if (docSelect.options.length === 0) {
+            docSelect.add(new Option("No doctors in this department", ""));
+        }
+        loadSlots();
+        refreshStepper();
+    }
+    docSelect.addEventListener("change", function () {
+        loadSlots();
+        refreshStepper();
+    });
+
+    /* ── Slot loading ── */
+    var slotAbort = null;
+    async function loadSlots() {
+        hiddenSlot.value = "";
+        hiddenDoc.value  = "";
+        submitBtn.disabled = true;
+        updateSummary(null);
+        refreshStepper();
+
+        var dept = deptInput.value;
+        var doc  = docSelect.value;
+        var date = dateSelect.value;
+
+        if (!dept || !doc || !date) {
             slotGrid.innerHTML = "";
-            data.slots.forEach((slot) => {
-                const button = document.createElement("button");
-                button.type = "button";
-                button.className = `choice slot ${slot.state.toLowerCase().replace("-", "")}`;
-                button.innerHTML = `<strong>${slot.time}</strong><small>${slot.state}${slot.doctor_name ? ` | ${slot.doctor_name}` : ""}</small>`;
-                if (slot.state !== "Available") {
-                    button.disabled = true;
-                }
-                button.addEventListener("click", () => {
-                    document.querySelectorAll(".slot").forEach((item) => item.classList.remove("active"));
-                    button.classList.add("active");
-                    selectedSlot.value = slot.time;
-                    selectedDoctorId.value = slot.doctor_id;
-                    submitBtn.disabled = false;
-                    updateSummary(slot);
-                });
-                slotGrid.append(button);
-            });
-            if (!data.slots.length) {
-                slotGrid.innerHTML = '<div class="flash">No slots found for this selection.</div>';
+            slotSkel.style.display = "none";
+            if (!dept) {
+                slotGrid.innerHTML = '<div class="pb-slot-empty"><i class="bi bi-grid-3x3-gap" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.4;"></i>Choose a department to see available slots</div>';
             }
+            refreshStepper();
+            return;
         }
 
-        function updateSummary(slot = null) {
-            const department = departmentInput.value || "-";
-            const doctorText = slot ? slot.doctor_name : (doctorSelect.options[doctorSelect.selectedIndex]?.text || "-");
-            const dateText = dateSelect.value || "-";
-            const slotText = selectedSlot.value || "-";
-            summaryBox.textContent = `Request summary: ${department}, ${doctorText}, ${dateText}, ${slotText}.`;
-        }
+        if (slotAbort) slotAbort.abort();
+        slotAbort = new AbortController();
 
-        document.querySelectorAll(".department-choice").forEach((button) => {
-            button.addEventListener("click", () => {
-                document.querySelectorAll(".department-choice").forEach((item) => item.classList.remove("active"));
-                button.classList.add("active");
-                departmentInput.value = button.dataset.department;
-                renderDoctors();
-                loadSlots();
-            });
+        slotGrid.innerHTML = "";
+        slotSkel.style.display = "grid";
+
+        try {
+            var params = new URLSearchParams({ department: dept, doctor_id: doc, date: date });
+            var res  = await fetch(SLOT_ENDPOINT + "?" + params.toString(), { signal: slotAbort.signal });
+            var data = await res.json();
+            slotSkel.style.display = "none";
+
+            if (!res.ok || !data.ok) {
+                slotGrid.innerHTML = '<div class="pb-slot-empty"><i class="bi bi-exclamation-circle" style="display:block;font-size:1.4rem;margin-bottom:8px;opacity:.5;"></i>' + (data.error || "Could not load slots.") + '</div>';
+                refreshStepper();
+                return;
+            }
+            if (!data.slots || !data.slots.length) {
+                slotGrid.innerHTML = '<div class="pb-slot-empty"><i class="bi bi-calendar-x" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.4;"></i>No slots available for this selection. Try another date or doctor.</div>';
+                refreshStepper();
+                return;
+            }
+
+            renderSlots(data.slots);
+            refreshStepper();
+        } catch (err) {
+            if (err.name === "AbortError") return;
+            slotSkel.style.display = "none";
+            slotGrid.innerHTML = '<div class="pb-slot-empty">Failed to load slots. Please check your connection.</div>';
+            refreshStepper();
+        }
+    }
+
+    function renderSlots(slots) {
+        slotGrid.innerHTML = "";
+        var groups = { Morning: [], Afternoon: [], Evening: [] };
+        slots.forEach(function (s) {
+            var h = parseInt(s.time.split(":")[0], 10);
+            if (h < 12) groups.Morning.push(s);
+            else if (h < 17) groups.Afternoon.push(s);
+            else groups.Evening.push(s);
         });
 
-        doctorSelect.addEventListener("change", loadSlots);
-        dateSelect.addEventListener("change", loadSlots);
-    </script>
-</body>
-</html>
+        var icons = { Morning: "bi-sunrise", Afternoon: "bi-sun", Evening: "bi-moon-stars" };
+        Object.keys(groups).forEach(function (period) {
+            if (!groups[period].length) return;
+            var lbl = document.createElement("div");
+            lbl.className = "pb-slot-section-label";
+            lbl.innerHTML = '<i class="bi ' + icons[period] + '"></i> ' + period;
+            slotGrid.parentNode.insertBefore(lbl, slotGrid);
+            slotGrid.parentNode.insertBefore(lbl, slotGrid);
+
+            // We render all slots flat in the grid — label is above the grid
+            // Rebuild each group inline
+        });
+
+        // Flat render with inline group headers
+        slotGrid.innerHTML = "";
+        Object.keys(groups).forEach(function (period) {
+            if (!groups[period].length) return;
+
+            var lbl = document.createElement("div");
+            lbl.className = "pb-slot-section-label";
+            lbl.style.gridColumn = "1/-1";
+            lbl.innerHTML = '<i class="bi ' + icons[period] + '" style="margin-right:5px;"></i>' + period;
+            slotGrid.appendChild(lbl);
+
+            groups[period].forEach(function (s) {
+                var stateClass = s.state.toLowerCase().replace(/[- ]/g, "");
+                var btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "pb-slot " + stateClass;
+                btn.disabled = s.state !== "Available";
+                btn.innerHTML =
+                    '<span class="pb-slot-time">' + s.time + '</span>' +
+                    '<span class="pb-slot-state">' + s.state + '</span>' +
+                    (s.doctor_name ? '<span class="pb-slot-doc">' + s.doctor_name + '</span>' : '');
+
+                if (s.state === "Available") {
+                    btn.addEventListener("click", function () {
+                        document.querySelectorAll(".pb-slot.available, .pb-slot.active").forEach(function (b) {
+                            b.classList.remove("active");
+                        });
+                        btn.classList.add("active");
+                        hiddenSlot.value = s.time;
+                        hiddenDoc.value  = s.doctor_id;
+                        submitBtn.disabled = false;
+                        updateSummary(s);
+                        refreshStepper();
+                    });
+                }
+                slotGrid.appendChild(btn);
+            });
+        });
+    }
+
+    /* ── Summary ── */
+    function updateSummary(slot) {
+        var dept     = deptInput.value || "—";
+        var docText  = slot ? slot.doctor_name : (docSelect.selectedOptions[0] ? docSelect.selectedOptions[0].text : "—");
+        var dateVal  = dateSelect.value || "—";
+        var slotTime = hiddenSlot.value || "—";
+
+        if (slot) {
+            summaryBox.classList.add("confirmed");
+            summaryText.innerHTML = '<strong>Ready to submit:</strong> ' + dept + ' · ' + docText + ' · ' + dateVal + ' at ' + slotTime;
+        } else {
+            summaryBox.classList.remove("confirmed");
+            summaryText.textContent = dept !== "—"
+                ? 'Department: ' + dept + ' — now choose a doctor, date, and slot.'
+                : 'Choose a department, doctor, date, and slot to review your booking.';
+        }
+    }
+
+    /* ── Prevent double-submit ── */
+    document.getElementById("bookingForm").addEventListener("submit", function () {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Submitting…';
+    });
+
+    detailInputs.forEach(function (input) {
+        input.addEventListener("input", refreshStepper);
+        input.addEventListener("change", refreshStepper);
+    });
+
+    refreshStepper();
+
+})();
+</script>
+{% endblock %}

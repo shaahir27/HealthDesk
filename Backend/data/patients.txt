@@ -18,4 +18,4 @@
 18|Ritu|45|Female|9000000018|Madurai|Cancelled skin review|Follow-up|Normal|Dermatology
 19|Sanjay|58|Male|9000000019|Salem|Routine heart review|Follow-up|Normal|Cardiology
 20|Tanvi|22|Female|9000000020|Chennai|Acne treatment|Follow-up|Urgent|Dermatology
-21|Shaahir|22|Male|7904515049|Chennai|Acne treatment|Follow-up|Urgent|Dermatology
+21|Shaahir|22|Male|7904515049|Velachery, Chennai|Persistent acne with post-inflammatory marks|Follow-up|Urgent|Dermatology

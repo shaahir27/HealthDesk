@@ -1,1 +1,3 @@
-
+1|21|10|2026-05-03|06:00 PM|Review for acne marks|Follow-up|Approved|2026-05-02 14:30:00|2026-05-03 23:59:00|Approved by reception|26
+2|21|7|2026-05-06|09:30 AM|Fever|New|Expired|2026-05-02T23:38:34|2026-05-03T01:38:34|Request expired before it was confirmed. Please book again.|0
+3|21|7|2026-05-05|09:30 AM|Fever, headache|New|Approved|2026-05-03T09:20:48|2026-05-03T11:20:48|Auto-approved by triage|25

@@ -167,7 +167,7 @@
                     <div class="col-6"><small class="text-muted d-block">Doctor</small><strong>Dr {{ selected_doctor_info.name }}</strong></div>
                     <div class="col-6"><small class="text-muted d-block">Department</small>{{ selected_doctor_info.department }}</div>
                     <div class="col-6"><small class="text-muted d-block">Daily Status</small><span class="hd-badge {{ selected_doctor_info.daily_status|lower }}">{{ selected_doctor_info.daily_status }}</span></div>
-                    <div class="col-6"><small class="text-muted d-block">Current Status</small><span class="hd-badge {{ selected_doctor_info.current_status|lower }}">{{ selected_doctor_info.current_status }}</span></div>
+                    <div class="col-6"><small class="text-muted d-block">Availability</small><span class="hd-badge {{ selected_doctor_info.availability_badge }}">{{ selected_doctor_info.availability_label }}</span></div>
                 </div>
                 {% else %}
                 <div class="text-muted">Load a doctor to see availability details.</div>

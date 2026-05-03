@@ -1,799 +1,1333 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HealthDesk - Patient Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Satisfy&family=MonteCarlo&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <style>
-        :root {
-            --ink: #2C3E50;
-            --muted: #52677a;
-            --paper: #ffffff;
-            --card: #ffffff;
-            --line: #e2e8f0;
-            --sea: #2E86C1;
-            --leaf: #1B4F72;
-            --blue: #1B4F72;
-            --amber: #b26b00;
-            --amber-bg: #fff4df;
-            --green: #157347;
-            --green-bg: #eaf8ef;
-            --gray: #64748b;
-            --gray-bg: #eef2f7;
-            --red: #b42318;
-            --red-bg: #fff1ef;
-            --shadow: 0 4px 16px rgba(0,0,0,0.06);
-        }
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            min-height: 100vh;
-            font-family: "Poppins", sans-serif;
-            color: var(--ink);
-            background: #f0f2f5;
-        }
-        .topbar {
-            position: sticky;
-            top: 0;
-            z-index: 5;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 16px;
-            padding: 16px clamp(18px, 5vw, 54px);
-            background: linear-gradient(90deg, var(--sea), var(--leaf));
-            border-bottom: 1px solid rgba(18, 49, 63, 0.08);
-            backdrop-filter: blur(18px);
-        }
-        .brand {
-            color: inherit;
-            text-decoration: none;
-            white-space: nowrap;
-        }
-        .brand .health {
-            font-family: "Satisfy", cursive;
-            font-size: 1.7rem;
-            color: #fff;
-        }
-        .brand .desk {
-            font-family: "MonteCarlo", cursive;
-            font-size: 1.95rem;
-            color: #D6EAF8;
-            margin-left: 2px;
-        }
-        .logout {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .logout small {
-            color: rgba(255,255,255,0.86);
-        }
-        .btn {
-            min-height: 44px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            border: 0;
-            border-radius: 14px;
-            padding: 11px 16px;
-            color: white;
-            background: linear-gradient(135deg, var(--sea), var(--leaf));
-            font: inherit;
-            font-weight: 700;
-            text-decoration: none;
-            cursor: pointer;
-            box-shadow: 0 6px 20px rgba(27,79,114,0.22);
-        }
-        .btn.secondary {
-            color: var(--sea);
-            background: white;
-            border: 1px solid rgba(46,134,193,0.24);
-            box-shadow: none;
-        }
-        .btn.disabled,
-        .btn:disabled {
-            color: #7b8794;
-            background: #eef2f7;
-            border: 1px solid #d9e1ea;
-            box-shadow: none;
-            cursor: not-allowed;
-        }
-        .shell {
-            width: min(1180px, calc(100% - 32px));
-            margin: 0 auto;
-            padding: 34px 0 52px;
-        }
-        .hero {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(260px, 0.38fr);
-            gap: 20px;
-            align-items: stretch;
-            margin-bottom: 22px;
-        }
-        .hero-main,
-        .quick-card,
-        .panel {
-            border: 1px solid var(--line);
-            border-radius: 22px;
-            background: var(--card);
-            box-shadow: var(--shadow);
-        }
-        .hero-main {
-            position: relative;
-            overflow: hidden;
-            padding: clamp(26px, 5vw, 42px);
-            color: white;
-            background:
-                radial-gradient(circle at 82% 18%, rgba(255, 255, 255, 0.16), transparent 28%),
-                linear-gradient(135deg, var(--leaf), var(--sea));
-        }
-        .hero-main h1 {
-            margin: 0 0 10px;
-            max-width: 720px;
-            font-size: clamp(2.15rem, 8vw, 4.1rem);
-            letter-spacing: -0.06em;
-        }
-        .hero-main p {
-            margin: 0;
-            max-width: 650px;
-            color: rgba(255, 255, 255, 0.78);
-            font-size: 1.05rem;
-            line-height: 1.55;
-        }
-        .quick-card {
-            display: grid;
-            align-content: center;
-            gap: 14px;
-            padding: 24px;
-        }
-        .quick-card small {
-            color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            font-size: 0.72rem;
-            font-weight: 800;
-        }
-        .quick-card strong {
-            display: block;
-            font-size: 1.25rem;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr);
-            gap: 22px;
-        }
-        .panel {
-            overflow: hidden;
-        }
-        .panel-head {
-            display: flex;
-            justify-content: space-between;
-            gap: 14px;
-            align-items: flex-start;
-            padding: 24px 24px 0;
-        }
-        .panel-title {
-            margin: 0 0 4px;
-            font-size: 1.24rem;
-            letter-spacing: -0.02em;
-        }
-        .panel-sub {
-            margin: 0;
-            color: var(--muted);
-            line-height: 1.45;
-        }
-        .panel-body {
-            padding: 20px 24px 24px;
-        }
-        .cards {
-            display: grid;
-            gap: 14px;
-        }
-        .appointment-card,
-        .record-card,
-        .bill-card,
-        .profile-card,
-        .empty {
-            border: 1px solid var(--line);
-            border-radius: 22px;
-            background: rgba(255, 255, 255, 0.78);
-        }
-        .appointment-card,
-        .record-card,
-        .bill-card {
-            padding: 18px;
-        }
-        .appointment-top,
-        .bill-top,
-        .record-top {
-            display: flex;
-            justify-content: space-between;
-            gap: 14px;
-            align-items: flex-start;
-        }
-        .card-title {
-            margin: 0 0 5px;
-            font-size: 1.05rem;
-            font-weight: 800;
-        }
-        .meta {
-            margin: 0;
-            color: var(--muted);
-            line-height: 1.45;
-        }
-        .badge {
-            flex: 0 0 auto;
-            display: inline-flex;
-            align-items: center;
-            border-radius: 999px;
-            padding: 7px 10px;
-            font-size: 0.78rem;
-            font-weight: 800;
-        }
-        .badge.booked,
-        .badge.completed,
-        .badge.paid {
-            color: var(--green);
-            background: var(--green-bg);
-        }
-        .badge.pending,
-        .badge.pending-confirmation,
-        .badge.initiated {
-            color: var(--amber);
-            background: var(--amber-bg);
-        }
-        .badge.cancelled,
-        .badge.noshow,
-        .badge.rejected,
-        .badge.expired {
-            color: var(--red);
-            background: var(--red-bg);
-        }
-        .badge.waived,
-        .badge.rescheduled {
-            color: var(--gray);
-            background: var(--gray-bg);
-        }
-        .note {
-            margin: 14px 0 0;
-            padding: 12px 14px;
-            border-radius: 16px;
-            color: #31526b;
-            background: #eff7fc;
-            border: 1px solid #d8eaf5;
-            line-height: 1.45;
-        }
-        .flash {
-            margin-bottom: 18px;
-            padding: 14px 16px;
-            border-radius: 18px;
-            color: #31526b;
-            background: #eff7fc;
-            border: 1px solid #d8eaf5;
-            font-weight: 700;
-        }
-        .flash.error {
-            color: var(--red);
-            background: var(--red-bg);
-            border-color: #ffd1ca;
-        }
-        .flash.success {
-            color: var(--green);
-            background: var(--green-bg);
-            border-color: #ccebd6;
-        }
-        .history {
-            margin-top: 18px;
-            padding-top: 16px;
-            border-top: 1px dashed var(--line);
-        }
-        .history h3 {
-            margin: 0 0 10px;
-            font-size: 0.95rem;
-            color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-        details {
-            margin-top: 12px;
-        }
-        summary {
-            min-height: 44px;
-            display: inline-flex;
-            align-items: center;
-            color: var(--sea);
-            font-weight: 800;
-            cursor: pointer;
-        }
-        .detail-body {
-            display: grid;
-            gap: 12px;
-            margin-top: 8px;
-            padding: 14px;
-            border-radius: 18px;
-            background: #f7fafc;
-            border: 1px solid #e1ebf2;
-        }
-        .detail-row small {
-            display: block;
-            margin-bottom: 4px;
-            color: var(--muted);
-            font-weight: 700;
-        }
-        .bill-lines {
-            display: grid;
-            gap: 10px;
-        }
-        .bill-line {
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #e6edf3;
-        }
-        .bill-line:last-child {
-            border-bottom: 0;
-            padding-bottom: 0;
-        }
-        .bill-total {
-            margin-top: 14px;
-            display: flex;
-            justify-content: space-between;
-            gap: 14px;
-            align-items: center;
-            padding: 15px;
-            border-radius: 18px;
-            color: white;
-            background: linear-gradient(135deg, var(--leaf), var(--sea));
-        }
-        .bill-actions {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-top: 14px;
-        }
-        .profile-grid {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 12px;
-        }
-        .profile-card {
-            padding: 16px;
-        }
-        .profile-card small {
-            display: block;
-            margin-bottom: 5px;
-            color: var(--muted);
-        }
-        .profile-card strong {
-            display: block;
-            overflow-wrap: anywhere;
-        }
-        .empty {
-            padding: 22px;
-            color: var(--muted);
-            text-align: center;
-            border-style: dashed;
-        }
-        @media (max-width: 860px) {
-            .hero { grid-template-columns: 1fr; }
-            .profile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        }
-        @media (max-width: 620px) {
-            .topbar {
-                align-items: flex-start;
-                flex-direction: column;
-            }
-            .logout {
-                width: 100%;
-                justify-content: space-between;
-            }
-            .shell {
-                width: min(100% - 24px, 1180px);
-                padding-top: 22px;
-            }
-            .panel-head,
-            .appointment-top,
-            .bill-top,
-            .record-top {
-                display: grid;
-            }
-            .panel-head,
-            .panel-body {
-                padding-left: 18px;
-                padding-right: 18px;
-            }
-            .profile-grid { grid-template-columns: 1fr; }
-        }
-    </style>
-</head>
-<body>
-    <header class="topbar">
-        <a href="/patient/dashboard" class="brand" aria-label="HealthDesk patient dashboard">
-            <span class="health">Health</span><span class="desk">Desk</span>
-        </a>
-        <div class="logout">
-            <small>Signed in as {{ session.patient_name }}</small>
-            <form method="POST" action="/patient/logout">
+{% extends "index.html" %}
+
+{% block head_extra %}
+<title>HealthDesk — Patient Dashboard</title>
+<script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
+<style>
+/* ══════════════════════════════════════════════
+   PATIENT DASHBOARD — DESIGN TOKENS
+   Inherits: --hd-primary, --hd-primary-dark,
+   --hd-primary-light, --hd-accent, --hd-danger,
+   --hd-warning, --hd-bg, --hd-surface, --hd-text,
+   --hd-text-muted, --hd-border, --hd-radius,
+   --hd-shadow, --hd-shadow-hover, --hd-font
+   ══════════════════════════════════════════════ */
+:root {
+    --pd-green:        #1a9e5c;
+    --pd-green-light:  #e6f9f0;
+    --pd-green-border: #a3d9bc;
+    --pd-amber:        #b45309;
+    --pd-amber-light:  #fef3e2;
+    --pd-amber-border: #f0c97a;
+    --pd-red:          #b42318;
+    --pd-red-light:    #fff1ef;
+    --pd-red-border:   #f5c4bc;
+    --pd-gray-light:   #f3f4f6;
+    --pd-gray-border:  #d1d5db;
+    --pd-topbar-h:     64px;
+}
+
+/* ─────────────────────────────────────────
+   TOPBAR  (patient-specific, no sidebar)
+───────────────────────────────────────── */
+.pd-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    height: var(--pd-topbar-h);
+    padding: 0 clamp(16px, 4vw, 40px);
+    background: linear-gradient(90deg, var(--hd-primary-dark), var(--hd-primary));
+    box-shadow: 0 2px 12px rgba(27,79,114,.2);
+}
+
+.pd-brand {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+.pd-brand .brand-health {
+    font-family: 'Satisfy', cursive;
+    font-size: 1.4rem;
+    color: #fff;
+    line-height: 1;
+}
+.pd-brand .brand-desk {
+    font-family: 'MonteCarlo', cursive;
+    font-size: 1.6rem;
+    color: #D6EAF8;
+    margin-left: 2px;
+    line-height: 1;
+}
+
+.pd-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+.pd-topbar-user {
+    color: rgba(255,255,255,.82);
+    font-size: 0.82rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+}
+.pd-logout-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.22);
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .18s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.pd-logout-btn:hover { background: rgba(255,255,255,.22); }
+
+/* ─────────────────────────────────────────
+   SHELL
+───────────────────────────────────────── */
+.pd-shell {
+    width: min(1100px, calc(100% - clamp(24px, 4vw, 64px)));
+    margin: 0 auto;
+    padding: clamp(24px, 4vw, 40px) 0 60px;
+}
+
+/* ─────────────────────────────────────────
+   HERO — welcome + quick info
+───────────────────────────────────────── */
+.pd-hero {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    margin-bottom: 28px;
+    align-items: stretch;
+}
+
+.pd-hero-main {
+    position: relative;
+    overflow: hidden;
+    padding: clamp(24px, 4vw, 36px) clamp(24px, 4vw, 36px);
+    border-radius: 22px;
+    background:
+        radial-gradient(ellipse at 90% 10%, rgba(255,255,255,.13) 0%, transparent 40%),
+        linear-gradient(135deg, var(--hd-primary-dark) 0%, var(--hd-primary) 100%);
+    color: #fff;
+    box-shadow: 0 8px 28px rgba(27,79,114,.22);
+}
+.pd-hero-main::after {
+    content: '';
+    position: absolute;
+    right: -30px; bottom: -30px;
+    width: 220px; height: 220px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.04);
+    pointer-events: none;
+}
+
+.pd-hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: rgba(255,255,255,.14);
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 30px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.88);
+    margin-bottom: 14px;
+}
+
+.pd-hero-main h1 {
+    font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin: 0 0 10px;
+    color: #fff;
+}
+
+.pd-hero-main p {
+    margin: 0;
+    color: rgba(255,255,255,.72);
+    font-size: clamp(0.82rem, 1.2vw, 0.92rem);
+    line-height: 1.6;
+    max-width: 500px;
+}
+
+/* Quick info sidebar card */
+.pd-quick-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0;
+    min-width: 200px;
+    max-width: 240px;
+    padding: 22px 24px;
+    border-radius: 22px;
+    background: var(--hd-surface);
+    border: 1px solid var(--hd-border);
+    box-shadow: var(--hd-shadow);
+}
+
+.pd-quick-item {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--hd-border);
+}
+.pd-quick-item:last-child { border-bottom: none; }
+.pd-quick-label {
+    font-size: 0.67rem;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--hd-text-muted);
+    margin-bottom: 3px;
+}
+.pd-quick-value {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--hd-text);
+    word-break: break-all;
+}
+.pd-quick-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 16px;
+    padding: 10px 0;
+    color: var(--hd-primary);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: gap .15s;
+}
+.pd-quick-link:hover { gap: 10px; color: var(--hd-primary-dark); }
+
+/* ─────────────────────────────────────────
+   ALERT OVERRIDE (use hd-alert pattern)
+───────────────────────────────────────── */
+.pd-alert {
+    border-radius: var(--hd-radius);
+    padding: 14px 18px;
+    font-size: 0.88rem;
+    margin-bottom: 20px;
+    border: 1px solid transparent;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+.pd-alert i { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+.pd-alert.info    { background: var(--hd-primary-light); border-color: #b6d4fe; color: var(--hd-primary-dark); }
+.pd-alert.success { background: var(--pd-green-light);   border-color: var(--pd-green-border);  color: #0f5132; }
+.pd-alert.danger  { background: var(--pd-red-light);     border-color: var(--pd-red-border);    color: var(--pd-red); }
+.pd-alert.warning { background: var(--pd-amber-light);   border-color: var(--pd-amber-border);  color: var(--pd-amber); }
+
+/* ─────────────────────────────────────────
+   TAB NAV
+───────────────────────────────────────── */
+.pd-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: var(--hd-surface);
+    border: 1px solid var(--hd-border);
+    border-radius: 14px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    box-shadow: var(--hd-shadow);
+    flex-shrink: 0;
+}
+.pd-tabs::-webkit-scrollbar { display: none; }
+
+.pd-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    border-radius: 10px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--hd-text-muted);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .18s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.pd-tab:hover { background: var(--hd-bg); color: var(--hd-text); }
+.pd-tab.active {
+    background: linear-gradient(135deg, var(--hd-primary), var(--hd-primary-dark));
+    color: #fff;
+    box-shadow: 0 3px 10px rgba(46,134,193,.3);
+}
+.pd-tab .tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: rgba(255,255,255,.25);
+    color: inherit;
+}
+.pd-tab:not(.active) .tab-badge {
+    background: var(--hd-primary-light);
+    color: var(--hd-primary-dark);
+}
+
+/* ─────────────────────────────────────────
+   TAB PANELS
+───────────────────────────────────────── */
+.pd-panel { display: none; }
+.pd-panel.active { display: block; }
+
+/* ─────────────────────────────────────────
+   PANEL HEADER
+───────────────────────────────────────── */
+.pd-panel-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+.pd-panel-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--hd-text);
+    margin: 0 0 3px;
+    letter-spacing: -.02em;
+}
+.pd-panel-sub {
+    font-size: 0.82rem;
+    color: var(--hd-text-muted);
+    margin: 0;
+    line-height: 1.4;
+}
+
+/* ─────────────────────────────────────────
+   SECTION DIVIDER
+───────────────────────────────────────── */
+.pd-section-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--hd-text-muted);
+    margin: 28px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.pd-section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--hd-border);
+}
+
+/* ─────────────────────────────────────────
+   CARDS STACK
+───────────────────────────────────────── */
+.pd-cards { display: grid; gap: 14px; }
+
+/* Appointment / record / bill card */
+.pd-card {
+    background: var(--hd-surface);
+    border: 1px solid var(--hd-border);
+    border-radius: 18px;
+    padding: clamp(16px, 2.5vw, 22px);
+    transition: box-shadow .2s, border-color .2s;
+}
+.pd-card:hover {
+    box-shadow: var(--hd-shadow-hover);
+    border-color: rgba(46,134,193,.2);
+}
+
+.pd-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+}
+.pd-card-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--hd-text);
+    margin: 0 0 4px;
+    line-height: 1.2;
+}
+.pd-card-meta {
+    font-size: 0.82rem;
+    color: var(--hd-text-muted);
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Badge — inherits hd-badge pattern but extended */
+.pd-badge {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.pd-badge.booked, .pd-badge.completed { background: var(--pd-green-light); color: var(--pd-green); }
+.pd-badge.pending, .pd-badge.pendingconfirmation, .pd-badge.initiated { background: var(--pd-amber-light); color: var(--pd-amber); }
+.pd-badge.cancelled, .pd-badge.noshow, .pd-badge.rejected, .pd-badge.expired { background: var(--pd-red-light); color: var(--pd-red); }
+.pd-badge.paid { background: var(--pd-green-light); color: var(--pd-green); }
+.pd-badge.refunded { background: var(--pd-red-light); color: var(--pd-red); }
+.pd-badge.waived, .pd-badge.rescheduled { background: var(--pd-gray-light); color: #4b5563; }
+
+/* Info note */
+.pd-note {
+    margin: 12px 0 0;
+    padding: 11px 14px;
+    border-radius: 12px;
+    font-size: 0.82rem;
+    color: var(--hd-primary-dark);
+    background: var(--hd-primary-light);
+    border: 1px solid #c8def2;
+    line-height: 1.5;
+}
+.pd-note.warn { background: var(--pd-amber-light); border-color: var(--pd-amber-border); color: var(--pd-amber); }
+.pd-note.danger { background: var(--pd-red-light); border-color: var(--pd-red-border); color: var(--pd-red); }
+.pd-note.success { background: var(--pd-green-light); border-color: var(--pd-green-border); color: var(--pd-green); }
+
+/* ─────────────────────────────────────────
+   CANCEL CONFIRMATION
+───────────────────────────────────────── */
+.pd-cancel-zone {
+    margin-top: 14px;
+}
+.pd-cancel-confirm {
+    display: none;
+    margin-top: 12px;
+    padding: 16px;
+    border-radius: 14px;
+    background: var(--pd-red-light);
+    border: 1px solid var(--pd-red-border);
+}
+.pd-cancel-confirm p {
+    margin: 0 0 12px;
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: var(--pd-red);
+}
+.pd-cancel-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* ─────────────────────────────────────────
+   DETAILS / EXPAND
+───────────────────────────────────────── */
+.pd-expand {
+    margin-top: 14px;
+    border-top: 1px dashed var(--hd-border);
+    padding-top: 14px;
+}
+details summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    color: var(--hd-primary);
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+details summary::-webkit-details-marker { display: none; }
+details summary::before {
+    content: "\F282";
+    font-family: "bootstrap-icons";
+    font-size: 0.9rem;
+    transition: transform .2s;
+}
+details[open] summary::before { transform: rotate(90deg); }
+
+.pd-detail-body {
+    margin-top: 12px;
+    padding: 16px;
+    border-radius: 14px;
+    background: var(--hd-bg);
+    border: 1px solid var(--hd-border);
+    display: grid;
+    gap: 14px;
+}
+.pd-detail-row small {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: var(--hd-text-muted);
+    margin-bottom: 5px;
+}
+.pd-detail-row p {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+/* ─────────────────────────────────────────
+   BILL SPECIFICS
+───────────────────────────────────────── */
+.pd-bill-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 14px 0 0;
+    padding: 14px 18px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--hd-primary-dark), var(--hd-primary));
+    color: #fff;
+}
+.pd-bill-total span { font-size: 0.82rem; opacity: .8; }
+.pd-bill-total strong { font-size: 1.15rem; font-weight: 700; }
+
+.pd-bill-lines { display: grid; gap: 8px; }
+.pd-bill-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.85rem;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--hd-border);
+}
+.pd-bill-line:last-child { border-bottom: none; padding-bottom: 0; }
+
+.pd-card-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+}
+
+/* ─────────────────────────────────────────
+   PROFILE GRID
+───────────────────────────────────────── */
+.pd-profile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0,1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.pd-profile-item {
+    padding: 14px 16px;
+    background: var(--hd-bg);
+    border: 1px solid var(--hd-border);
+    border-radius: 14px;
+}
+.pd-profile-item small {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--hd-text-muted);
+    margin-bottom: 5px;
+}
+.pd-profile-item strong {
+    display: block;
+    font-size: 0.92rem;
+    color: var(--hd-text);
+    overflow-wrap: anywhere;
+}
+
+/* ─────────────────────────────────────────
+   EMPTY STATES
+───────────────────────────────────────── */
+.pd-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: clamp(36px, 6vw, 56px) 24px;
+    border: 2px dashed var(--hd-border);
+    border-radius: 18px;
+    background: var(--hd-surface);
+}
+.pd-empty-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    margin-bottom: 16px;
+    background: var(--hd-primary-light);
+    color: var(--hd-primary);
+}
+.pd-empty h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--hd-text);
+    margin: 0 0 8px;
+}
+.pd-empty p {
+    font-size: 0.84rem;
+    color: var(--hd-text-muted);
+    line-height: 1.55;
+    max-width: 320px;
+    margin: 0 0 20px;
+}
+.pd-empty.compact { padding: 28px 20px; }
+.pd-empty.compact .pd-empty-icon { width: 48px; height: 48px; font-size: 1.2rem; margin-bottom: 12px; }
+.pd-empty.compact h3 { font-size: 0.9rem; }
+.pd-empty.compact p { font-size: 0.8rem; margin-bottom: 14px; }
+
+/* Critical empty (patient record not found) */
+.pd-empty-critical {
+    padding: 40px 32px;
+    border-radius: 18px;
+    background: var(--pd-red-light);
+    border: 1px solid var(--pd-red-border);
+    text-align: center;
+}
+.pd-empty-critical i {
+    font-size: 2.5rem;
+    color: var(--pd-red);
+    display: block;
+    margin-bottom: 14px;
+}
+.pd-empty-critical h2 { font-size: 1.1rem; color: var(--pd-red); margin: 0 0 8px; }
+.pd-empty-critical p { color: var(--pd-red); font-size: 0.88rem; margin: 0; opacity: .85; }
+
+/* ─────────────────────────────────────────
+   BUTTON OVERRIDES (patient context)
+   Uses hd-btn as base, adds pd- variants
+───────────────────────────────────────── */
+.pd-btn-pay {
+    background: linear-gradient(135deg, var(--pd-green), #0f7a44);
+    color: #fff;
+    border: none;
+    box-shadow: 0 3px 10px rgba(26,158,92,.28);
+}
+.pd-btn-pay:hover { box-shadow: 0 5px 16px rgba(26,158,92,.36); transform: translateY(-1px); }
+.pd-btn-danger {
+    color: var(--pd-red) !important;
+    border-color: rgba(180,35,24,.28) !important;
+}
+
+/* ─────────────────────────────────────────
+   RESPONSIVE OVERRIDES
+───────────────────────────────────────── */
+
+/* Tablet — ≤ 900px */
+@media (max-width: 900px) {
+    .pd-hero {
+        grid-template-columns: 1fr;
+    }
+    .pd-quick-card {
+        max-width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0;
+        padding: 16px 20px;
+    }
+    .pd-quick-item {
+        flex: 1 1 160px;
+        padding: 10px 16px 10px 0;
+        border-bottom: none;
+        border-right: 1px solid var(--hd-border);
+    }
+    .pd-quick-item:last-of-type { border-right: none; }
+    .pd-quick-link { display: none; }
+    .pd-profile-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+
+/* Mobile — ≤ 600px */
+@media (max-width: 600px) {
+    .pd-topbar-user { display: none; }
+    .pd-hero-main h1 { font-size: 1.5rem; }
+    .pd-tabs { gap: 2px; padding: 3px; }
+    .pd-tab { padding: 8px 12px; font-size: 0.78rem; }
+    .pd-tab span.tab-label { display: none; }
+    .pd-panel-head { flex-direction: column; align-items: stretch; }
+    .pd-panel-head .hd-btn { width: 100%; justify-content: center; }
+    .pd-card-top { flex-wrap: wrap; }
+    .pd-cancel-actions { flex-direction: column; }
+    .pd-cancel-actions form,
+    .pd-cancel-actions button { width: 100%; }
+    .pd-profile-grid { grid-template-columns: 1fr 1fr; }
+    .pd-card-actions { flex-direction: column; }
+    .pd-card-actions .hd-btn,
+    .pd-card-actions a.hd-btn { width: 100%; justify-content: center; }
+}
+
+/* Very small — ≤ 380px */
+@media (max-width: 380px) {
+    .pd-profile-grid { grid-template-columns: 1fr; }
+}
+
+/* ─────────────────────────────────────────
+   HIDE THE STAFF SIDEBAR/TOPBAR
+   (patient page has its own nav)
+───────────────────────────────────────── */
+.hd-topbar,
+.hd-overlay,
+.hd-sidebar { display: none !important; }
+.hd-layout { display: block !important; }
+.hd-main {
+    margin-left: 0 !important;
+    padding: 0 !important;
+    min-height: unset !important;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── Patient top bar ── #}
+<header class="pd-topbar">
+    <a href="/patient/dashboard" class="pd-brand" aria-label="HealthDesk patient dashboard">
+        <span class="brand-health">Health</span><span class="brand-desk">Desk</span>
+    </a>
+    <div class="pd-topbar-right">
+        {% if patient %}
+        <span class="pd-topbar-user"><i class="bi bi-person-circle" style="margin-right:4px;"></i>{{ session.patient_name }}</span>
+        {% endif %}
+        <form method="POST" action="/patient/logout" style="margin:0;">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="pd-logout-btn">
+                <i class="bi bi-box-arrow-left"></i> Log out
+            </button>
+        </form>
+    </div>
+</header>
+
+<div class="pd-shell">
+
+    {# ── Hero ── #}
+    <section class="pd-hero">
+        <div class="pd-hero-main">
+            <div class="pd-hero-eyebrow">
+                <i class="bi bi-heart-pulse-fill"></i> Patient Portal
+            </div>
+            <h1>Welcome{% if patient %}, {{ session.patient_name }}{% endif %}</h1>
+            <p>Your appointments, medical records, bills, and profile — all in one place. Everything here is tied to your verified clinic record.</p>
+        </div>
+        <aside class="pd-quick-card" aria-label="Quick info">
+            <div class="pd-quick-item">
+                <div class="pd-quick-label">Registered Phone</div>
+                <div class="pd-quick-value">{{ masked_phone }}</div>
+            </div>
+            <div class="pd-quick-item">
+                <div class="pd-quick-label">Clinic Helpline</div>
+                <div class="pd-quick-value">{{ clinic_phone }}</div>
+            </div>
+            {% if patient %}
+            <div class="pd-quick-item">
+                <div class="pd-quick-label">Patient ID</div>
+                <div class="pd-quick-value">#{{ patient.id }}</div>
+            </div>
+            {% endif %}
+            <a href="/patient/book" class="pd-quick-link">
+                <i class="bi bi-calendar-plus"></i> Book appointment
+                <i class="bi bi-arrow-right"></i>
+            </a>
+        </aside>
+    </section>
+
+    {# ── Global alerts ── #}
+    {% if status_note %}
+    <div class="pd-alert info" role="alert">
+        <i class="bi bi-info-circle-fill"></i>
+        <span>{{ status_note }}</span>
+    </div>
+    {% endif %}
+
+    <div id="paymentMessage" class="pd-alert" style="display:none;" role="alert" aria-live="polite"></div>
+
+    {# ── Patient record missing ── #}
+    {% if not patient %}
+    <div class="pd-empty-critical" role="alert">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <h2>Patient record unavailable</h2>
+        <p>We could not load your patient record. Please log out and contact the clinic at {{ clinic_phone }}.</p>
+    </div>
+
+    {% else %}
+
+    {# ── Count badges for tabs ── #}
+    {% set pending_count = pending_requests | selectattr('status', 'equalto', 'Pending') | list | length %}
+    {% set upcoming_count = upcoming_appointments | length %}
+    {% set unpaid_count   = bills | selectattr('status', 'in', ['PENDING','INITIATED']) | list | length %}
+
+    {# ── Tab navigation ── #}
+    <nav class="pd-tabs" role="tablist" aria-label="Dashboard sections" id="pdTabs">
+        <button class="pd-tab active" role="tab" aria-selected="true"  aria-controls="tab-appts"   data-tab="tab-appts">
+            <i class="bi bi-calendar2-check-fill"></i>
+            <span class="tab-label">Appointments</span>
+            {% set appt_total = upcoming_count + pending_count %}
+            {% if appt_total > 0 %}<span class="tab-badge">{{ appt_total }}</span>{% endif %}
+        </button>
+        <button class="pd-tab" role="tab" aria-selected="false" aria-controls="tab-records" data-tab="tab-records">
+            <i class="bi bi-clipboard2-pulse-fill"></i>
+            <span class="tab-label">Records</span>
+            {% if medical_records %}<span class="tab-badge">{{ medical_records | length }}</span>{% endif %}
+        </button>
+        <button class="pd-tab" role="tab" aria-selected="false" aria-controls="tab-bills"   data-tab="tab-bills">
+            <i class="bi bi-receipt-cutoff"></i>
+            <span class="tab-label">Bills</span>
+            {% if unpaid_count > 0 %}<span class="tab-badge">{{ unpaid_count }}</span>{% endif %}
+        </button>
+        <button class="pd-tab" role="tab" aria-selected="false" aria-controls="tab-profile" data-tab="tab-profile">
+            <i class="bi bi-person-badge-fill"></i>
+            <span class="tab-label">Profile</span>
+        </button>
+    </nav>
+
+    {# ══════════════════════════════════
+       TAB 1 — APPOINTMENTS
+    ══════════════════════════════════ #}
+    <section id="tab-appts" class="pd-panel active" role="tabpanel" aria-label="Appointments">
+        <div class="pd-panel-head">
+            <div>
+                <h2 class="pd-panel-title">Appointments</h2>
+                <p class="pd-panel-sub">Upcoming visits, pending requests, and your recent appointment history.</p>
+            </div>
+            <a href="/patient/book" class="hd-btn hd-btn-primary">
+                <i class="bi bi-calendar-plus"></i> Book appointment
+            </a>
+        </div>
+
+        {# ── Pending requests ── #}
+        {% set pending_list = pending_requests | selectattr('status', 'equalto', 'Pending') | list %}
+        {% if pending_list %}
+        <div class="pd-section-label"><i class="bi bi-hourglass-split"></i> Awaiting Confirmation</div>
+        <div class="pd-cards">
+            {% for req in pending_list %}
+            <article class="pd-card" aria-label="Pending appointment request">
+                <div class="pd-card-top">
+                    <div>
+                        <h3 class="pd-card-title">{{ req.doctor_name }}</h3>
+                        <p class="pd-card-meta">{{ req.department }} &middot; {{ req.human_date }} at {{ req.time_label }}</p>
+                        <p class="pd-card-meta">{{ req.time_remaining }}</p>
+                    </div>
+                    <span class="pd-badge pendingconfirmation"><i class="bi bi-clock"></i> Pending</span>
+                </div>
+                <p class="pd-note">Your request has been sent to reception. Confirmation typically happens within 2 hours during clinic hours.</p>
+            </article>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {# ── Upcoming / confirmed ── #}
+        {% if upcoming_appointments %}
+        <div class="pd-section-label {% if not pending_list %}{% else %}{% endif %}">
+            <i class="bi bi-calendar-check"></i> Upcoming &amp; Confirmed
+        </div>
+        <div class="pd-cards">
+            {% for appt in upcoming_appointments %}
+            <article class="pd-card" aria-label="Appointment with {{ appt.doctor_name }}">
+                <div class="pd-card-top">
+                    <div>
+                        <h3 class="pd-card-title">{{ appt.doctor_name }}</h3>
+                        <p class="pd-card-meta">{{ appt.department }} &middot; {{ appt.human_date }} at {{ appt.time_label }}</p>
+                    </div>
+                    <span class="pd-badge {{ appt.status_class }}">{{ appt.status_label }}</span>
+                </div>
+                <p class="pd-note">{{ appt.status_sentence }}</p>
+
+                {% if appt.can_cancel_online %}
+                <div class="pd-cancel-zone">
+                    <button class="hd-btn hd-btn-outline hd-btn-sm pd-btn-danger pd-cancel-trigger"
+                            type="button"
+                            data-doctor="{{ appt.doctor_name }}"
+                            data-date="{{ appt.human_date }}"
+                            data-time="{{ appt.time_label }}">
+                        <i class="bi bi-x-circle"></i> Cancel appointment
+                    </button>
+                    <div class="pd-cancel-confirm">
+                        <p>Cancel your appointment with {{ appt.doctor_name }} on {{ appt.human_date }} at {{ appt.time_label }}?</p>
+                        <div class="pd-cancel-actions">
+                            <button class="hd-btn hd-btn-primary pd-cancel-keep" type="button">
+                                <i class="bi bi-arrow-left"></i> Keep my appointment
+                            </button>
+                            <form method="POST" action="/patient/cancel" style="margin:0;">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="appointment_id" value="{{ appt.appointment_id }}">
+                                <button class="hd-btn hd-btn-outline pd-btn-danger" type="submit">
+                                    Yes, cancel it
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <p class="pd-card-meta" style="margin-top:10px;">
+                    <i class="bi bi-telephone" style="margin-right:4px;"></i>{{ appt.cancel_note }} Call {{ clinic_phone }} for help.
+                </p>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </div>
+
+        {% elif not pending_list %}
+        {# Empty: no upcoming, no pending #}
+        <div class="pd-empty" aria-label="No upcoming appointments">
+            <div class="pd-empty-icon"><i class="bi bi-calendar-x"></i></div>
+            <h3>No upcoming appointments</h3>
+            <p>You don't have any scheduled visits right now. Book one and reception will get you set up.</p>
+            <a href="/patient/book" class="hd-btn hd-btn-primary">
+                <i class="bi bi-calendar-plus"></i> Book an appointment
+            </a>
+        </div>
+        {% endif %}
+
+        {# ── Rejected / expired ── #}
+        {% set closed_requests = pending_requests | selectattr('status', 'in', ['Rejected', 'Expired']) | list %}
+        {% if closed_requests %}
+        <div class="pd-section-label"><i class="bi bi-x-circle"></i> Closed Requests</div>
+        <div class="pd-cards">
+            {% for req in closed_requests %}
+            <article class="pd-card" aria-label="{{ req.status }} request">
+                <div class="pd-card-top">
+                    <div>
+                        <h3 class="pd-card-title">{{ req.doctor_name }}</h3>
+                        <p class="pd-card-meta">{{ req.department }} &middot; {{ req.human_date }} at {{ req.time_label }}</p>
+                    </div>
+                    <span class="pd-badge {{ req.status_class }}">{{ req.status }}</span>
+                </div>
+                <p class="pd-note danger">
+                    {% if req.status == "Rejected" %}
+                    <i class="bi bi-x-circle" style="margin-right:4px;"></i>Not confirmed by reception. Reason: {{ req.receptionist_note or "Please contact the clinic." }}
+                    {% else %}
+                    <i class="bi bi-clock-history" style="margin-right:4px;"></i>This request expired before it was reviewed. Please book again.
+                    {% endif %}
+                </p>
+                <div class="pd-card-actions">
+                    <a href="/patient/book" class="hd-btn hd-btn-outline hd-btn-sm">
+                        <i class="bi bi-arrow-repeat"></i> Book again
+                    </a>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {# ── History ── #}
+        {% if appointment_history %}
+        <div class="pd-section-label"><i class="bi bi-clock-history"></i> Appointment History</div>
+        <div class="pd-cards">
+            {% for appt in appointment_history[:5] %}
+            <article class="pd-card" aria-label="Past appointment">
+                <div class="pd-card-top">
+                    <div>
+                        <h3 class="pd-card-title">{{ appt.doctor_name }}</h3>
+                        <p class="pd-card-meta">{{ appt.department }} &middot; {{ appt.human_date }} at {{ appt.time_label }}</p>
+                    </div>
+                    <span class="pd-badge {{ appt.status_class }}">{{ appt.status_label }}</span>
+                </div>
+                <p class="pd-note">{{ appt.status_sentence }}</p>
+            </article>
+            {% endfor %}
+        </div>
+        {% elif not upcoming_appointments and not pending_requests %}
+        {# Only show history empty state when everything else is also empty #}
+        {% endif %}
+    </section>
+
+    {# ══════════════════════════════════
+       TAB 2 — MEDICAL RECORDS
+    ══════════════════════════════════ #}
+    <section id="tab-records" class="pd-panel" role="tabpanel" aria-label="Medical records">
+        <div class="pd-panel-head">
+            <div>
+                <h2 class="pd-panel-title">Medical Records</h2>
+                <p class="pd-panel-sub">Diagnosis notes and prescriptions from your consultations, newest first.</p>
+            </div>
+        </div>
+
+        {% if medical_records %}
+        <div class="pd-cards">
+            {% for rec in medical_records %}
+            <article class="pd-card" aria-label="Medical record from {{ rec.human_date }}">
+                <div class="pd-card-top">
+                    <div>
+                        <h3 class="pd-card-title">{{ rec.human_date }}</h3>
+                        <p class="pd-card-meta">
+                            {{ rec.doctor_name }}{% if rec.department %} &middot; {{ rec.department }}{% endif %}
+                        </p>
+                        <p class="pd-card-meta" style="margin-top:3px;">{{ rec.diagnosis_preview }}</p>
+                    </div>
+                    <span class="pd-badge completed"><i class="bi bi-check-circle"></i> Completed</span>
+                </div>
+                <div class="pd-expand">
+                    <details>
+                        <summary>View full record</summary>
+                        <div class="pd-detail-body">
+                            <div class="pd-detail-row">
+                                <small>Diagnosis</small>
+                                <p>{{ rec.diagnosis }}</p>
+                            </div>
+                            {% if rec.prescription %}
+                            <div class="pd-detail-row">
+                                <small>Prescription</small>
+                                <p>{{ rec.prescription }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </details>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+
+        {% else %}
+        <div class="pd-empty" aria-label="No medical records yet">
+            <div class="pd-empty-icon"><i class="bi bi-clipboard2-pulse"></i></div>
+            <h3>No records yet</h3>
+            <p>Your diagnosis notes and prescriptions will appear here after your first consultation with a doctor.</p>
+            <a href="/patient/book" class="hd-btn hd-btn-outline">
+                <i class="bi bi-calendar-plus"></i> Book a consultation
+            </a>
+        </div>
+        {% endif %}
+    </section>
+
+    {# ══════════════════════════════════
+       TAB 3 — BILLS
+    ══════════════════════════════════ #}
+    <section id="tab-bills" class="pd-panel" role="tabpanel" aria-label="Bills">
+        <div class="pd-panel-head">
+            <div>
+                <h2 class="pd-panel-title">Bills</h2>
+                <p class="pd-panel-sub">Pending bills appear first. Pay online or call the clinic for counter payment.</p>
+            </div>
+        </div>
+
+        {% if bills %}
+        {# Pending / Initiated first #}
+        {% set pending_bills = bills | selectattr('status', 'in', ['PENDING','INITIATED']) | list %}
+        {% set settled_bills = bills | rejectattr('status', 'in', ['PENDING','INITIATED']) | list %}
+
+        {% if pending_bills %}
+        <div class="pd-section-label"><i class="bi bi-credit-card"></i> Awaiting Payment</div>
+        <div class="pd-cards">
+            {% for bill in pending_bills %}
+            <article class="pd-card" aria-label="Bill from {{ bill.human_date }}">
+                <div class="pd-card-top">
+                    <div>
+                        <h3 class="pd-card-title">{{ bill.human_date }}</h3>
+                        <p class="pd-card-meta">{{ bill.doctor }} &middot; {{ bill.department }}</p>
+                    </div>
+                    <span class="pd-badge {{ bill.status_class }}">
+                        {% if bill.status == 'INITIATED' %}<i class="bi bi-hourglass-split"></i> In Progress{% else %}<i class="bi bi-clock"></i> Pending{% endif %}
+                    </span>
+                </div>
+                <div class="pd-bill-total" aria-label="Total: {{ bill.total_label }}">
+                    <span>Total amount</span>
+                    <strong>{{ bill.total_label }}</strong>
+                </div>
+                <div class="pd-expand">
+                    <details>
+                        <summary>View line items</summary>
+                        <div class="pd-detail-body">
+                            <div class="pd-bill-lines">
+                                {% for item in bill.line_items %}
+                                <div class="pd-bill-line">
+                                    <span>{{ item.label }}</span>
+                                    <strong>{{ item.amount }}</strong>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </details>
+                </div>
+                {% if bill.status == 'INITIATED' %}
+                <p class="pd-note warn">
+                    <i class="bi bi-info-circle" style="margin-right:4px;"></i>
+                    Payment was started but not yet confirmed. If you already paid, this bill updates after Razorpay sends confirmation.
+                </p>
+                {% endif %}
+                <div class="pd-card-actions">
+                    <button class="hd-btn pd-btn-pay pay-btn" type="button" data-bill-id="{{ bill.bill_id }}">
+                        <i class="bi bi-credit-card-2-front"></i>
+                        {% if bill.status == 'INITIATED' %}Continue Payment{% else %}Pay Now{% endif %}
+                    </button>
+                    <a href="/patient/bills/{{ bill.bill_id }}/pdf" class="hd-btn hd-btn-outline hd-btn-sm">
+                        <i class="bi bi-file-earmark-pdf"></i> Download PDF
+                    </a>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if settled_bills %}
+        <div class="pd-section-label" style="{% if pending_bills %}margin-top:28px;{% endif %}">
+            <i class="bi bi-check2-circle"></i> Settled Bills
+        </div>
+        <div class="pd-cards">
+            {% for bill in settled_bills %}
+            <article class="pd-card" aria-label="Settled bill from {{ bill.human_date }}">
+                <div class="pd-card-top">
+                    <div>
+                        <h3 class="pd-card-title">{{ bill.human_date }}</h3>
+                        <p class="pd-card-meta">{{ bill.doctor }} &middot; {{ bill.department }}</p>
+                    </div>
+                    <span class="pd-badge {{ bill.status_class }}">{{ bill.status_label }}</span>
+                </div>
+                <div class="pd-bill-total">
+                    <span>Total amount</span>
+                    <strong>{{ bill.total_label }}</strong>
+                </div>
+                {% if bill.status == 'PAID' and bill.payment_method %}
+                <p class="pd-note success" style="margin-top:10px;">
+                    <i class="bi bi-check-circle" style="margin-right:4px;"></i>
+                    {{ bill.payment_method_label }}{% if bill.paid_at_label %} on {{ bill.paid_at_label }}{% endif %}.
+                </p>
+                {% elif bill.status == 'REFUNDED' %}
+                <p class="pd-note warn" style="margin-top:10px;">
+                    <i class="bi bi-arrow-counterclockwise" style="margin-right:4px;"></i>
+                    This bill was refunded by the clinic.
+                </p>
+                {% elif bill.status == 'WAIVED' %}
+                <p class="pd-note" style="margin-top:10px;">
+                    <i class="bi bi-slash-circle" style="margin-right:4px;"></i>
+                    This bill was waived by the clinic.
+                </p>
+                {% endif %}
+                <div class="pd-card-actions">
+                    <a href="/patient/bills/{{ bill.bill_id }}/pdf" class="hd-btn hd-btn-outline hd-btn-sm">
+                        <i class="bi bi-file-earmark-pdf"></i> Download PDF
+                    </a>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="pd-empty" aria-label="No bills">
+            <div class="pd-empty-icon"><i class="bi bi-receipt-cutoff"></i></div>
+            <h3>No bills yet</h3>
+            <p>Bills are created automatically after a doctor completes your consultation. They'll appear here when ready.</p>
+        </div>
+        {% endif %}
+    </section>
+
+    {# ══════════════════════════════════
+       TAB 4 — PROFILE
+    ══════════════════════════════════ #}
+    <section id="tab-profile" class="pd-panel" role="tabpanel" aria-label="Profile">
+        <div class="pd-panel-head">
+            <div>
+                <h2 class="pd-panel-title">My Profile</h2>
+                <p class="pd-panel-sub">Clinic-verified information. Contact reception to update any details.</p>
+            </div>
+        </div>
+
+        <div class="pd-profile-grid">
+            <div class="pd-profile-item">
+                <small>Full Name</small>
+                <strong>{{ patient.name }}</strong>
+            </div>
+            <div class="pd-profile-item">
+                <small>Age</small>
+                <strong>{{ patient.age }}</strong>
+            </div>
+            <div class="pd-profile-item">
+                <small>Gender</small>
+                <strong>{{ patient.gender }}</strong>
+            </div>
+            <div class="pd-profile-item">
+                <small>Phone</small>
+                <strong>{{ masked_phone }}</strong>
+            </div>
+            <div class="pd-profile-item">
+                <small>Department</small>
+                <strong>{{ patient.department }}</strong>
+            </div>
+            <div class="pd-profile-item">
+                <small>Priority</small>
+                <strong>{{ patient.priority or "Normal" }}</strong>
+            </div>
+            {% if patient.address %}
+            <div class="pd-profile-item" style="grid-column: 1 / -1;">
+                <small>Address</small>
+                <strong>{{ patient.address }}</strong>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="pd-note">
+            <i class="bi bi-lock-fill" style="margin-right:6px;"></i>
+            Profile is read-only. To update your details or change departments, please call <strong>{{ clinic_phone }}</strong> or visit the clinic reception.
+        </div>
+
+        <div style="margin-top:20px; padding:18px; border-radius:14px; background:var(--hd-surface); border:1px solid var(--hd-border);">
+            <p style="font-size:0.82rem; color:var(--hd-text-muted); margin:0 0 12px;">
+                <i class="bi bi-shield-lock" style="margin-right:4px;"></i>
+                Your phone number is your login identity. OTPs expire in 5 minutes and are invalidated after 3 wrong attempts.
+            </p>
+            <form method="POST" action="/patient/logout" style="margin:0;">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                <button class="btn secondary" type="submit"><i class="bi bi-box-arrow-left"></i> Log out</button>
+                <button type="submit" class="hd-btn hd-btn-outline hd-btn-sm">
+                    <i class="bi bi-box-arrow-left"></i> Log out of patient portal
+                </button>
             </form>
         </div>
-    </header>
+    </section>
 
-    <main class="shell">
-        <section class="hero">
-            <div class="hero-main">
-                <h1>Welcome, {{ session.patient_name }}</h1>
-                <p>Your appointments, medical records, bills, and profile are gathered here in one calm place. Everything shown here is read-only and tied to your registered patient record.</p>
-            </div>
-            <aside class="quick-card">
-                <div>
-                    <small>Registered Phone</small>
-                    <strong>{{ masked_phone }}</strong>
-                </div>
-                <div>
-                    <small>Clinic Help</small>
-                    <strong>{{ clinic_phone }}</strong>
-                </div>
-            </aside>
-        </section>
+    {% endif %}{# end patient check #}
+</div>{# end pd-shell #}
 
-        {% if status_note %}
-        <div class="flash">{{ status_note }}</div>
-        {% endif %}
-        <div id="paymentMessage" class="flash" style="display: none;"></div>
+<script>
+(function () {
+    "use strict";
 
-        {% if not patient %}
-        <section class="panel">
-            <div class="panel-body">
-                <div class="empty">We could not load your patient record. Please log out and contact the clinic.</div>
-            </div>
-        </section>
-        {% else %}
-        <div class="grid">
-            <section class="panel">
-                <div class="panel-head">
-                    <div>
-                        <h2 class="panel-title">Upcoming Appointments</h2>
-                        <p class="panel-sub">Confirmed visits and pending requests appear here first.</p>
-                    </div>
-                    <a class="btn" href="/patient/book"><i class="bi bi-calendar-plus"></i> Book appointment</a>
-                </div>
-                <div class="panel-body">
-                    <div class="cards">
-                        {% for request in pending_requests %}
-                        {% if request.status == "Pending" %}
-                        <article class="appointment-card">
-                            <div class="appointment-top">
-                                <div>
-                                    <h3 class="card-title">{{ request.doctor_name }}</h3>
-                                    <p class="meta">{{ request.department }} | {{ request.human_date }} at {{ request.time_label }}</p>
-                                    <p class="meta">{{ request.time_remaining }}</p>
-                                </div>
-                                <span class="badge pending-confirmation">Pending Confirmation</span>
-                            </div>
-                            <p class="note">Your request has been sent. The clinic will confirm within 2 hours during clinic hours.</p>
-                        </article>
-                        {% endif %}
-                        {% endfor %}
+    /* ── Tab switching ── */
+    const tabs = document.querySelectorAll(".pd-tab");
+    const panels = document.querySelectorAll(".pd-panel");
 
-                        {% for request in pending_requests %}
-                        {% if request.status in ["Rejected", "Expired"] %}
-                        <article class="appointment-card">
-                            <div class="appointment-top">
-                                <div>
-                                    <h3 class="card-title">{{ request.doctor_name }}</h3>
-                                    <p class="meta">{{ request.department }} | {{ request.human_date }} at {{ request.time_label }}</p>
-                                </div>
-                                <span class="badge {{ request.status_class }}">{{ request.status }}</span>
-                            </div>
-                            <p class="note">
-                                {% if request.status == "Rejected" %}
-                                This request was not confirmed. Reason: {{ request.receptionist_note or "Please contact the clinic." }}
-                                {% else %}
-                                This request expired before it was confirmed. Please book again.
-                                {% endif %}
-                            </p>
-                            <div class="bill-actions"><a class="btn secondary" href="/patient/book">Book again</a></div>
-                        </article>
-                        {% endif %}
-                        {% endfor %}
-
-                        {% for appointment in upcoming_appointments %}
-                        <article class="appointment-card">
-                            <div class="appointment-top">
-                                <div>
-                                    <h3 class="card-title">{{ appointment.doctor_name }}</h3>
-                                    <p class="meta">{{ appointment.department }} | {{ appointment.human_date }} at {{ appointment.time_label }}</p>
-                                </div>
-                                <span class="badge {{ appointment.status_class }}">{{ appointment.status_label }}</span>
-                            </div>
-                            <p class="note">{{ appointment.status_sentence }}</p>
-                            {% if appointment.can_cancel_online %}
-                            <div style="margin-top: 14px;">
-                                <button class="btn secondary cancel-trigger" type="button"
-                                    data-doctor="{{ appointment.doctor_name }}"
-                                    data-date="{{ appointment.human_date }}"
-                                    data-time="{{ appointment.time_label }}">Cancel appointment</button>
-                                <div class="cancel-confirm" style="display:none; margin-top:12px; padding:16px; border-radius:18px; background:var(--red-bg); border:1px solid #ffd1ca;">
-                                    <p style="margin:0 0 14px; color:var(--red); font-weight:700;">Are you sure you want to cancel your appointment with {{ appointment.doctor_name }} on {{ appointment.human_date }} at {{ appointment.time_label }}?</p>
-                                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                                        <button class="btn cancel-keep" type="button">Keep my appointment</button>
-                                        <form method="POST" action="/patient/cancel" style="margin:0;">
-                                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                                            <input type="hidden" name="appointment_id" value="{{ appointment.appointment_id }}">
-                                            <button class="btn secondary" type="submit" style="color:var(--red); border-color:rgba(180,35,24,0.24);">Yes, cancel it</button>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-                            {% else %}
-                            <p class="meta" style="margin-top: 12px;">{{ appointment.cancel_note }} Call {{ clinic_phone }} for help.</p>
-                            {% endif %}
-                        </article>
-                        {% endfor %}
-
-                        {% if not upcoming_appointments and not pending_requests %}
-                        <div class="empty">No upcoming appointments. <a href="/patient/book">Book an appointment</a>.</div>
-                        {% endif %}
-                    </div>
-
-                    <div class="history">
-                        <h3>Appointment History</h3>
-                        <div class="cards">
-                            {% for appointment in appointment_history[:5] %}
-                            <article class="appointment-card">
-                                <div class="appointment-top">
-                                    <div>
-                                        <h3 class="card-title">{{ appointment.doctor_name }}</h3>
-                                        <p class="meta">{{ appointment.department }} | {{ appointment.human_date }} at {{ appointment.time_label }}</p>
-                                    </div>
-                                    <span class="badge {{ appointment.status_class }}">{{ appointment.status_label }}</span>
-                                </div>
-                                <p class="note">{{ appointment.status_sentence }}</p>
-                            </article>
-                            {% endfor %}
-                            {% if not appointment_history %}
-                            <div class="empty">Your appointment history will appear here after your first visit.</div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section class="panel">
-                <div class="panel-head">
-                    <div>
-                        <h2 class="panel-title">Medical Records</h2>
-                        <p class="panel-sub">Your diagnosis and prescription history, newest first.</p>
-                    </div>
-                </div>
-                <div class="panel-body">
-                    <div class="cards">
-                        {% for record in medical_records %}
-                        <article class="record-card">
-                            <div class="record-top">
-                                <div>
-                                    <h3 class="card-title">{{ record.human_date }}</h3>
-                                    <p class="meta">{{ record.doctor_name }}{% if record.department %} | {{ record.department }}{% endif %}</p>
-                                    <p class="meta">{{ record.diagnosis_preview }}</p>
-                                </div>
-                            </div>
-                            <details>
-                                <summary>Expand record</summary>
-                                <div class="detail-body">
-                                    <div class="detail-row">
-                                        <small>Diagnosis</small>
-                                        <div>{{ record.diagnosis }}</div>
-                                    </div>
-                                    {% if record.prescription %}
-                                    <div class="detail-row">
-                                        <small>Prescription</small>
-                                        <div>{{ record.prescription }}</div>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </details>
-                        </article>
-                        {% endfor %}
-                        {% if not medical_records %}
-                        <div class="empty">Your records will appear here after your first consultation.</div>
-                        {% endif %}
-                    </div>
-                </div>
-            </section>
-
-            <section class="panel">
-                <div class="panel-head">
-                    <div>
-                        <h2 class="panel-title">Bills</h2>
-                        <p class="panel-sub">Pending bills appear first, followed by paid or waived bills.</p>
-                    </div>
-                </div>
-                <div class="panel-body">
-                    <div class="cards">
-                        {% for bill in bills %}
-                        <article class="bill-card">
-                            <div class="bill-top">
-                                <div>
-                                    <h3 class="card-title">{{ bill.human_date }}</h3>
-                                    <p class="meta">{{ bill.doctor }} | {{ bill.department }}</p>
-                                </div>
-                                <span class="badge {{ bill.status_class }}">{{ bill.status_label }}</span>
-                            </div>
-                            <div class="bill-total">
-                                <span>Total amount</span>
-                                <strong>{{ bill.total_label }}</strong>
-                            </div>
-                            <details>
-                                <summary>View line items</summary>
-                                <div class="detail-body">
-                                    <div class="bill-lines">
-                                        {% for item in bill.line_items %}
-                                        <div class="bill-line">
-                                            <span>{{ item.label }}</span>
-                                            <strong>{{ item.amount }}</strong>
-                                        </div>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                            </details>
-                            <div class="bill-actions">
-                                {% if bill.status in ["PENDING", "INITIATED"] %}
-                                <button class="btn pay-btn" type="button" data-bill-id="{{ bill.bill_id }}">
-                                    <i class="bi bi-credit-card"></i>
-                                    {% if bill.status == "INITIATED" %}Continue Payment{% else %}Pay Now{% endif %}
-                                </button>
-                                {% endif %}
-                                <a class="btn secondary" href="/patient/bills/{{ bill.bill_id }}/pdf"><i class="bi bi-file-earmark-pdf"></i> Download PDF</a>
-                            </div>
-                            {% if bill.status == "INITIATED" %}
-                            <p class="note">Payment was started but not confirmed yet. If you already paid, this bill will update after Razorpay sends confirmation.</p>
-                            {% elif bill.status == "PAID" and bill.payment_method %}
-                            <p class="note">{{ bill.payment_method_label }}{% if bill.paid_at_label %} on {{ bill.paid_at_label }}{% endif %}.</p>
-                            {% endif %}
-                        </article>
-                        {% endfor %}
-                        {% if not bills %}
-                        <div class="empty">Your bills will appear here after your first visit.</div>
-                        {% endif %}
-                    </div>
-                </div>
-            </section>
-
-            <section class="panel">
-                <div class="panel-head">
-                    <div>
-                        <h2 class="panel-title">My Profile</h2>
-                        <p class="panel-sub">Your clinic-verified information is read-only.</p>
-                    </div>
-                </div>
-                <div class="panel-body">
-                    <div class="profile-grid">
-                        <div class="profile-card">
-                            <small>Name</small>
-                            <strong>{{ patient.name }}</strong>
-                        </div>
-                        <div class="profile-card">
-                            <small>Age</small>
-                            <strong>{{ patient.age }}</strong>
-                        </div>
-                        <div class="profile-card">
-                            <small>Gender</small>
-                            <strong>{{ patient.gender }}</strong>
-                        </div>
-                        <div class="profile-card">
-                            <small>Phone</small>
-                            <strong>{{ masked_phone }}</strong>
-                        </div>
-                        <div class="profile-card">
-                            <small>Department</small>
-                            <strong>{{ patient.department }}</strong>
-                        </div>
-                        <div class="profile-card">
-                            <small>Address</small>
-                            <strong>{{ patient.address }}</strong>
-                        </div>
-                    </div>
-                    <p class="note">To update your details, please contact the clinic.</p>
-                </div>
-            </section>
-        </div>
-        {% endif %}
-    </main>
-    <script>
-        // Cancel appointment confirmation toggle
-        document.querySelectorAll(".cancel-trigger").forEach(function(btn) {
-            btn.addEventListener("click", function() {
-                var panel = this.nextElementSibling;
-                this.style.display = "none";
-                panel.style.display = "block";
-                panel.scrollIntoView({ behavior: "smooth", block: "center" });
-            });
+    function activateTab(id) {
+        tabs.forEach(function (t) {
+            var active = t.dataset.tab === id;
+            t.classList.toggle("active", active);
+            t.setAttribute("aria-selected", active ? "true" : "false");
         });
-        document.querySelectorAll(".cancel-keep").forEach(function(btn) {
-            btn.addEventListener("click", function() {
-                var panel = this.closest(".cancel-confirm");
-                panel.style.display = "none";
-                panel.previousElementSibling.style.display = "";
-            });
+        panels.forEach(function (p) {
+            p.classList.toggle("active", p.id === id);
         });
-    </script>
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-    <script>
-        const paymentMessage = document.getElementById("paymentMessage");
-        const csrfToken = "{{ csrf_token() }}";
+        try { history.replaceState(null, "", location.pathname + "?tab=" + id); } catch(e) {}
+    }
 
-        function showPaymentMessage(text, type = "success") {
-            paymentMessage.textContent = text;
-            paymentMessage.className = `flash ${type}`;
-            paymentMessage.style.display = "block";
-            paymentMessage.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
+    tabs.forEach(function (btn) {
+        btn.addEventListener("click", function () { activateTab(this.dataset.tab); });
+    });
 
-        async function createPaymentOrder(billId) {
-            const formData = new FormData();
-            formData.append("_csrf_token", csrfToken);
-            formData.append("bill_id", billId);
-            const response = await fetch("/patient/payment/create-order", {
-                method: "POST",
-                body: formData,
-                headers: { "X-Requested-With": "XMLHttpRequest" }
-            });
-            const data = await response.json();
-            if (!response.ok || !data.ok) {
-                throw new Error(data.error || "Could not start payment.");
+    /* Restore tab from URL */
+    var urlTab = new URLSearchParams(location.search).get("tab");
+    if (urlTab && document.getElementById(urlTab)) { activateTab(urlTab); }
+
+    /* ── Cancel confirmation ── */
+    document.querySelectorAll(".pd-cancel-trigger").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            var zone = this.closest(".pd-cancel-zone");
+            this.style.display = "none";
+            zone.querySelector(".pd-cancel-confirm").style.display = "block";
+        });
+    });
+    document.querySelectorAll(".pd-cancel-keep").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            var zone = this.closest(".pd-cancel-zone");
+            zone.querySelector(".pd-cancel-confirm").style.display = "none";
+            zone.querySelector(".pd-cancel-trigger").style.display = "";
+        });
+    });
+
+    /* ── Razorpay payment ── */
+    var paymentEl = document.getElementById("paymentMessage");
+    var csrfToken = "{{ csrf_token() }}";
+
+    function showPaymentMsg(text, type) {
+        if (!paymentEl) return;
+        paymentEl.textContent = "";
+        var icon = document.createElement("i");
+        icon.className = type === "success"
+            ? "bi bi-check-circle-fill"
+            : type === "warning" ? "bi bi-exclamation-circle-fill" : "bi bi-x-circle-fill";
+        var span = document.createElement("span");
+        span.textContent = " " + text;
+        paymentEl.appendChild(icon);
+        paymentEl.appendChild(span);
+        paymentEl.className = "pd-alert " + type;
+        paymentEl.style.display = "flex";
+        paymentEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    async function createOrder(billId) {
+        var fd = new FormData();
+        fd.append("_csrf_token", csrfToken);
+        fd.append("bill_id", billId);
+        var res = await fetch("/patient/payment/create-order", {
+            method: "POST",
+            body: fd,
+            headers: { "X-Requested-With": "XMLHttpRequest" }
+        });
+        var data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || "Could not start payment.");
+        return data;
+    }
+
+    document.querySelectorAll(".pay-btn").forEach(function (btn) {
+        btn.addEventListener("click", async function () {
+            if (!window.Razorpay) {
+                showPaymentMsg("Razorpay could not load. Check your internet connection and retry.", "danger");
+                return;
             }
-            return data;
-        }
-
-        document.querySelectorAll(".pay-btn").forEach((button) => {
-            button.addEventListener("click", async () => {
-                if (!window.Razorpay) {
-                    showPaymentMessage("Razorpay checkout could not load. Please check your internet connection and try again.", "error");
-                    return;
-                }
-                const originalText = button.innerHTML;
-                button.disabled = true;
-                button.innerHTML = '<i class="bi bi-hourglass-split"></i> Starting payment...';
-                try {
-                    const order = await createPaymentOrder(button.dataset.billId);
-                    const checkout = new Razorpay({
-                        key: order.key,
-                        amount: order.amount,
-                        currency: order.currency,
-                        name: order.clinic_name,
-                        description: order.description,
-                        order_id: order.order_id,
-                        prefill: {
-                            name: order.patient_name,
-                            contact: order.patient_phone
-                        },
-                        theme: { color: "#2E86C1" },
-                        handler: () => {
-                            showPaymentMessage("Payment received by Razorpay. Your bill will update after secure confirmation.", "success");
-                            window.setTimeout(() => window.location.reload(), 3500);
-                        },
-                        modal: {
-                            ondismiss: () => {
-                                showPaymentMessage("Payment window closed. You can retry anytime while the bill is pending.", "error");
-                            }
+            var orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Starting…';
+            try {
+                var order = await createOrder(btn.dataset.billId);
+                var rzp = new Razorpay({
+                    key:         order.key,
+                    amount:      order.amount,
+                    currency:    order.currency,
+                    name:        order.clinic_name,
+                    description: order.description,
+                    order_id:    order.order_id,
+                    prefill:     { name: order.patient_name, contact: order.patient_phone },
+                    theme:       { color: "#2E86C1" },
+                    handler: function () {
+                        showPaymentMsg("Payment received. Your bill will update after Razorpay confirmation.", "success");
+                        setTimeout(function () { window.location.reload(); }, 3500);
+                    },
+                    modal: {
+                        ondismiss: function () {
+                            showPaymentMsg("Payment window closed. You can retry anytime.", "warning");
                         }
-                    });
-                    checkout.open();
-                } catch (error) {
-                    showPaymentMessage(error.message, "error");
-                } finally {
-                    button.disabled = false;
-                    button.innerHTML = originalText;
-                }
-            });
+                    }
+                });
+                rzp.open();
+            } catch (err) {
+                showPaymentMsg(err.message, "danger");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
         });
-    </script>
-</body>
-</html>
+    });
+})();
+</script>
+{% endblock %}

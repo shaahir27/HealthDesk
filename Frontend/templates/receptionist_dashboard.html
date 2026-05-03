@@ -1,182 +1,286 @@
 {% extends "index.html" %}
-
 {% block content %}
-
 <style>
-    .rx-shell { display:grid; gap:20px; }
-    .rx-hero { padding:26px; border-radius:24px; background:radial-gradient(circle at top right,rgba(255,255,255,0.18),transparent 34%),linear-gradient(135deg,#183a59 0%,#2a5b81 100%); color:#fff; box-shadow:0 18px 40px rgba(24,58,89,0.18); }
-    .rx-kicker { margin-bottom:8px; color:rgba(255,255,255,0.68); font-size:0.74rem; font-weight:700; letter-spacing:1.7px; text-transform:uppercase; }
-    .rx-hero h4 { margin:0 0 8px; font-size:1.9rem; }
-    .rx-hero p { margin:0; color:rgba(255,255,255,0.78); max-width:720px; }
-    .rx-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:20px; }
-    .rx-card { background:#fff; border:1px solid #dfe7ee; border-radius:22px; box-shadow:0 16px 36px rgba(21,40,66,0.06); }
-    .rx-card-body { padding:20px; }
-    .rx-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px; }
-    .rx-title { margin:0 0 4px; font-size:1.02rem; font-weight:700; color:#1f3750; }
-    .rx-sub { margin:0; color:#728598; font-size:0.88rem; }
-    .rx-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
-    .rx-stat { padding:18px; border-radius:18px; border:1px solid #e4ebf1; background:#f8fbfd; }
-    .rx-stat small { display:block; color:#728598; margin-bottom:6px; }
-    .rx-stat strong { font-size:1.3rem; color:#19324b; }
-    .rx-action-list { display:grid; gap:10px; }
-    .rx-action-row { display:grid; grid-template-columns:40px minmax(0,1fr) auto; align-items:center; gap:12px; padding:13px 14px; border:1px solid #e4ebf1; border-radius:16px; background:#fbfdff; color:#1f3750; text-decoration:none; transition:all 0.2s ease; }
-    .rx-action-row:hover, .rx-action-row:focus { transform:translateY(-2px); border-color:#b9d4e8; box-shadow:0 10px 22px rgba(21,40,66,0.08); color:#183a59; }
-    .rx-action-icon { width:40px; height:40px; border-radius:13px; display:grid; place-items:center; background:#eaf3fb; color:#1b4f72; }
-    .rx-action-row strong { display:block; font-size:0.9rem; }
-    .rx-action-row small { color:#728598; }
-    .rx-action-row .bi-arrow-right { color:#9aacbd; }
-    .rx-action-row:hover small, .rx-action-row:focus small { color:#52677a; }
-    .rx-action-row:hover .rx-action-icon, .rx-action-row:focus .rx-action-icon { background:#dcecf7; color:#123d5e; }
-    .rx-alert { padding:14px 16px; border-radius:18px; background:#eff7fc; border:1px solid #d8eaf5; color:#31526b; font-weight:700; }
-    .rx-pending-list { display:grid; gap:14px; }
-    .rx-request { padding:16px; border:1px solid #e4ebf1; border-radius:18px; background:#fbfdff; }
-    .rx-request-top { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px; }
-    .rx-request-title { margin:0 0 4px; font-weight:800; color:#19324b; }
-    .rx-request-meta { margin:0; color:#728598; font-size:.88rem; }
-    .rx-request-note { margin:10px 0 0; padding:11px 12px; border-radius:14px; background:#fff8e8; color:#7c5700; border:1px solid #f0ddb1; }
-    .rx-request-actions { display:grid; grid-template-columns:auto minmax(220px,1fr) auto; gap:10px; align-items:center; margin-top:12px; }
-    .rx-request-actions form { margin:0; }
-    .rx-reject-form { display:none; }
-    .rx-reject-form.open { display:grid; gap:10px; grid-template-columns:minmax(220px,1fr) auto; align-items:center; margin-top:10px; }
-    .rx-reject-toggle { cursor:pointer; }
-    @media (max-width: 991.98px) {
-        .rx-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
-        .rx-request-actions { grid-template-columns:1fr; }
-        .rx-reject-form.open { grid-template-columns:1fr; }
-    }
-    @media (max-width: 767.98px) {
-        .rx-stats { grid-template-columns:1fr; }
-        .rx-card-body { padding:16px; }
-    }
+/* ── Receptionist Dashboard ── */
+.rd-shell { display: grid; gap: 20px; }
+
+/* Hero */
+.rd-hero {
+    position: relative; overflow: hidden;
+    padding: clamp(22px,4vw,32px) clamp(22px,4vw,32px);
+    border-radius: var(--hd-radius); color: #fff;
+    background: radial-gradient(ellipse at 90% 0%, rgba(255,255,255,.13) 0%, transparent 40%),
+                linear-gradient(135deg, var(--hd-primary-dark) 0%, var(--hd-primary) 100%);
+    box-shadow: 0 8px 28px rgba(27,79,114,.22);
+}
+.rd-hero::after {
+    content: ''; position: absolute; right: -40px; bottom: -40px;
+    width: 220px; height: 220px; border-radius: 50%;
+    background: rgba(255,255,255,.05); pointer-events: none;
+}
+.rd-hero-eyebrow {
+    font-size: .68rem; font-weight: 700; letter-spacing: 1.6px;
+    text-transform: uppercase; color: rgba(255,255,255,.68); margin-bottom: 8px;
+}
+.rd-hero h4 { margin: 0 0 6px; font-size: clamp(1.4rem,2.8vw,2rem); font-weight: 700; color: #fff; letter-spacing: -.03em; }
+.rd-hero p  { margin: 0; color: rgba(255,255,255,.72); font-size: .9rem; line-height: 1.55; max-width: 640px; }
+
+/* Stats strip */
+.rd-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 14px;
+}
+.rd-stat {
+    padding: 18px 20px; border-radius: var(--hd-radius);
+    background: var(--hd-surface); border: 1px solid var(--hd-border);
+    box-shadow: var(--hd-shadow);
+    display: flex; flex-direction: column; gap: 4px;
+}
+.rd-stat-label { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--hd-text-muted); }
+.rd-stat-value { font-size: 1.55rem; font-weight: 700; color: var(--hd-text); line-height: 1; }
+.rd-stat-value.primary { color: var(--hd-primary); }
+.rd-stat-value.success { color: var(--hd-accent); }
+.rd-stat-value.warning { color: var(--hd-warning); }
+
+/* Pending requests card */
+.rd-card {
+    background: var(--hd-surface); border: 1px solid var(--hd-border);
+    border-radius: var(--hd-radius); box-shadow: var(--hd-shadow);
+}
+.rd-card-body { padding: clamp(16px,2.5vw,22px); }
+.rd-card-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 14px; margin-bottom: 18px; flex-wrap: wrap;
+}
+.rd-card-title { font-size: 1rem; font-weight: 700; color: var(--hd-text); margin: 0 0 3px; }
+.rd-card-sub   { font-size: .82rem; color: var(--hd-text-muted); margin: 0; }
+
+/* Individual pending request */
+.rd-req {
+    padding: 16px 18px; border-radius: 12px;
+    border: 1px solid var(--hd-border); background: var(--hd-bg);
+    transition: border-color .18s;
+}
+.rd-req + .rd-req { margin-top: 12px; }
+.rd-req:hover { border-color: rgba(46,134,193,.25); }
+.rd-req-top {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
+}
+.rd-req-name { font-size: .95rem; font-weight: 700; color: var(--hd-text); margin: 0 0 3px; }
+.rd-req-meta { font-size: .8rem; color: var(--hd-text-muted); margin: 0; line-height: 1.5; }
+.rd-req-reason {
+    margin: 10px 0 0; padding: 10px 12px; border-radius: 8px;
+    background: #fef5e7; border: 1px solid #ffecb5; color: #664d03;
+    font-size: .82rem; line-height: 1.45;
+}
+
+/* Approve / reject action area */
+.rd-req-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.rd-req-actions form { margin: 0; }
+.rd-reject-form {
+    display: none; gap: 10px; align-items: center;
+    margin-top: 10px; flex-wrap: wrap;
+}
+.rd-reject-form.open { display: flex; }
+.rd-reject-form input { flex: 1 1 220px; min-height: 40px; }
+
+/* Quick actions list */
+.rd-actions { display: grid; gap: 10px; }
+.rd-action-row {
+    display: grid; grid-template-columns: 42px 1fr auto;
+    align-items: center; gap: 12px; padding: 12px 14px;
+    border: 1px solid var(--hd-border); border-radius: 12px;
+    background: var(--hd-surface); color: var(--hd-text);
+    text-decoration: none; transition: all .18s;
+}
+.rd-action-row:hover {
+    border-color: var(--hd-primary); background: var(--hd-primary-light);
+    transform: translateX(2px); color: var(--hd-primary-dark);
+    box-shadow: var(--hd-shadow);
+}
+.rd-action-icon {
+    width: 42px; height: 42px; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.05rem; background: var(--hd-primary-light); color: var(--hd-primary);
+    flex-shrink: 0; transition: background .18s;
+}
+.rd-action-row:hover .rd-action-icon { background: rgba(46,134,193,.18); }
+.rd-action-label { font-size: .9rem; font-weight: 700; margin: 0 0 2px; }
+.rd-action-sub   { font-size: .76rem; color: var(--hd-text-muted); }
+.rd-action-arrow { color: var(--hd-border); font-size: .9rem; transition: color .18s; }
+.rd-action-row:hover .rd-action-arrow { color: var(--hd-primary); }
+
+/* Bottom 2-col layout: quick access + (placeholder for future) */
+.rd-bottom { display: grid; grid-template-columns: minmax(0,1fr); gap: 20px; }
+
+/* Responsive */
+@media (max-width: 900px) {
+    .rd-stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (max-width: 560px) {
+    .rd-stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .rd-reject-form { flex-direction: column; align-items: stretch; }
+    .rd-reject-form .hd-btn { width: 100%; justify-content: center; }
+}
+@media (max-width: 380px) {
+    .rd-stats { grid-template-columns: 1fr 1fr; }
+}
 </style>
 
-<div class="rx-shell">
-    <div class="rx-hero">
-        <div class="rx-kicker">{{ today }}</div>
+<div class="rd-shell">
+
+    {# ── Hero ── #}
+    <div class="rd-hero">
+        <div class="rd-hero-eyebrow">{{ today }}</div>
         <h4>Reception Command Center</h4>
-        <p>A focused front-desk view for patient intake, queue movement, appointments, doctor coordination, and billing.</p>
+        <p>Patient intake, queue management, appointments, doctor coordination, and billing — all from one focused front-desk view.</p>
     </div>
 
+    {# ── Status note ── #}
     {% if status_note %}
-    <div class="rx-alert">{{ status_note }}</div>
+    <div class="hd-alert info"><i class="bi bi-info-circle me-1"></i> {{ status_note }}</div>
     {% endif %}
 
+    {# ── Pending requests — shown prominently at top ── #}
     {% if pending_patient_requests or pending_new_patient_requests %}
-    <div class="rx-card">
-        <div class="rx-card-body">
-            <div class="rx-head">
+    <div class="rd-card">
+        <div class="rd-card-body">
+            <div class="rd-card-head">
                 <div>
-                    <h5 class="rx-title"><i class="bi bi-hourglass-split me-1"></i> Pending Patient Portal Requests</h5>
-                    <p class="rx-sub">Approve after rechecking the slot, or reject with a clear reason for the patient.</p>
+                    <h5 class="rd-card-title">
+                        <i class="bi bi-hourglass-split me-1" style="color:var(--hd-warning);"></i>
+                        Pending Requests
+                        <span class="hd-badge urgent ms-2">{{ (pending_patient_requests|length) + (pending_new_patient_requests|length) }} waiting</span>
+                    </h5>
+                    <p class="rd-card-sub">Approve after verifying the slot, or reject with a clear reason for the patient.</p>
                 </div>
             </div>
-            <div class="rx-pending-list">
-                {% for req in pending_patient_requests %}
-                <div class="rx-request">
-                    <div class="rx-request-top">
-                        <div>
-                            <h6 class="rx-request-title">{{ req.patient_name }}{% if req.patient_age %}, {{ req.patient_age }}{% endif %} {% if req.patient_gender %}({{ req.patient_gender }}){% endif %}</h6>
-                            <p class="rx-request-meta">{{ req.doctor_name }} | {{ req.department }} | {{ req.human_date }} at {{ req.time_label }}</p>
-                            <p class="rx-request-meta">{{ req.visit_type }} visit | {{ req.time_remaining }}</p>
-                        </div>
-                        <span class="hd-badge urgent">Existing Patient</span>
-                    </div>
-                    {% if req.reason %}<div class="rx-request-note">{{ req.reason }}</div>{% endif %}
-                    <div class="rx-request-actions">
-                        <form method="POST" action="/reception/approve">
-                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="request_type" value="existing">
-                            <input type="hidden" name="request_id" value="{{ req.request_id }}">
-                            <button class="hd-btn hd-btn-primary hd-btn-sm">Approve</button>
-                        </form>
-                        <button type="button" class="hd-btn hd-btn-outline hd-btn-sm rx-reject-toggle">Reject</button>
-                        <form method="POST" action="/reception/reject" class="rx-reject-form">
-                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="request_type" value="existing">
-                            <input type="hidden" name="request_id" value="{{ req.request_id }}">
-                            <input class="form-control form-control-sm" name="receptionist_note" placeholder="Reason required to reject" required>
-                            <button class="hd-btn hd-btn-outline hd-btn-sm">Confirm Reject</button>
-                        </form>
-                    </div>
-                </div>
-                {% endfor %}
 
-                {% for req in pending_new_patient_requests %}
-                <div class="rx-request">
-                    <div class="rx-request-top">
-                        <div>
-                            <h6 class="rx-request-title">{{ req.name }}, {{ req.age }} ({{ req.gender }})</h6>
-                            <p class="rx-request-meta">{{ req.phone }} | {{ req.address }}</p>
-                            <p class="rx-request-meta">{{ req.doctor_name }} | {{ req.department }} | {{ req.human_date }} at {{ req.time_label }}</p>
-                            <p class="rx-request-meta">First-time request | {{ req.time_remaining }}</p>
-                        </div>
-                        <span class="hd-badge waiting">New Patient</span>
+            {% for req in pending_patient_requests %}
+            <div class="rd-req">
+                <div class="rd-req-top">
+                    <div>
+                        <p class="rd-req-name">{{ req.patient_name }}{% if req.patient_age %}, {{ req.patient_age }}{% endif %}{% if req.patient_gender %} ({{ req.patient_gender }}){% endif %}</p>
+                        <p class="rd-req-meta"><i class="bi bi-person-badge me-1"></i>{{ req.doctor_name }} &middot; {{ req.department }} &middot; {{ req.human_date }} at {{ req.time_label }}</p>
+                        <p class="rd-req-meta"><i class="bi bi-arrow-repeat me-1"></i>{{ req.visit_type }} visit &middot; {{ req.time_remaining }}</p>
                     </div>
-                    {% if req.reason %}<div class="rx-request-note">{{ req.reason }}</div>{% endif %}
-                    <div class="rx-request-actions">
-                        <form method="POST" action="/reception/approve">
-                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="request_type" value="new">
-                            <input type="hidden" name="request_id" value="{{ req.request_id }}">
-                            <button class="hd-btn hd-btn-primary hd-btn-sm">Register And Approve</button>
-                        </form>
-                        <button type="button" class="hd-btn hd-btn-outline hd-btn-sm rx-reject-toggle">Reject</button>
-                        <form method="POST" action="/reception/reject" class="rx-reject-form">
-                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="request_type" value="new">
-                            <input type="hidden" name="request_id" value="{{ req.request_id }}">
-                            <input class="form-control form-control-sm" name="receptionist_note" placeholder="Reason required to reject" required>
-                            <button class="hd-btn hd-btn-outline hd-btn-sm">Confirm Reject</button>
-                        </form>
-                    </div>
+                    <span class="hd-badge urgent">Existing Patient</span>
                 </div>
-                {% endfor %}
+                {% if req.reason %}<div class="rd-req-reason"><i class="bi bi-chat-text me-1"></i>{{ req.reason }}</div>{% endif %}
+                <div class="rd-req-actions">
+                    <form method="POST" action="/reception/approve">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="request_type" value="existing">
+                        <input type="hidden" name="request_id" value="{{ req.request_id }}">
+                        <button class="hd-btn hd-btn-primary hd-btn-sm"><i class="bi bi-check2"></i> Approve</button>
+                    </form>
+                    <button type="button" class="hd-btn hd-btn-outline hd-btn-sm rd-reject-toggle">
+                        <i class="bi bi-x"></i> Reject
+                    </button>
+                </div>
+                <form method="POST" action="/reception/reject" class="rd-reject-form">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="request_type" value="existing">
+                    <input type="hidden" name="request_id" value="{{ req.request_id }}">
+                    <input class="form-control form-control-sm" name="receptionist_note" placeholder="Rejection reason (required)" required>
+                    <button class="hd-btn hd-btn-outline hd-btn-sm" style="color:var(--hd-danger);border-color:rgba(231,76,60,.3);white-space:nowrap;">Confirm Reject</button>
+                </form>
             </div>
+            {% endfor %}
+
+            {% for req in pending_new_patient_requests %}
+            <div class="rd-req">
+                <div class="rd-req-top">
+                    <div>
+                        <p class="rd-req-name">{{ req.name }}, {{ req.age }} ({{ req.gender }})</p>
+                        <p class="rd-req-meta"><i class="bi bi-telephone me-1"></i>{{ req.phone }} &middot; {{ req.address }}</p>
+                        <p class="rd-req-meta"><i class="bi bi-person-badge me-1"></i>{{ req.doctor_name }} &middot; {{ req.department }} &middot; {{ req.human_date }} at {{ req.time_label }}</p>
+                        <p class="rd-req-meta"><i class="bi bi-stars me-1"></i>First-time request &middot; {{ req.time_remaining }}</p>
+                    </div>
+                    <span class="hd-badge booked">New Patient</span>
+                </div>
+                {% if req.reason %}<div class="rd-req-reason"><i class="bi bi-chat-text me-1"></i>{{ req.reason }}</div>{% endif %}
+                <div class="rd-req-actions">
+                    <form method="POST" action="/reception/approve">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="request_type" value="new">
+                        <input type="hidden" name="request_id" value="{{ req.request_id }}">
+                        <button class="hd-btn hd-btn-primary hd-btn-sm"><i class="bi bi-person-check"></i> Register &amp; Approve</button>
+                    </form>
+                    <button type="button" class="hd-btn hd-btn-outline hd-btn-sm rd-reject-toggle">
+                        <i class="bi bi-x"></i> Reject
+                    </button>
+                </div>
+                <form method="POST" action="/reception/reject" class="rd-reject-form">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="request_type" value="new">
+                    <input type="hidden" name="request_id" value="{{ req.request_id }}">
+                    <input class="form-control form-control-sm" name="receptionist_note" placeholder="Rejection reason (required)" required>
+                    <button class="hd-btn hd-btn-outline hd-btn-sm" style="color:var(--hd-danger);border-color:rgba(231,76,60,.3);white-space:nowrap;">Confirm Reject</button>
+                </form>
+            </div>
+            {% endfor %}
         </div>
     </div>
     {% endif %}
 
-    <div class="rx-stats">
-        <div class="rx-stat"><small>Waiting Queue</small><strong>{{ waiting_count }}</strong></div>
-        <div class="rx-stat"><small>Booked Appointments</small><strong>{{ booked_count }}</strong></div>
-        <div class="rx-stat"><small>Completed Queue</small><strong>{{ completed_count }}</strong></div>
-        <div class="rx-stat"><small>Available Doctors</small><strong>{{ available_doctors }}</strong></div>
+    {# ── Stats ── #}
+    <div class="rd-stats">
+        <div class="rd-stat">
+            <span class="rd-stat-label">Waiting Queue</span>
+            <span class="rd-stat-value warning">{{ waiting_count }}</span>
+        </div>
+        <div class="rd-stat">
+            <span class="rd-stat-label">Booked Today</span>
+            <span class="rd-stat-value primary">{{ booked_count }}</span>
+        </div>
+        <div class="rd-stat">
+            <span class="rd-stat-label">Completed</span>
+            <span class="rd-stat-value success">{{ completed_count }}</span>
+        </div>
+        <div class="rd-stat">
+            <span class="rd-stat-label">Available Doctors</span>
+            <span class="rd-stat-value">{{ available_doctors }}</span>
+        </div>
     </div>
 
-    <div class="rx-grid">
-        <div class="rx-card">
-            <div class="rx-card-body">
-                <div class="rx-head">
+    {# ── Quick Access ── #}
+    <div class="rd-bottom">
+        <div class="rd-card">
+            <div class="rd-card-body">
+                <div class="rd-card-head">
                     <div>
-                        <h5 class="rx-title"><i class="bi bi-grid me-1"></i> Quick Access</h5>
-                        <p class="rx-sub">Jump straight into the most frequent front-desk tasks.</p>
+                        <h5 class="rd-card-title"><i class="bi bi-lightning-fill me-1"></i> Quick Access</h5>
+                        <p class="rd-card-sub">Jump into the most frequent front-desk tasks.</p>
                     </div>
                 </div>
-                <div class="rx-action-list">
-                    <a class="rx-action-row" href="/reception">
-                        <span class="rx-action-icon"><i class="bi bi-person-plus"></i></span>
-                        <span><strong>Patient intake</strong><small>Search, register, and assign care</small></span>
-                        <i class="bi bi-arrow-right"></i>
+                <div class="rd-actions">
+                    <a class="rd-action-row" href="/reception">
+                        <span class="rd-action-icon"><i class="bi bi-person-plus-fill"></i></span>
+                        <span><p class="rd-action-label">Patient Intake</p><p class="rd-action-sub">Search, register, and assign care</p></span>
+                        <i class="bi bi-chevron-right rd-action-arrow"></i>
                     </a>
-                    <a class="rx-action-row" href="/appointments">
-                        <span class="rx-action-icon"><i class="bi bi-calendar2-check"></i></span>
-                        <span><strong>Appointments</strong><small>Book, reschedule, or complete slots</small></span>
-                        <i class="bi bi-arrow-right"></i>
+                    <a class="rd-action-row" href="/appointments">
+                        <span class="rd-action-icon"><i class="bi bi-calendar2-check-fill"></i></span>
+                        <span><p class="rd-action-label">Appointments</p><p class="rd-action-sub">Book, reschedule, or action slots</p></span>
+                        <i class="bi bi-chevron-right rd-action-arrow"></i>
                     </a>
-                    <a class="rx-action-row" href="/queue">
-                        <span class="rx-action-icon"><i class="bi bi-people-fill"></i></span>
-                        <span><strong>Live queue</strong><small>Review waiting and completed patients</small></span>
-                        <i class="bi bi-arrow-right"></i>
+                    <a class="rd-action-row" href="/queue">
+                        <span class="rd-action-icon"><i class="bi bi-people-fill"></i></span>
+                        <span><p class="rd-action-label">Live Queue</p><p class="rd-action-sub">Monitor waiting patients per doctor</p></span>
+                        <i class="bi bi-chevron-right rd-action-arrow"></i>
                     </a>
-                    <a class="rx-action-row" href="/doctors">
-                        <span class="rx-action-icon"><i class="bi bi-heart-pulse"></i></span>
-                        <span><strong>Doctor availability</strong><small>Check free, busy, and off-duty doctors</small></span>
-                        <i class="bi bi-arrow-right"></i>
+                    <a class="rd-action-row" href="/doctors">
+                        <span class="rd-action-icon"><i class="bi bi-heart-pulse-fill"></i></span>
+                        <span><p class="rd-action-label">Doctor Availability</p><p class="rd-action-sub">Check free, busy, and off-duty doctors</p></span>
+                        <i class="bi bi-chevron-right rd-action-arrow"></i>
                     </a>
-                    <a class="rx-action-row" href="/billing">
-                        <span class="rx-action-icon"><i class="bi bi-receipt"></i></span>
-                        <span><strong>Billing</strong><small>Create and review patient bills</small></span>
-                        <i class="bi bi-arrow-right"></i>
+                    <a class="rd-action-row" href="/billing">
+                        <span class="rd-action-icon"><i class="bi bi-receipt-cutoff"></i></span>
+                        <span><p class="rd-action-label">Billing</p><p class="rd-action-sub">Create and review patient bills</p></span>
+                        <i class="bi bi-chevron-right rd-action-arrow"></i>
                     </a>
                 </div>
             </div>
@@ -185,14 +289,13 @@
 </div>
 
 <script>
-    document.querySelectorAll(".rx-reject-toggle").forEach(function(btn) {
-        btn.addEventListener("click", function() {
-            var form = this.nextElementSibling;
-            var isOpen = form.classList.toggle("open");
-            this.style.display = isOpen ? "none" : "";
-            if (isOpen) form.querySelector("input[name='receptionist_note']").focus();
-        });
+document.querySelectorAll(".rd-reject-toggle").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+        var form = this.closest(".rd-req").querySelector(".rd-reject-form");
+        var open = form.classList.toggle("open");
+        this.style.display = open ? "none" : "";
+        if (open) form.querySelector("input[name='receptionist_note']").focus();
     });
+});
 </script>
-
 {% endblock %}
