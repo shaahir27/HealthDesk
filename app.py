@@ -33,6 +33,10 @@ DOCTOR_STATUS_META_FILE = os.path.join(DATA_DIR, "doctor_status_meta.json")
 BILLING_EXE = os.path.join(BACKEND_DIR, "c_modules", "billing.exe")
 ADVANCE_EXE = os.path.join(BACKEND_DIR, "c_modules", "advance.exe")
 PENDING_REQUEST_EXE = os.path.join(BACKEND_DIR, "c_modules", "pending_request.exe")
+PATIENT_EXE = os.path.join(BACKEND_DIR, "c_modules", "patient.exe")
+DOCTOR_EXE = os.path.join(BACKEND_DIR, "c_modules", "doctor.exe")
+APPOINTMENT_EXE = os.path.join(BACKEND_DIR, "c_modules", "appointment.exe")
+QUEUE_EXE = os.path.join(BACKEND_DIR, "c_modules", "queue.exe")
 _appointment_lock = threading.Lock()
 _pending_appointment_lock = threading.Lock()
 _new_patient_request_lock = threading.Lock()
@@ -100,8 +104,71 @@ def parse_appointment_line(line):
     except ValueError:
         return None
 
+
+def parse_patient_record_line(line):
+    data = line.strip().split("|")
+    if len(data) < 10:
+        return None
+    try:
+        return {
+            "id": int(data[0]),
+            "name": data[1],
+            "age": data[2],
+            "gender": data[3],
+            "phone": data[4],
+            "address": data[5],
+            "symptoms": data[6],
+            "visit_type": data[7],
+            "priority": data[8],
+            "department": data[9]
+        }
+    except ValueError:
+        return None
+
+
+def parse_patient_command_output(output):
+    data = str(output or "").strip().split("|")
+    if len(data) >= 11 and data[0] == "PATIENT":
+        return {
+            "id": int(data[1]),
+            "name": data[2],
+            "age": data[3],
+            "gender": data[4],
+            "phone": data[5],
+            "address": data[6],
+            "symptoms": data[7],
+            "visit_type": data[8],
+            "priority": data[9],
+            "department": data[10]
+        }
+    return None
+
+
+def parse_doctor_record_line(line):
+    data = line.strip().split("|")
+    if len(data) < 6:
+        return None
+    try:
+        return {
+            "id": int(data[0]),
+            "name": data[1],
+            "department": data[2],
+            "experience": int(data[3]),
+            "daily_status": data[4],
+            "current_status": data[5]
+        }
+    except ValueError:
+        return None
+
 def read_appointment_file():
     appointments = {}
+    result = run_appointment_command("list-all")
+    if result and result.returncode == 0:
+        for line in result.stdout.splitlines():
+            appointment = parse_appointment_line(line)
+            if appointment:
+                appointments[appointment["appointment_id"]] = appointment
+        return sorted(appointments.values(), key=lambda item: item["appointment_id"])
     try:
         with open(APPOINTMENT_FILE, "r", encoding="utf-8") as f:
             for line in f:
@@ -285,6 +352,16 @@ def read_user_accounts():
     return accounts
 
 
+def write_user_accounts(accounts):
+    with open(USER_FILE, "w", encoding="utf-8") as f:
+        for account in accounts:
+            f.write(
+                f"{int(account['id'])}|{clean_record_field(account['username'])}|"
+                f"{clean_record_field(account['password'], 260)}|"
+                f"{clean_record_field(account['role'])}|{int(account['doctor_id'] or 0)}\n"
+            )
+
+
 def next_user_id():
     return max((account["id"] for account in read_user_accounts()), default=0) + 1
 
@@ -316,6 +393,33 @@ def save_user_account(username, password, role, doctor_id):
         f"{clean_record_field(role)}|{int(doctor_id or 0)}"
     )
     append_data_line(USER_FILE, line)
+
+
+def generate_staff_password(role, doctor_id=0):
+    role_prefix = "DOC" if str(role).lower() == "doctor" else "STAFF"
+    suffix = f"{doctor_id}" if int(doctor_id or 0) > 0 else ""
+    return f"HD{role_prefix}{suffix}-{secrets.randbelow(900000) + 100000}!"
+
+
+def reset_staff_password(account_id):
+    account_id = safe_int(account_id)
+    accounts = read_user_accounts()
+    for account in accounts:
+        if account["id"] != account_id:
+            continue
+        if str(account.get("role", "")).lower() == "patient":
+            return None
+        new_password = generate_staff_password(account.get("role", ""), account.get("doctor_id", 0))
+        account["password"] = generate_password_hash(new_password)
+        write_user_accounts(accounts)
+        return {
+            "account_id": account["id"],
+            "username": account["username"],
+            "role": account["role"],
+            "doctor_id": account["doctor_id"],
+            "password": new_password,
+        }
+    return None
 
 
 def load_pricing_catalog():
@@ -366,6 +470,42 @@ def run_advance_command(*args):
     try:
         return subprocess.run(
             [ADVANCE_EXE, *[str(arg) for arg in args]],
+            capture_output=True,
+            text=True,
+            cwd=BASE_DIR
+        )
+    except FileNotFoundError:
+        return None
+
+
+def run_patient_command(*args):
+    try:
+        return subprocess.run(
+            [PATIENT_EXE, *[str(arg) for arg in args]],
+            capture_output=True,
+            text=True,
+            cwd=BASE_DIR
+        )
+    except FileNotFoundError:
+        return None
+
+
+def run_doctor_command(*args):
+    try:
+        return subprocess.run(
+            [DOCTOR_EXE, *[str(arg) for arg in args]],
+            capture_output=True,
+            text=True,
+            cwd=BASE_DIR
+        )
+    except FileNotFoundError:
+        return None
+
+
+def run_queue_command(*args):
+    try:
+        return subprocess.run(
+            [QUEUE_EXE, *[str(arg) for arg in args]],
             capture_output=True,
             text=True,
             cwd=BASE_DIR
@@ -594,8 +734,7 @@ def save_bill_record(bill):
     line = serialize_bill_record(bill)
     with _billing_lock:
         result = run_billing_command("save", line)
-        if not result or result.returncode != 0:
-            save_bill_line_fallback(line)
+        return bool(result and result.returncode == 0)
 
 
 # ---------------- ADVANCE RECORD HELPERS ----------------
@@ -732,28 +871,15 @@ def update_advance_record(updated):
     line = serialize_advance_record(updated)
     with _advance_lock:
         result = run_advance_command("update", updated["advance_id"], line)
-        if result and result.returncode == 0:
-            return True
-        records = _read_advances_unlocked()
-        changed = False
-        for index, record in enumerate(records):
-            if record["advance_id"] == updated["advance_id"]:
-                records[index] = updated
-                changed = True
-                break
-        if changed:
-            _write_all_advances_unlocked(records)
-    return changed
+        return bool(result and result.returncode == 0)
 
 
 def create_advance_record(patient_id, doctor_id, appointment_date, amount, pending_request_id=0):
     with _advance_lock:
-        records = None
         result = run_advance_command("next-id")
         next_id = safe_int(result.stdout.strip(), 0) if result and result.returncode == 0 else 0
         if next_id <= 0:
-            records = _read_advances_unlocked()
-            next_id = max((record["advance_id"] for record in records), default=0) + 1
+            next_id = max((record["advance_id"] for record in _read_advances_unlocked()), default=0) + 1
         adv = {
             "advance_id": next_id,
             "patient_id": int(patient_id),
@@ -772,10 +898,7 @@ def create_advance_record(patient_id, doctor_id, appointment_date, amount, pendi
         line = serialize_advance_record(adv)
         result = run_advance_command("save", line)
         if not result or result.returncode != 0:
-            if records is None:
-                records = _read_advances_unlocked()
-            records.append(adv)
-            _write_all_advances_unlocked(records)
+            raise RuntimeError(f"advance.exe save failed: {(result.stderr or result.stdout) if result else 'command not found'}")
     return adv
 
 
@@ -840,14 +963,13 @@ def _pop_booking_intent_fallback(advance_id):
 
 
 def save_booking_intent(advance_id, doctor_id, requested_date, requested_slot, reason, visit_type, triage):
-    os.makedirs(os.path.dirname(BOOKING_INTENT_PATH), exist_ok=True)
     line = serialize_booking_intent(
         advance_id, doctor_id, requested_date, requested_slot, reason, visit_type, triage
     )
     with _advance_lock:
         result = run_advance_command("save-intent", line)
         if not result or result.returncode != 0:
-            _save_booking_intent_fallback(line)
+            raise RuntimeError(f"advance.exe save-intent failed: {(result.stderr or result.stdout) if result else 'command not found'}")
 
 
 def pop_booking_intent(advance_id):
@@ -855,7 +977,7 @@ def pop_booking_intent(advance_id):
         result = run_advance_command("pop-intent", advance_id)
         if result and result.returncode == 0 and result.stdout.strip():
             return parse_booking_intent_line(result.stdout.strip())
-        return _pop_booking_intent_fallback(advance_id)
+        return None
 
 
 def _write_all_bill_records_unlocked(bills):
@@ -872,22 +994,18 @@ def write_all_bill_records(bills):
 
 def update_bill_record(updated_bill):
     with _billing_lock:
-        bills = read_bills()
-        changed = False
-        for index, bill in enumerate(bills):
-            if int(bill["bill_id"]) == int(updated_bill["bill_id"]):
-                bills[index] = updated_bill
-                changed = True
-                break
-        if changed:
-            _write_all_bill_records_unlocked(bills)
-        return changed
+        line = serialize_bill_record(updated_bill)
+        result = run_billing_command("update", updated_bill["bill_id"], line)
+        return bool(result and result.returncode == 0)
 
 
 def find_bill_by_razorpay_order_id(order_id):
     order_id = str(order_id or "").strip()
     if not order_id:
         return None
+    result = run_billing_command("find-order", order_id)
+    if result and result.returncode == 0 and result.stdout.strip():
+        return parse_bill_line(result.stdout.strip())
     return next(
         (bill for bill in read_bills() if bill.get("razorpay_order_id") == order_id),
         None
@@ -1124,13 +1242,9 @@ def load_appointment_slots(doctor_id, selected_date):
     if not doctor_id or not selected_date:
         return slots
 
-    exe_path = os.path.join(BACKEND_DIR, "c_modules", "appointment.exe")
-    result = subprocess.run(
-        [exe_path, "slots", str(doctor_id), selected_date],
-        capture_output=True,
-        text=True,
-        cwd=BASE_DIR
-    )
+    result = run_appointment_command("slots", str(doctor_id), selected_date)
+    if not result:
+        return slots
 
     for line in result.stdout.strip().split("\n"):
         if not line:
@@ -1140,7 +1254,7 @@ def load_appointment_slots(doctor_id, selected_date):
             slots.append({"time": data[1], "state": data[2]})
 
     if doctor_is_blocked_for_date(doctor_id, selected_date):
-        return [
+        slots = [
             {
                 "time": slot["time"],
                 "state": "Blocked" if slot["state"] == "Available" else slot["state"]
@@ -1148,7 +1262,14 @@ def load_appointment_slots(doctor_id, selected_date):
             for slot in slots
         ]
 
-    return slots
+    adjusted_slots = []
+    for slot in slots:
+        state = slot["state"]
+        if state == "Available" and is_slot_in_past(selected_date, slot["time"]):
+            state = "Elapsed"
+        adjusted_slots.append({"time": slot["time"], "state": state})
+
+    return adjusted_slots
 
 
 def slot_is_available(doctor_id, selected_date, time_slot):
@@ -1158,20 +1279,52 @@ def slot_is_available(doctor_id, selected_date, time_slot):
     )
 
 def run_appointment_command(*args):
-    exe_path = os.path.join(BACKEND_DIR, "c_modules", "appointment.exe")
     with _appointment_lock:
-        return subprocess.run(
-            [exe_path, *[str(arg) for arg in args]],
-            capture_output=True,
-            text=True,
-            cwd=BASE_DIR
-        )
+        try:
+            return subprocess.run(
+                [APPOINTMENT_EXE, *[str(arg) for arg in args]],
+                capture_output=True,
+                text=True,
+                cwd=BASE_DIR
+            )
+        except FileNotFoundError:
+            return None
+
+
+def parse_reschedule_result(result):
+    if not result or result.returncode != 0:
+        return None
+    output = (result.stdout or "").strip()
+    parts = output.split("|")
+    if len(parts) >= 5 and parts[0] == "RESCHEDULED":
+        return {
+            "old_appointment_id": safe_int(parts[1], 0),
+            "new_appointment_id": safe_int(parts[2], 0),
+            "new_date": parts[3],
+            "new_time": parts[4],
+        }
+    return None
 
 def parse_iso_date(date_str):
     try:
         return datetime.strptime(date_str, "%Y-%m-%d").date()
     except (TypeError, ValueError):
         return None
+
+
+def slot_datetime(selected_date, time_slot):
+    parsed_date = parse_iso_date(selected_date)
+    parsed_time = parse_slot_time(time_slot)
+    if not parsed_date or parsed_time == datetime.min.time():
+        return None
+    return datetime.combine(parsed_date, parsed_time)
+
+
+def is_slot_in_past(selected_date, time_slot):
+    slot_dt = slot_datetime(selected_date, time_slot)
+    if not slot_dt:
+        return False
+    return slot_dt <= datetime.now()
 
 def is_future_or_today(date_str):
     parsed = parse_iso_date(date_str)
@@ -1273,26 +1426,24 @@ def iso_now():
 
 
 def revert_stale_initiated_payments():
-    with _billing_lock:
-        rows = read_bills()
-        now = datetime.now()
-        changed = False
-        for bill in rows:
-            if str(bill.get("status", "")).upper() != "INITIATED":
-                continue
-            started_at = parse_iso_datetime(bill.get("initiated_at") or bill.get("paid_at"))
-            if started_at and now - started_at <= timedelta(minutes=30):
-                continue
-            bill["status"] = "PENDING"
-            bill["razorpay_order_id"] = ""
-            bill["razorpay_payment_id"] = ""
-            bill["payment_method"] = ""
-            bill["paid_at"] = ""
-            bill["initiated_at"] = ""
+    rows = read_bills()
+    now = datetime.now()
+    changed = False
+    for bill in rows:
+        if str(bill.get("status", "")).upper() != "INITIATED":
+            continue
+        started_at = parse_iso_datetime(bill.get("initiated_at") or bill.get("paid_at"))
+        if started_at and now - started_at <= timedelta(minutes=30):
+            continue
+        bill["status"] = "PENDING"
+        bill["razorpay_order_id"] = ""
+        bill["razorpay_payment_id"] = ""
+        bill["payment_method"] = ""
+        bill["paid_at"] = ""
+        bill["initiated_at"] = ""
+        if update_bill_record(bill):
             changed = True
-        if changed:
-            _write_all_bill_records_unlocked(rows)
-        return changed
+    return changed
 
 
 def apply_reception_bill_status_update(bill, target_status):
@@ -1476,16 +1627,12 @@ def get_reassignment_candidates(department, selected_date, excluded_doctor_id=No
     return candidates
 
 def add_patient_to_queue(patient_id, doctor_id=None):
-    queue_exe_path = os.path.join(BACKEND_DIR, "c_modules", "queue.exe")
-    command = [queue_exe_path, str(patient_id)]
+    command = [str(patient_id)]
     if doctor_id is not None:
         command.append(str(doctor_id))
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        cwd=BASE_DIR
-    )
+    result = run_queue_command(*command)
+    if not result:
+        return None
 
     output = result.stdout.strip().split("|")
     if len(output) >= 3 and result.returncode == 0:
@@ -1498,43 +1645,10 @@ def add_patient_to_queue(patient_id, doctor_id=None):
     return None
 
 def update_waiting_queue_status(patient_id, doctor_id=None, status="Completed"):
-    rows = []
-    changed = False
     patient_id = safe_int(patient_id)
-    doctor_id = safe_int(doctor_id, None) if doctor_id is not None else None
-
-    try:
-        with open(QUEUE_FILE, "r", encoding="utf-8") as f:
-            for line in f:
-                data = line.strip().split("|")
-                if len(data) < 5:
-                    continue
-                try:
-                    row = {
-                        "token": int(data[0]),
-                        "patient_id": int(data[1]),
-                        "doctor_id": int(data[2]),
-                        "priority": data[3],
-                        "status": data[4]
-                    }
-                except ValueError:
-                    continue
-                if (
-                    row["patient_id"] == patient_id
-                    and row["status"] == "Waiting"
-                    and (doctor_id is None or row["doctor_id"] == doctor_id)
-                ):
-                    row["status"] = status
-                    changed = True
-                rows.append(row)
-    except FileNotFoundError:
-        return False
-
-    if not changed:
-        return False
-
-    write_queue_file(rows)
-    return True
+    doctor_id = safe_int(doctor_id, 0) if doctor_id is not None else 0
+    result = run_queue_command("update-waiting", patient_id, doctor_id, status)
+    return bool(result and result.returncode == 0)
 
 
 def reconcile_waiting_queue_entries():
@@ -1556,13 +1670,12 @@ def reconcile_waiting_queue_entries():
         if not latest:
             continue
         if latest["status"] in {"Completed", "Cancelled", "Rescheduled", "No-show"}:
-            row["status"] = latest["status"]
-            updated = True
+            if update_waiting_queue_status(row["patient_id"], row["doctor_id"], latest["status"]):
+                row["status"] = latest["status"]
+                updated = True
 
     if not updated:
         return queue_rows
-
-    write_queue_file(queue_rows)
 
     return queue_rows
 
@@ -1610,21 +1723,24 @@ def inject_auth_state():
 
 def read_queue():
     queue = []
-
+    result = run_queue_command("list")
     try:
-        with open(QUEUE_FILE, "r", encoding="utf-8") as f:
-            for line in f:
-                data = line.strip().split("|")
-                if len(data) < 5:
-                    continue
+        lines = result.stdout.splitlines() if result and result.returncode == 0 else []
+        if not lines:
+            with open(QUEUE_FILE, "r", encoding="utf-8") as f:
+                lines = list(f)
+        for line in lines:
+            data = line.strip().split("|")
+            if len(data) < 5:
+                continue
 
-                queue.append({
-                    "token": int(data[0]),
-                    "patient_id": int(data[1]),
-                    "doctor_id": int(data[2]),
-                    "priority": data[3],
-                    "status": data[4]
-                })
+            queue.append({
+                "token": int(data[0]),
+                "patient_id": int(data[1]),
+                "doctor_id": int(data[2]),
+                "priority": data[3],
+                "status": data[4]
+            })
     except:
         pass
 
@@ -1761,40 +1877,15 @@ def expire_doctor_status_overrides():
     if not expired_ids:
         return False
 
-    doctors = []
-    doctor_file = os.path.join(BACKEND_DIR, "data", "doctors.txt")
-    try:
-        with open(doctor_file, "r", encoding="utf-8") as f:
-            for line in f:
-                data = line.strip().split("|")
-                if len(data) < 6:
-                    continue
-                try:
-                    doctors.append({
-                        "id": int(data[0]),
-                        "name": data[1],
-                        "department": data[2],
-                        "experience": int(data[3]),
-                        "daily_status": data[4],
-                        "current_status": data[5]
-                    })
-                except ValueError:
-                    continue
-    except FileNotFoundError:
-        return False
-
     changed = False
-    for doctor in doctors:
-        if doctor["id"] not in expired_ids:
-            continue
-        doctor["daily_status"] = "Available"
-        doctor["current_status"] = "Free"
-        changed = True
+    for doctor_id in expired_ids:
+        result = run_doctor_command("status", doctor_id, "Available", "Free")
+        if result and result.returncode == 0:
+            changed = True
 
     if not changed:
         return False
 
-    write_doctor_file(doctors)
     for doctor_id in expired_ids:
         meta.pop(str(doctor_id), None)
     save_doctor_status_meta(meta)
@@ -1879,25 +1970,19 @@ def build_appointment_action_groups(appointments, doctors):
     return ordered_groups
 
 def count_patients():
-    patient_file = os.path.join(BACKEND_DIR, "data", "patients.txt")
-    try:
-        with open(patient_file, "r") as f:
-            return len(f.readlines())
-    except Exception:
-        return 0
+    result = run_patient_command("count")
+    if result and result.returncode == 0:
+        return safe_int(result.stdout.strip(), 0)
+    return len(read_patients())
     
 def count_available_doctors():
-    count = 0
-    doctor_file = os.path.join(BACKEND_DIR, "data", "doctors.txt")
-    try:
-        with open(doctor_file, "r") as f:
-            for line in f:
-                data = line.strip().split("|")
-                if len(data) >= 6 and data[4] == "Available" and data[5] == "Free":
-                    count += 1
-    except Exception:
-        pass
-    return count
+    result = run_doctor_command("count-available")
+    if result and result.returncode == 0:
+        return safe_int(result.stdout.strip(), 0)
+    return sum(
+        1 for doctor in get_doctors()
+        if doctor["daily_status"] == "Available" and doctor["current_status"] == "Free"
+    )
 
 def doctor_availability_view(daily_status, current_status):
     daily, current = normalize_doctor_statuses(daily_status, current_status)
@@ -1931,30 +2016,34 @@ def doctor_availability_view(daily_status, current_status):
 def get_doctors():
     doctors = []
     meta = load_doctor_status_meta()
+    result = run_doctor_command("view")
     try:
-        doctor_file = os.path.join(BACKEND_DIR, "data", "doctors.txt")
-        with open(doctor_file, "r", encoding="utf-8") as f:
-            for line in f:
-                data = line.strip().split("|")
-                if len(data) < 6:
-                    continue
-                daily_status, current_status = normalize_doctor_statuses(data[4], data[5])
-                availability = doctor_availability_view(daily_status, current_status)
-                current_view = doctor_current_status_view(daily_status, current_status)
-                status_until = doctor_status_end_date(data[0], meta=meta)
-                doctors.append({
-                    "id": int(data[0]),
-                    "name": data[1],
-                    "department": data[2],
-                    "experience": int(data[3]),
-                    "daily_status": daily_status,
-                    "current_status": current_status,
-                    "show_live_status": daily_status == "Available",
-                    "status_until": status_until,
-                    "status_until_label": format_human_date(status_until) if status_until else "",
-                    **availability,
-                    **current_view
-                })
+        lines = result.stdout.splitlines() if result and result.returncode == 0 else []
+        if not lines:
+            doctor_file = os.path.join(BACKEND_DIR, "data", "doctors.txt")
+            with open(doctor_file, "r", encoding="utf-8") as f:
+                lines = list(f)
+        for line in lines:
+            record = parse_doctor_record_line(line)
+            if not record:
+                continue
+            daily_status, current_status = normalize_doctor_statuses(record["daily_status"], record["current_status"])
+            availability = doctor_availability_view(daily_status, current_status)
+            current_view = doctor_current_status_view(daily_status, current_status)
+            status_until = doctor_status_end_date(record["id"], meta=meta)
+            doctors.append({
+                "id": int(record["id"]),
+                "name": record["name"],
+                "department": record["department"],
+                "experience": int(record["experience"]),
+                "daily_status": daily_status,
+                "current_status": current_status,
+                "show_live_status": daily_status == "Available",
+                "status_until": status_until,
+                "status_until_label": format_human_date(status_until) if status_until else "",
+                **availability,
+                **current_view
+            })
     except:
         pass
     return doctors
@@ -1991,39 +2080,33 @@ def sync_doctor_busy_statuses():
         if doctor_has_live_workload(doctor["id"]):
             continue
 
-        doctor["current_status"] = "Free"
-        changed = True
-
-    if changed:
-        write_doctor_file(doctors)
+        result = run_doctor_command("status", doctor["id"], doctor["daily_status"], "Free")
+        if result and result.returncode == 0:
+            changed = True
 
     return changed
 
 def suggest_doctors_by_department(department):
-    exe_path = os.path.join(BACKEND_DIR, "c_modules", "doctor.exe")
-    result = subprocess.run(
-        [exe_path, "suggest", department],
-        capture_output=True,
-        text=True,
-        cwd=BASE_DIR
-    )
+    result = run_doctor_command("suggest", department)
+    if not result:
+        return []
 
     doctors = []
     for line in result.stdout.strip().split("\n"):
         if not line or line == "NoDoctorFound":
             continue
 
-        data = line.strip().split("|")
-        if len(data) < 6:
+        record = parse_doctor_record_line(line)
+        if not record:
             continue
 
         doctors.append({
-            "id": int(data[0]),
-            "name": data[1],
-            "department": data[2],
-            "experience": int(data[3]),
-            "daily_status": data[4],
-            "current_status": data[5]
+            "id": record["id"],
+            "name": record["name"],
+            "department": record["department"],
+            "experience": record["experience"],
+            "daily_status": record["daily_status"],
+            "current_status": record["current_status"]
         })
 
     return doctors
@@ -2043,6 +2126,32 @@ def parse_appointment_datetime(appointment):
         if parsed_date:
             return datetime.combine(parsed_date, datetime.min.time())
         return datetime.min
+
+
+def appointment_date_value(appointment):
+    return parse_iso_date(appointment.get("date"))
+
+
+def should_show_in_appointments_list(appointment):
+    appointment_day = appointment_date_value(appointment)
+    if not appointment_day:
+        return False
+    return date.today() - timedelta(days=1) <= appointment_day <= date.today() + timedelta(days=1)
+
+
+def find_booked_appointment_for_patient_on_date(patient_id, appointment_date):
+    patient_id = safe_int(patient_id)
+    result = run_appointment_command("find-booked-patient-date", patient_id, appointment_date)
+    if result and result.returncode == 0 and result.stdout.strip():
+        return parse_appointment_line(result.stdout.strip())
+    for appointment in read_appointments():
+        if (
+            appointment["patient_id"] == patient_id
+            and appointment["date"] == appointment_date
+            and appointment["status"] == "Booked"
+        ):
+            return appointment
+    return None
 
 
 def is_consultation_day_reached(appointment):
@@ -2078,8 +2187,10 @@ def expire_stale_consultations():
             and appointment_day < date.today()
             and appointment["status"] == "Booked"
         ):
-            appointment["status"] = "No-show"
-            appointments_changed = True
+            result = run_appointment_command("noshow", appointment["appointment_id"])
+            if result and result.returncode == 0:
+                appointment["status"] = "No-show"
+                appointments_changed = True
 
             for row in queue_rows:
                 if (
@@ -2087,27 +2198,26 @@ def expire_stale_consultations():
                     and row["doctor_id"] == appointment["doctor_id"]
                     and row["status"] == "Waiting"
                 ):
-                    row["status"] = "No-show"
-                    queue_changed = True
+                    if update_waiting_queue_status(row["patient_id"], row["doctor_id"], "No-show"):
+                        row["status"] = "No-show"
+                        queue_changed = True
 
     for row in queue_rows:
         if row["status"] != "Waiting":
             continue
         latest = latest_by_patient_doctor.get((row["patient_id"], row["doctor_id"]))
         if not latest:
-            row["status"] = "Cancelled"
-            queue_changed = True
+            if update_waiting_queue_status(row["patient_id"], row["doctor_id"], "Cancelled"):
+                row["status"] = "Cancelled"
+                queue_changed = True
         elif latest["status"] != "Booked":
-            row["status"] = latest["status"]
-            queue_changed = True
+            if update_waiting_queue_status(row["patient_id"], row["doctor_id"], latest["status"]):
+                row["status"] = latest["status"]
+                queue_changed = True
         elif not is_consultation_day_reached(latest):
-            row["status"] = "Cancelled"
-            queue_changed = True
-
-    if appointments_changed:
-        write_appointment_file(appointments)
-    if queue_changed:
-        write_queue_file(queue_rows)
+            if update_waiting_queue_status(row["patient_id"], row["doctor_id"], "Cancelled"):
+                row["status"] = "Cancelled"
+                queue_changed = True
 
     return {
         "appointments_changed": appointments_changed,
@@ -2116,18 +2226,36 @@ def expire_stale_consultations():
 
 
 def get_latest_patient_appointment(patient_id):
-    appointments = [
-        appointment for appointment in read_appointments()
-        if appointment["patient_id"] == int(patient_id)
-    ]
+    result = run_appointment_command("list-for-patient", patient_id)
+    if result and result.returncode == 0:
+        appointments = [
+            appointment for appointment in
+            (parse_appointment_line(line) for line in result.stdout.splitlines())
+            if appointment
+        ]
+    else:
+        appointments = [
+            appointment for appointment in read_appointments()
+            if appointment["patient_id"] == int(patient_id)
+        ]
     if not appointments:
         return None
     appointments.sort(key=parse_appointment_datetime, reverse=True)
     return appointments[0]
 
 def get_latest_completed_patient_appointment(patient_id, doctor_id=None):
+    result = run_appointment_command("list-for-patient", patient_id)
+    source = (
+        [
+            appointment for appointment in
+            (parse_appointment_line(line) for line in result.stdout.splitlines())
+            if appointment
+        ]
+        if result and result.returncode == 0 else
+        read_appointments()
+    )
     appointments = [
-        appointment for appointment in read_appointments()
+        appointment for appointment in source
         if appointment["patient_id"] == int(patient_id)
         and appointment["status"] == "Completed"
         and (doctor_id is None or appointment["doctor_id"] == int(doctor_id))
@@ -2139,6 +2267,9 @@ def get_latest_completed_patient_appointment(patient_id, doctor_id=None):
 
 def find_appointment_by_id(appointment_id):
     appointment_id = safe_int(appointment_id)
+    result = run_appointment_command("find-id", appointment_id)
+    if result and result.returncode == 0 and result.stdout.strip():
+        return parse_appointment_line(result.stdout.strip())
     return next(
         (
             appointment for appointment in read_appointments()
@@ -2152,8 +2283,18 @@ def doctor_owns_appointment(appointment, doctor_id):
 
 
 def get_latest_active_patient_appointment(patient_id, doctor_id=None):
+    result = run_appointment_command("list-for-patient", patient_id)
+    source = (
+        [
+            appointment for appointment in
+            (parse_appointment_line(line) for line in result.stdout.splitlines())
+            if appointment
+        ]
+        if result and result.returncode == 0 else
+        read_appointments()
+    )
     appointments = [
-        appointment for appointment in read_appointments()
+        appointment for appointment in source
         if appointment["patient_id"] == int(patient_id)
         and appointment["status"] in {"Booked", "No-show"}
         and (doctor_id is None or appointment["doctor_id"] == int(doctor_id))
@@ -2265,6 +2406,27 @@ def get_doctor_patient_options(doctor_id):
 
 
 def get_doctor_by_id(doctor_id):
+    result = run_doctor_command("get-by-id", doctor_id)
+    if result and result.returncode == 0 and result.stdout.strip():
+        record = parse_doctor_record_line(result.stdout.strip())
+        if record:
+            daily_status, current_status = normalize_doctor_statuses(record["daily_status"], record["current_status"])
+            availability = doctor_availability_view(daily_status, current_status)
+            current_view = doctor_current_status_view(daily_status, current_status)
+            status_until = doctor_status_end_date(record["id"])
+            return {
+                "id": record["id"],
+                "name": record["name"],
+                "department": record["department"],
+                "experience": record["experience"],
+                "daily_status": daily_status,
+                "current_status": current_status,
+                "show_live_status": daily_status == "Available",
+                "status_until": status_until,
+                "status_until_label": format_human_date(status_until) if status_until else "",
+                **availability,
+                **current_view
+            }
     return next((doctor for doctor in get_doctors() if doctor["id"] == int(doctor_id)), None)
 
 
@@ -2651,20 +2813,49 @@ def run_expiry_check():
     return {"pending_changed": pending_changed, "new_changed": new_changed}
 
 
+def _refund_advance_after_failure(adv, sms_message):
+    """
+    Initiates a Razorpay refund for a PAID advance that could not result in a booking.
+    Updates the advance status to REFUNDED on success, or logs a warning on failure.
+    This must never raise - it is called from within the webhook handler.
+    """
+    try:
+        from payment_service import initiate_refund
+        ok_refund, err_refund = initiate_refund(adv["razorpay_payment_id"], adv["amount"])
+        if ok_refund:
+            adv["status"] = "REFUNDED"
+            adv["settled_at"] = iso_now()
+            update_advance_record(adv)
+        else:
+            print(f"[HealthDesk] Auto-refund failed for advance {adv.get('advance_id')}: {err_refund}. Manual refund required.")
+            sms_message = (
+                "Your advance was received but the booking could not be completed. "
+                "Please call the clinic - a refund will be processed manually."
+            )
+        patient = find_patient_by_id(adv["patient_id"])
+        if patient:
+            send_sms_notice(patient["phone"], sms_message)
+    except Exception as exc:
+        print(f"[HealthDesk] ERROR in _refund_advance_after_failure for advance {adv.get('advance_id')}: {exc}")
+
+
 def _confirm_booking_after_advance(adv):
     """
     Called from payment_webhook_advance after payment.captured.
     Retrieves booking intent and runs the triage path.
     This function must not raise - a webhook crash causes Razorpay retries.
+    On any booking failure after a successful payment, an automatic refund is initiated.
     """
     try:
         intent = pop_booking_intent(adv["advance_id"])
         if not intent:
             print(f"[HealthDesk] WARNING: No booking intent for advance {adv['advance_id']}")
+            _refund_advance_after_failure(adv, "Your advance was received but we could not find your booking details. A refund has been initiated. Please call the clinic.")
             return
 
         patient = find_patient_by_id(adv["patient_id"])
         if not patient:
+            print(f"[HealthDesk] WARNING: No patient found for advance {adv['advance_id']}")
             return
 
         if intent["triage"] == "auto":
@@ -2685,9 +2876,10 @@ def _confirm_booking_after_advance(adv):
                     f"Advance paid: Rs.{adv['amount']:.0f}."
                 )
             else:
-                send_sms_notice(
-                    patient["phone"],
-                    f"Advance paid but booking failed: {message}. Please call the clinic."
+                _refund_advance_after_failure(
+                    adv,
+                    f"Your advance was received but the slot is no longer available ({message}). "
+                    "A full refund has been initiated and will arrive in 5-7 business days."
                 )
         else:
             ok, _message, row = exception_queue_booking(
@@ -2697,11 +2889,17 @@ def _confirm_booking_after_advance(adv):
             if ok and isinstance(row, dict):
                 adv["pending_request_id"] = row.get("request_id", 0)
                 update_advance_record(adv)
-            send_sms_notice(
-                patient["phone"],
-                f"Advance of Rs.{adv['amount']:.0f} received. "
-                "Your booking request is under review - response within 2 hours."
-            )
+                send_sms_notice(
+                    patient["phone"],
+                    f"Advance of Rs.{adv['amount']:.0f} received. "
+                    "Your booking request is under review - response within 2 hours."
+                )
+            else:
+                _refund_advance_after_failure(
+                    adv,
+                    f"Your advance was received but we could not queue your request ({_message}). "
+                    "A full refund has been initiated and will arrive in 5-7 business days."
+                )
     except Exception as exc:
         print(f"[HealthDesk] ERROR confirming advance {adv.get('advance_id')}: {exc}")
 
@@ -2727,7 +2925,11 @@ def _expire_stale_advances():
                 continue
             adv["status"] = "EXPIRED"
             adv["settled_at"] = iso_now()
+            result = run_advance_command("update", adv["advance_id"], serialize_advance_record(adv))
+            if not result or result.returncode != 0:
+                continue
             changed = True
+            run_advance_command("pop-intent", adv["advance_id"])
             if adv["pending_request_id"]:
                 update_pending_status(adv["pending_request_id"], "Expired")
             patient = find_patient_by_id(adv["patient_id"])
@@ -2737,8 +2939,7 @@ def _expire_stale_advances():
                     "Your HealthDesk booking was not confirmed - the payment window expired. "
                     "Please try booking again."
                 )
-        if changed:
-            _write_all_advances_unlocked(records)
+        return changed
 
 
 def patient_has_completed_visit_with_doctor(patient_id, doctor_id):
@@ -2767,6 +2968,8 @@ def triage_booking_request(doctor_id, requested_date, visit_type):
 
 
 def auto_approve_booking(patient, doctor_id, requested_date, requested_slot, reason, visit_type):
+    if find_booked_appointment_for_patient_on_date(patient["id"], requested_date):
+        return False, "This patient already has a booked appointment for that date.", None
     if pending_slot_exists(doctor_id, requested_date, requested_slot):
         return False, "This slot is being processed for another request. Please choose another slot.", None
     if not slot_is_available(doctor_id, requested_date, requested_slot):
@@ -2814,6 +3017,40 @@ def exception_queue_booking(patient, doctor_id, requested_date, requested_slot, 
     send_sms_notice(patient["phone"], f"Request for {doctor.get('name', 'Doctor')} on {format_human_date(requested_date)}, {requested_slot} received. Confirming within 2 hours during clinic hours.")
     notify_receptionists(f"New request from {patient['name']} ({patient['phone']}) for {doctor.get('name', 'Doctor')}, {format_human_date(requested_date)}, {requested_slot}. Review dashboard.")
     return True, "Your request has been sent for receptionist review.", row
+
+
+def get_advances_needing_attention():
+    """
+    Returns advances that need manual receptionist attention:
+    - PAID with appointment_id == 0: payment received but no booking linked
+    - FORFEITED: no-show advance, may be disputed by patient
+    """
+    advances = read_advances()
+    patients = {patient["id"]: patient for patient in read_patients()}
+    doctors = {doctor["id"]: doctor for doctor in get_doctors()}
+
+    def decorate(advance):
+        patient = patients.get(int(advance.get("patient_id", 0) or 0), {})
+        doctor = doctors.get(int(advance.get("doctor_id", 0) or 0), {})
+        return {
+            **advance,
+            "patient_name": patient.get("name", f"Patient #{advance.get('patient_id', 0)}"),
+            "patient_phone": patient.get("phone", ""),
+            "doctor_name": doctor.get("name", f"Doctor #{advance.get('doctor_id', 0)}"),
+            "department": doctor.get("department", patient.get("department", "")),
+            "human_date": format_human_date(advance.get("appointment_date", "")),
+            "amount_label": format_amount(advance.get("amount", 0))
+        }
+
+    stranded = [
+        decorate(a) for a in advances
+        if a["status"] == "PAID" and a["appointment_id"] == 0
+    ]
+    forfeited = [
+        decorate(a) for a in advances
+        if a["status"] == "FORFEITED"
+    ]
+    return {"stranded": stranded, "forfeited": forfeited}
 
 
 def doctor_options_for_department(department):
@@ -3174,59 +3411,33 @@ def build_billing_lookup(patients, appointments, doctors, bills):
 
 def read_patients():
     patients = []
-    patient_file = os.path.join(BACKEND_DIR, "data", "patients.txt")
+    result = run_patient_command("list")
     try:
-        with open(patient_file, "r", encoding="utf-8") as f:
-            for line in f:
-                data = line.strip().split("|")
-                if len(data) < 10:
-                    continue
-                try:
-                    patients.append({
-                        "id": int(data[0]),
-                        "name": data[1],
-                        "age": data[2],
-                        "gender": data[3],
-                        "phone": data[4],
-                        "address": data[5],
-                        "symptoms": data[6],
-                        "visit_type": data[7],
-                        "priority": data[8],
-                        "department": data[9]
-                    })
-                except ValueError:
-                    continue
+        lines = result.stdout.splitlines() if result and result.returncode == 0 else []
+        if not lines:
+            patient_file = os.path.join(BACKEND_DIR, "data", "patients.txt")
+            with open(patient_file, "r", encoding="utf-8") as f:
+                lines = list(f)
+        for line in lines:
+            patient = parse_patient_record_line(line)
+            if patient:
+                patients.append(patient)
     except FileNotFoundError:
         pass
     return patients
 
 def find_patient_by_phone(phone):
-    exe_path = os.path.join(BACKEND_DIR, "c_modules", "patient.exe")
-    result = subprocess.run(
-        [exe_path, "search", phone],
-        capture_output=True,
-        text=True,
-        cwd=BASE_DIR
-    )
-
-    data = result.stdout.strip().split("|")
-    if len(data) >= 11 and data[0] == "PATIENT":
-        return {
-            "id": int(data[1]),
-            "name": data[2],
-            "age": data[3],
-            "gender": data[4],
-            "phone": data[5],
-            "address": data[6],
-            "symptoms": data[7],
-            "visit_type": data[8],
-            "priority": data[9],
-            "department": data[10]
-        }
-
+    result = run_patient_command("search", phone)
+    if result and result.returncode == 0:
+        return parse_patient_command_output(result.stdout)
     return None
 
 def find_patient_by_id(patient_id):
+    result = run_patient_command("get-by-id", patient_id)
+    if result and result.returncode == 0:
+        patient = parse_patient_command_output(result.stdout)
+        if patient:
+            return patient
     for patient in read_patients():
         if patient["id"] == int(patient_id):
             return patient
@@ -3669,7 +3880,7 @@ def patient_book():
         ))
     departments = sorted({doctor["department"] for doctor in get_doctors()})
     doctors = get_doctors()
-    week_dates = [(date.today() + timedelta(days=offset)).isoformat() for offset in range(1, 8)]
+    week_dates = [(date.today() + timedelta(days=offset)).isoformat() for offset in range(7)]
     status_note = request.args.get("status_note", "")
     return render_template(
         "patient_book.html",
@@ -3751,8 +3962,8 @@ def patient_slots_response():
     doctor_id = request.args.get("doctor_id", "any")
     requested_date = clean_record_field(request.args.get("date", ""))
     parsed_date = parse_iso_date(requested_date)
-    if not department or not parsed_date or parsed_date <= date.today():
-        return jsonify({"ok": False, "error": "Choose a valid future date."}), 400
+    if not department or not parsed_date or parsed_date < date.today():
+        return jsonify({"ok": False, "error": "Choose today or a future date."}), 400
     slots = build_patient_slot_payload(department, doctor_id, requested_date)
     return jsonify({"ok": True, "slots": slots})
 
@@ -3760,7 +3971,7 @@ def patient_slots_response():
 def new_patient_request():
     departments = sorted({doctor["department"] for doctor in get_doctors()})
     doctors = get_doctors()
-    week_dates = [(date.today() + timedelta(days=offset)).isoformat() for offset in range(1, 8)]
+    week_dates = [(date.today() + timedelta(days=offset)).isoformat() for offset in range(7)]
     return render_template(
         "patient_book.html",
         patient=None,
@@ -3786,8 +3997,8 @@ def new_patient_submit():
     requested_date = clean_record_field(request.form.get("requested_date", ""))
     requested_slot = clean_record_field(request.form.get("requested_slot", ""))
     parsed_date = parse_iso_date(requested_date)
-    if not parsed_date or parsed_date <= date.today():
-        return redirect(url_for("new_patient_request", status_note="Choose a future appointment date."))
+    if not parsed_date or parsed_date < date.today():
+        return redirect(url_for("new_patient_request", status_note="Choose today or a future appointment date."))
     doctor = get_doctor_by_id(safe_int(request.form.get("doctor_id", "0")))
     if not doctor or doctor["department"] != request.form.get("department", ""):
         return redirect(url_for("new_patient_request", status_note="Choose a valid doctor and department."))
@@ -3819,8 +4030,10 @@ def patient_book_submit():
         visit_type = "New"
     followup_corrected = False
     parsed_date = parse_iso_date(requested_date)
-    if not department or not parsed_date or parsed_date <= date.today() or not requested_slot:
-        return redirect(url_for("patient_book", status_note="Choose a department, future date, and available slot."))
+    if not department or not parsed_date or parsed_date < date.today() or not requested_slot:
+        return redirect(url_for("patient_book", status_note="Choose a department, today or a future date, and an available slot."))
+    if find_booked_appointment_for_patient_on_date(session["patient_id"], requested_date):
+        return redirect(url_for("patient_book", status_note="You already have a booked appointment for that date."))
 
     if doctor_id_raw == "any":
         doctor = choose_any_available_doctor(department, requested_date, requested_slot)
@@ -3835,14 +4048,57 @@ def patient_book_submit():
         if not slot_is_available(doctor_id, requested_date, requested_slot):
             return redirect(url_for("patient_book", status_note="That slot is no longer available. Please choose another."))
 
-    if visit_type == "Follow-up":
-        if not patient_has_completed_visit_with_doctor(session["patient_id"], doctor_id):
-            visit_type = "New"
-            followup_corrected = True
+        if visit_type == "Follow-up":
+            if not patient_has_completed_visit_with_doctor(session["patient_id"], doctor_id):
+                visit_type = "New"
+                followup_corrected = True
+
+    # --- FIX 4: bypass advance flow entirely when payments are not configured ---
+    if not payments_configured():
+        triage, reasons = triage_booking_request(doctor_id, requested_date, visit_type)
+        if triage == "auto":
+            ok, message, _row = auto_approve_booking(
+                patient, doctor_id, requested_date, requested_slot, reason, visit_type
+            )
+            if ok:
+                return redirect(url_for("patient_dashboard", status_note="Your appointment has been confirmed."))
+            return redirect(url_for("patient_book", status_note=message))
+        else:
+            ok, message, _row = exception_queue_booking(
+                patient, doctor_id, requested_date, requested_slot, reason, visit_type, triage_reasons=reasons
+            )
+            if ok:
+                return redirect(url_for("patient_dashboard", status_note="Your booking request has been submitted and is under review."))
+            return redirect(url_for("patient_book", status_note=message))
+    # --- end FIX 4 ---
 
     triage, reasons = triage_booking_request(doctor_id, requested_date, visit_type)
 
     advance_amount = get_advance_amount_for_department(department)
+
+    # --- FIX 5: follow-up visits skip advance (exception-queue still applies) ---
+    if visit_type == "Follow-up":
+        advance_amount = 0.0
+    # --- end FIX 5 ---
+
+    # --- FIX 2: bypass advance if amount is zero (department fee not configured or zero) ---
+    if advance_amount <= 0:
+        if triage == "auto":
+            ok, message, _row = auto_approve_booking(
+                patient, doctor_id, requested_date, requested_slot, reason, visit_type
+            )
+            if ok:
+                return redirect(url_for("patient_dashboard", status_note="Your appointment has been confirmed."))
+            return redirect(url_for("patient_book", status_note=message))
+        else:
+            ok, message, _row = exception_queue_booking(
+                patient, doctor_id, requested_date, requested_slot, reason, visit_type, triage_reasons=reasons
+            )
+            if ok:
+                return redirect(url_for("patient_dashboard", status_note="Your booking request has been submitted and is under review."))
+            return redirect(url_for("patient_book", status_note=message))
+    # --- end FIX 2 ---
+
     adv = create_advance_record(
         patient_id=session["patient_id"],
         doctor_id=doctor_id,
@@ -3948,7 +4204,7 @@ def receptionist_redirect():
 @require_role("Receptionist")
 def reception():
     patient = None
-    message = None
+    message = request.args.get("status_note", "") or None
     show_registration = False
     phone = request.values.get("phone", "").strip()
     patient_id = request.values.get("patient_id", "").strip()
@@ -4042,20 +4298,13 @@ def reception():
         if not selected_department:
             selected_department = patient["department"]
 
-        department_doctors = [
-            doctor for doctor in doctors
-            if not selected_department or doctor["department"] == selected_department
-        ]
-
-        if not selected_doctor and department_doctors:
-            selected_doctor = str(department_doctors[0]["id"])
-
-        slots = load_appointment_slots(selected_doctor, selected_date)
-        suggested_doctors = get_suggested_doctors(selected_department, selected_doctor, selected_date)
-        selected_doctor_info = next(
-            (doctor for doctor in doctors if str(doctor["id"]) == str(selected_doctor)),
-            None
-        )
+        if selected_doctor:
+            slots = load_appointment_slots(selected_doctor, selected_date)
+            suggested_doctors = get_suggested_doctors(selected_department, selected_doctor, selected_date)
+            selected_doctor_info = next(
+                (doctor for doctor in doctors if str(doctor["id"]) == str(selected_doctor)),
+                None
+            )
 
     return render_template(
         "reception.html",
@@ -4099,6 +4348,7 @@ def receptionist_dashboard_page():
         today=today_str,
         pending_patient_requests=read_pending_requests_for_reception(),
         pending_new_patient_requests=read_new_patient_requests_for_reception(),
+        advances_attention=get_advances_needing_attention(),
         status_note=request.args.get("status_note", "")
     )
 
@@ -4121,6 +4371,8 @@ def reception_approve_request():
         patient = register_patient_from_request(row)
         if not patient:
             return redirect(url_for("receptionist_dashboard_page", status_note="Could not create the patient record. Please review the request details."))
+        if find_booked_appointment_for_patient_on_date(patient["id"], row["requested_date"]):
+            return redirect(url_for("receptionist_dashboard_page", status_note="This patient already has a booked appointment for that date."))
         result = run_appointment_command("book", patient["id"], row["doctor_id"], row["requested_date"], row["requested_slot"])
         appointment_id = parse_booked_appointment_id(result)
         if not appointment_id:
@@ -4135,6 +4387,8 @@ def reception_approve_request():
         return redirect(url_for("receptionist_dashboard_page", status_note="Request is no longer pending."))
     if not slot_is_available(row["doctor_id"], row["requested_date"], row["requested_slot"]):
         return redirect(url_for("receptionist_dashboard_page", status_note="This slot was booked while the request was pending. Reject it and ask the patient to choose another slot."))
+    if find_booked_appointment_for_patient_on_date(row["patient_id"], row["requested_date"]):
+        return redirect(url_for("receptionist_dashboard_page", status_note="This patient already has a booked appointment for that date."))
     result = run_appointment_command("book", row["patient_id"], row["doctor_id"], row["requested_date"], row["requested_slot"])
     appointment_id = parse_booked_appointment_id(result)
     if not appointment_id:
@@ -4301,12 +4555,65 @@ def appointments_page():
             })
 
     suggested_doctors = get_suggested_doctors(selected_department, selected_doctor, selected_date)
-    enriched_appointments = [enrich_appointment_workflow_status(a) for a in appointments]
+    selected_history_date = request.args.get("history_date", "").strip()
+    historical_source = [
+        a for a in appointments
+        if appointment_date_value(a) and appointment_date_value(a) < date.today() - timedelta(days=1)
+    ]
+    if selected_department:
+        doctor_ids_for_department = {
+            doctor["id"] for doctor in doctors
+            if doctor.get("department") == selected_department
+        }
+        historical_source = [
+            a for a in historical_source
+            if a.get("doctor_id") in doctor_ids_for_department
+        ]
+    if selected_doctor:
+        historical_source = [
+            a for a in historical_source
+            if str(a.get("doctor_id")) == str(selected_doctor)
+        ]
+
+    previous_dates = sorted({
+        a["date"]
+        for a in historical_source
+    }, reverse=True)
+    if not selected_history_date and previous_dates:
+        selected_history_date = previous_dates[0]
+    elif selected_history_date and selected_history_date not in previous_dates and previous_dates:
+        selected_history_date = previous_dates[0]
+
+    current_appointments = [
+        enrich_appointment_workflow_status(a)
+        for a in appointments
+        if should_show_in_appointments_list(a)
+    ]
+    action_appointments = [
+        a for a in current_appointments
+        if str(a.get("status", "")).strip() != "Cancelled"
+    ]
+    cancelled_appointments = [
+        a for a in current_appointments
+        if str(a.get("status", "")).strip() == "Cancelled"
+    ]
+    previous_appointments = [
+        enrich_appointment_workflow_status(a)
+        for a in historical_source
+        if selected_history_date and a.get("date") == selected_history_date
+    ]
     doctor_map = {doctor["id"]: doctor for doctor in doctors}
     patient_map = {patient["id"]: patient for patient in read_patients()}
-    for appointment in enriched_appointments:
+    for appointment in action_appointments:
         doctor = doctor_map.get(appointment["doctor_id"], {})
         patient = patient_map.get(appointment["patient_id"], {})
+        appointment["doctor_name"] = doctor.get("name", f"Doctor #{appointment['doctor_id']}")
+        appointment["department"] = doctor.get("department") or patient.get("department", "")
+        appointment["patient_name"] = patient.get("name", "")
+        appointment["patient_phone"] = patient.get("phone", "")
+        appointment["patient_age"] = patient.get("age", "")
+        appointment["patient_gender"] = patient.get("gender", "")
+        appointment["patient_symptoms"] = patient.get("symptoms", "")
         reassign_department = doctor.get("department") or patient.get("department", "")
         unavailable_reason = doctor.get("daily_status") in {"Unavailable", "Off"} or doctor.get("current_status") == "Emergency"
         appointment["reassign_department"] = reassign_department
@@ -4316,7 +4623,38 @@ def appointments_page():
             if unavailable_reason
             else "Manual reassignment"
         )
-    appointment_groups = build_appointment_action_groups(enriched_appointments, doctors)
+    for appointment in cancelled_appointments:
+        doctor = doctor_map.get(appointment["doctor_id"], {})
+        patient = patient_map.get(appointment["patient_id"], {})
+        appointment["doctor_name"] = doctor.get("name", f"Doctor #{appointment['doctor_id']}")
+        appointment["department"] = doctor.get("department") or patient.get("department", "")
+        appointment["patient_name"] = patient.get("name", "")
+        appointment["patient_phone"] = patient.get("phone", "")
+        appointment["patient_age"] = patient.get("age", "")
+        appointment["patient_gender"] = patient.get("gender", "")
+        appointment["patient_symptoms"] = patient.get("symptoms", "")
+    for appointment in previous_appointments:
+        doctor = doctor_map.get(appointment["doctor_id"], {})
+        patient = patient_map.get(appointment["patient_id"], {})
+        appointment["doctor_name"] = doctor.get("name", f"Doctor #{appointment['doctor_id']}")
+        appointment["department"] = doctor.get("department") or patient.get("department", "")
+        appointment["patient_name"] = patient.get("name", "")
+        appointment["patient_phone"] = patient.get("phone", "")
+        appointment["patient_age"] = patient.get("age", "")
+        appointment["patient_gender"] = patient.get("gender", "")
+        appointment["patient_symptoms"] = patient.get("symptoms", "")
+    appointment_groups = build_appointment_action_groups(action_appointments, doctors)
+
+    if request.args.get("history_only") == "1":
+        return render_template(
+            "_appointments_history_section.html",
+            previous_appointments=previous_appointments,
+            previous_dates=previous_dates,
+            selected_history_date=selected_history_date,
+            selected_department=selected_department,
+            selected_doctor=selected_doctor,
+            selected_date=selected_date
+        )
 
     return render_template(
         "appointments.html",
@@ -4325,8 +4663,12 @@ def appointments_page():
         selected_doctor=selected_doctor,
         selected_department=selected_department,
         selected_date=selected_date,
-        appointments=enriched_appointments,
+        appointments=current_appointments,
         appointment_groups=appointment_groups,
+        cancelled_appointments=cancelled_appointments,
+        previous_appointments=previous_appointments,
+        previous_dates=previous_dates,
+        selected_history_date=selected_history_date,
         suggested_doctors=suggested_doctors,
         week_dates=week_dates,
         date_slot_overview=date_slot_overview,
@@ -4383,9 +4725,15 @@ def book_appointment():
     if not parsed_appt_date or parsed_appt_date < date.today():
         if return_to == "reception":
             return redirect(
-                f"/reception?patient_id={patient_id}&doctor_id={doctor_id}&date={appointment_date}&booking_status=failed"
+                f"/reception?patient_id={patient_id}&doctor_id={doctor_id}&date={appointment_date}&status_note=Cannot book an appointment for a past date"
             )
         return redirect(f"/appointments?doctor_id={doctor_id}&date={appointment_date}&status_note=Cannot book an appointment for a past date")
+    if find_booked_appointment_for_patient_on_date(patient_id, appointment_date):
+        if return_to == "reception":
+            return redirect(
+                f"/reception?patient_id={patient_id}&doctor_id={doctor_id}&date={appointment_date}&status_note=This patient already has a booked appointment for that date"
+            )
+        return redirect(f"/appointments?doctor_id={doctor_id}&date={appointment_date}&status_note=This patient already has a booked appointment for that date")
 
     slot_available = any(
         slot["time"] == time_slot and slot["state"] == "Available"
@@ -4469,6 +4817,12 @@ def update_appointment():
     elif session.get("role") == "Receptionist" and action == "complete":
         return redirect("/appointments?status_note=Reception cannot complete consultations manually. Completion happens when the doctor saves diagnosis.")
 
+    actionable_statuses = {"Booked", "No-show"}
+    if action in {"cancel", "noshow", "reschedule", "reassign"} and appointment["status"] not in actionable_statuses:
+        if appointment["status"] == "Rescheduled":
+            return redirect("/appointments?status_note=This row is the old rescheduled appointment. Use the newer booked appointment row for further actions.")
+        return redirect(f"/appointments?status_note=This appointment is already {appointment['status']} and cannot be updated further.")
+
     if action == "reschedule":
         new_date = request.form["new_date"]
         new_time = request.form["new_time"]
@@ -4479,17 +4833,28 @@ def update_appointment():
             return redirect("/appointments?status_note=Cannot reschedule to a past date")
         result = run_appointment_command("reschedule", appointment_id, new_date, new_time)
         if result.returncode == 0:
+            reschedule_meta = parse_reschedule_result(result)
             update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "Rescheduled")
             if parse_iso_date(new_date) == date.today():
                 add_patient_to_queue(appointment["patient_id"], doctor_id=appointment["doctor_id"])
+            if reschedule_meta and reschedule_meta["new_appointment_id"]:
+                return redirect(
+                    f"/appointments?status_note=Appointment rescheduled successfully. Continue with new appointment #{reschedule_meta['new_appointment_id']} for further actions."
+                )
+            return redirect("/appointments?status_note=Appointment rescheduled successfully.")
+        return redirect("/appointments?status_note=Could not reschedule the appointment. Please choose another date or slot.")
     elif action == "cancel":
         result = run_appointment_command("cancel", appointment_id)
         if result.returncode == 0:
             update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "Cancelled")
+            return redirect("/appointments?status_note=Appointment cancelled successfully.")
+        return redirect("/appointments?status_note=Could not cancel the appointment.")
     elif action == "complete":
         result = run_appointment_command("complete", appointment_id)
         if result.returncode == 0:
             update_waiting_queue_status(appointment["patient_id"], appointment["doctor_id"], "Completed")
+            return redirect("/doctor?status_note=Consultation completed successfully.")
+        return redirect("/doctor?status_note=Could not complete the consultation.")
     elif action == "noshow":
         result = run_appointment_command("noshow", appointment_id)
         if result.returncode == 0:
@@ -4506,6 +4871,8 @@ def update_appointment():
                         f"You missed your appointment on {format_human_date(appointment['date'])}. "
                         f"Your advance of Rs.{adv['amount']:.0f} has been forfeited. Call us to reschedule."
                     )
+            return redirect("/appointments?status_note=Appointment marked as no-show.")
+        return redirect("/appointments?status_note=Could not mark the appointment as no-show.")
     elif action == "reassign":
         if session.get("role") != "Receptionist":
             return redirect("/appointments?status_note=Only reception can reassign appointments")
@@ -4586,20 +4953,39 @@ def update_appointment():
 @require_role("Receptionist")
 def doctors_page():
     doctors = get_doctors()
+    user_accounts = read_user_accounts()
     accounts = {
         account["doctor_id"]: account["username"]
-        for account in read_user_accounts()
+        for account in user_accounts
         if account["role"] == "Doctor"
     }
+    doctor_map = {doctor["id"]: doctor for doctor in doctors}
     for doctor in doctors:
         doctor["username"] = accounts.get(doctor["id"], "")
 
+    staff_accounts = []
+    for account in user_accounts:
+        if account["role"] not in {"Doctor", "Receptionist"}:
+            continue
+        doctor = doctor_map.get(account["doctor_id"], {})
+        staff_accounts.append({
+            "id": account["id"],
+            "username": account["username"],
+            "role": account["role"],
+            "doctor_id": account["doctor_id"],
+            "staff_name": doctor.get("name", "Reception Desk" if account["role"] == "Receptionist" else ""),
+            "department": doctor.get("department", ""),
+        })
+
     created_account = session.pop("new_doctor_credentials", None)
+    reset_account = session.pop("reset_staff_credentials", None)
     status_note = request.args.get("status_note", "")
     return render_template(
         "doctors.html",
         doctors=doctors,
+        staff_accounts=staff_accounts,
         created_account=created_account,
+        reset_account=reset_account,
         status_note=status_note,
         today_iso=date.today().isoformat()
     )
@@ -4635,6 +5021,19 @@ def add_doctor():
         "password": password
     }
     return redirect("/doctors")
+
+
+@app.route("/staff/reset-password", methods=["POST"])
+@require_role("Receptionist")
+def reset_staff_password_route():
+    account_id = request.form.get("account_id", "0")
+    reset_data = reset_staff_password(account_id)
+    if not reset_data:
+        return redirect(url_for("doctors_page", status_note="Password could not be regenerated for that account."))
+    doctor = get_doctor_by_id(reset_data["doctor_id"]) if reset_data["doctor_id"] else None
+    reset_data["staff_name"] = doctor["name"] if doctor else "Reception Desk"
+    session["reset_staff_credentials"] = reset_data
+    return redirect(url_for("doctors_page"))
 
 
 @app.route("/toggle_doctor", methods=["POST"])
@@ -4844,11 +5243,25 @@ def billing_page():
     patients = read_patients()
     appointments = read_appointments()
     doctors = get_doctors()
+    patient_map = {int(patient["id"]): patient for patient in patients}
     patient_id = request.args.get("patient_id", "")
     preview_bill_id = request.args.get("preview_bill_id", "")
     status_note = request.args.get("status_note", "")
     bill_preview = ""
     preview_bill = find_bill_by_id(preview_bill_id) if preview_bill_id else None
+    decorated_bills = []
+    for bill in bills:
+        patient = patient_map.get(int(bill.get("patient_id", 0) or 0), {})
+        decorated_bills.append({
+            **bill,
+            "age": patient.get("age", ""),
+            "gender": patient.get("gender", ""),
+            "phone": patient.get("phone", ""),
+            "symptoms": patient.get("symptoms", ""),
+            "payment_method_label": payment_method_label(bill.get("payment_method")),
+            "paid_at_label": payment_timestamp_label(bill.get("paid_at"))
+        })
+    bills = decorated_bills
     billing_lookup = build_billing_lookup(patients, appointments, doctors, bills)
     billing_context = (
         billing_lookup.get(str(patient_id))
@@ -4865,10 +5278,16 @@ def billing_page():
         billing_ready_patients.append({
             "patient_id": patient["id"],
             "name": patient["name"],
+            "age": patient.get("age", ""),
+            "gender": patient.get("gender", ""),
+            "phone": patient.get("phone", ""),
+            "symptoms": patient.get("symptoms", ""),
             "doctor_name": context.get("doctor_name", ""),
             "department": context.get("department", ""),
             "appointment_id": context.get("appointment_id", 0),
             "appointment_date": context.get("appointment_date", ""),
+            "appointment_status": context.get("appointment_status", ""),
+            "warning": context.get("warning", ""),
             "bill_id": context.get("existing_bill_id", 0)
         })
     billing_ready_patients.sort(
@@ -4885,6 +5304,8 @@ def billing_page():
         patients=patients,
         pricing_catalog=load_pricing_catalog(),
         billing_lookup=billing_lookup,
+        payment_method_label=payment_method_label,
+        payment_timestamp_label=payment_timestamp_label,
         selected_patient_id=str(patient_id),
         selected_date=request.args.get(
             "date",

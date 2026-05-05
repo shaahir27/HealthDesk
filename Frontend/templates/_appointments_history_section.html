@@ -1,0 +1,79 @@
+<div class="apx-head">
+    <div>
+        <h5 class="apx-title"><i class="bi bi-clock-history me-1"></i> Previous Appointments</h5>
+        <p class="apx-sub">Pick an older appointment date to review past records. These rows are read-only.</p>
+    </div>
+    {% if previous_dates %}
+    <form method="GET" action="/appointments" class="d-flex gap-2 align-items-end flex-wrap" data-history-form>
+        <input type="hidden" name="department" value="{{ selected_department }}">
+        <input type="hidden" name="doctor_id" value="{{ selected_doctor }}">
+        <input type="hidden" name="date" value="{{ selected_date }}">
+        <div>
+            <label class="form-label mb-1">Date</label>
+            <input type="date"
+                   name="history_date"
+                   class="form-control form-control-sm"
+                   value="{{ selected_history_date }}"
+                   min="{{ previous_dates|last }}"
+                   max="{{ previous_dates|first }}"
+                   data-history-date
+                   style="min-width:230px;padding-right:18px;">
+        </div>
+        <button class="hd-btn hd-btn-outline hd-btn-sm" type="submit" data-history-load>Load</button>
+    </form>
+    {% endif %}
+</div>
+
+{% if previous_appointments %}
+<div class="apx-table-wrap">
+    <table class="hd-table">
+        <thead>
+            <tr><th>Appointment</th><th>Patient</th><th>Doctor</th><th>Date / Slot</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+            {% for a in previous_appointments %}
+            <tr>
+                <td>
+                    <button type="button"
+                            class="apx-link-btn"
+                            data-appointment-detail
+                            data-appointment-id="{{ a.appointment_id }}"
+                            data-patient-id="{{ a.patient_id }}"
+                            data-patient-name="{{ a.patient_name }}"
+                            data-patient-phone="{{ a.patient_phone }}"
+                            data-patient-age="{{ a.patient_age }}"
+                            data-patient-gender="{{ a.patient_gender }}"
+                            data-patient-symptoms="{{ a.patient_symptoms }}"
+                            data-doctor-name="{{ a.doctor_name }}"
+                            data-department="{{ a.department }}"
+                            data-date="{{ a.date }}"
+                            data-time-slot="{{ a.time_slot }}"
+                            data-status="{{ a.workflow_status }}">
+                        Appt #{{ a.appointment_id }}
+                    </button>
+                </td>
+                <td>
+                    <div class="apx-entity">
+                        <strong>{{ a.patient_name or "Patient record" }}</strong>
+                        <small>Patient ID #{{ a.patient_id }}</small>
+                    </div>
+                </td>
+                <td>Dr {{ a.doctor_name }}{% if a.department %}<small class="text-muted d-block">{{ a.department }}</small>{% endif %}</td>
+                <td><div>{{ a.date }}</div><small class="text-muted">{{ a.time_slot }}</small></td>
+                <td><span class="hd-badge {{ a.workflow_status|lower|replace('-','') }}">{{ a.workflow_status }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% elif previous_dates %}
+<div class="apx-empty">
+    <i class="bi bi-clock-history"></i>
+    No previous appointments found for the selected date.
+</div>
+{% else %}
+<div class="apx-empty">
+    <i class="bi bi-clock-history"></i>
+    No previous appointment history is available for the current filter.
+</div>
+{% endif %}

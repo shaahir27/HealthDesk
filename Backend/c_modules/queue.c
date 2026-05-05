@@ -316,6 +316,45 @@ int enqueuePatient(struct QueueNode q) {
     return 1;
 }
 
+void listQueue(void) {
+    struct QueueNode *current;
+
+    loadQueue();
+    current = queue_store.front;
+    while (current != NULL) {
+        printf("%d|%d|%d|%s|%s\n",
+            current->token,
+            current->patient_id,
+            current->doctor_id,
+            current->priority,
+            current->status
+        );
+        current = current->next;
+    }
+}
+
+int updateWaitingStatus(int patient_id, int doctor_id, const char *status) {
+    struct QueueNode *current;
+    int updated = 0;
+
+    loadQueue();
+    current = queue_store.front;
+    while (current != NULL) {
+        if (current->patient_id == patient_id &&
+            strcmp(current->status, "Waiting") == 0 &&
+            (doctor_id <= 0 || current->doctor_id == doctor_id)) {
+            safeCopy(current->status, status, sizeof(current->status));
+            updated = 1;
+        }
+        current = current->next;
+    }
+
+    if (!updated) return 0;
+    queue_dirty = 1;
+    saveQueueIfDirty();
+    return 1;
+}
+
 int main(int argc, char *argv[]) {
     int patient_id;
     int doctor_id = -1;
@@ -328,6 +367,20 @@ int main(int argc, char *argv[]) {
 
     if (argc < 2) {
         printf("Invalid Input");
+        return 1;
+    }
+
+    if (strcmp(argv[1], "list") == 0) {
+        listQueue();
+        return 0;
+    }
+
+    if (strcmp(argv[1], "update-waiting") == 0 && argc >= 5) {
+        if (updateWaitingStatus(atoi(argv[2]), atoi(argv[3]), argv[4])) {
+            printf("UPDATED");
+            return 0;
+        }
+        printf("NOT_FOUND");
         return 1;
     }
 

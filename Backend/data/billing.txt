@@ -5,4 +5,4 @@
 1004|2026-04-20|21|Shaahir|22|Male|Dr. Priya Sharma|Dermatology|700|750|0|100|1550|PAID|6|skin_procedure~750||Antibiotics|22|||UPI|2026-04-20 10:00:00||0|0.00|
 1005|2026-05-02|21|Shaahir|22|Male|Dr. Arun Kumar|General|500|0|0|0|500|WAIVED|1||||0||||||0|0.00|
 1006|2026-04-18|21|Shaahir|22|Male|Dr. Deepa Menon|Dermatology|700|300|0|250|1250|PAID|10|followup_consult~300||Night gel and sunscreen|24|||card|2026-04-18 12:15:00||0|0.00|
-1007|2026-05-03|21|Shaahir|22|Male|Dr. Priya Sharma|Dermatology|700|0|0|0|700|PENDING|6|||Manual Razorpay test bill for Shaahir|0||||||0|0.00|
+1007|2026-05-03|21|Shaahir|22|Male|Dr. Priya Sharma|Dermatology|700|0|0|0|700|INITIATED|6|||Manual Razorpay test bill for Shaahir|0|order_SlYs6a0YbOJH8J||razorpay||2026-05-05T10:36:56|0|0.00|

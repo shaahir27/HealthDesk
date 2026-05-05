@@ -57,6 +57,16 @@
     color: var(--hd-text-muted);
     font-size: .76rem;
 }
+.apx-inline-note.warning {
+    background: #fff8e8;
+    border-color: #f1d38a;
+    color: #8a6d1f;
+}
+.apx-inline-note.danger {
+    background: #fff2f2;
+    border-color: #efb6b6;
+    color: #9d3b3b;
+}
 .apx-confirm-wrap {
     width: 100%;
     display: flex;
@@ -74,6 +84,9 @@
     margin-top: 4px;
     font-size: .72rem;
     color: var(--hd-text-muted);
+}
+.apx-action-submit {
+    min-width: 104px;
 }
 
 /* Table wrap */
@@ -95,11 +108,100 @@
 }
 .apx-group-head h6 { font-size: .92rem; font-weight: 700; margin: 0; color: var(--hd-text); }
 .apx-group-head small { font-size: .78rem; color: var(--hd-text-muted); }
+.apx-legend {
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--hd-bg);
+    border: 1px solid var(--hd-border);
+    color: var(--hd-text-muted);
+    font-size: .78rem;
+    margin-bottom: 16px;
+}
+.apx-entity {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.apx-entity strong { color: var(--hd-text); }
+.apx-entity small { color: var(--hd-text-muted); }
+.apx-link-btn {
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--hd-primary-dark);
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+.apx-link-btn:hover { text-decoration: underline; }
+.apx-modal-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 12px;
+}
+.apx-modal-field {
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--hd-bg);
+    border: 1px solid var(--hd-border);
+}
+.apx-modal-field small {
+    display: block;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .7px;
+    text-transform: uppercase;
+    color: var(--hd-text-muted);
+    margin-bottom: 4px;
+}
+.apx-modal-field strong,
+.apx-modal-field span { color: var(--hd-text); }
+.apx-modal-field.full { grid-column: 1 / -1; }
 
 /* Responsive */
 @media (max-width: 900px)  { .apx-metrics { grid-template-columns: repeat(2, minmax(0,1fr)); } }
 @media (max-width: 560px)  { .apx-metrics { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 768px)  { .apx-action-form { flex-direction: column; align-items: stretch; } }
+
+/* Modal classes */
+.hd-modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1050;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+}
+.hd-modal-overlay.active {
+    display: flex;
+}
+.hd-modal-content {
+    background: var(--hd-surface);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 500px;
+    padding: 24px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+.hd-modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--hd-text-muted);
+    cursor: pointer;
+    line-height: 1;
+}
+.hd-modal-close:hover {
+    color: var(--hd-text);
+}
 </style>
 
 <div class="hd-page-header">
@@ -243,12 +345,17 @@
         <div class="apx-body">
             <div class="apx-head">
                 <div>
-                    <h5 class="apx-title"><i class="bi bi-list-check me-1"></i> Appointment Actions</h5>
-                    <p class="apx-sub">Cancel, mark no-show, reschedule, or reassign appointments by doctor. Reassignments require patient confirmation first.</p>
+                    <h5 class="apx-title"><i class="bi bi-list-check me-1"></i> Current Appointment Actions</h5>
+                    <p class="apx-sub">Shows yesterday, today, and tomorrow only. Use previous appointments below for older records.</p>
                 </div>
             </div>
 
             {% if appointment_groups %}
+            <div class="apx-legend">
+                <strong>Appointment ID</strong> is the booking record.
+                <strong>Patient ID</strong> belongs to the patient master profile.
+                Use the appointment link to open the full visit details before taking action.
+            </div>
             {% for group in appointment_groups %}
             <div class="apx-group-head">
                 <h6>{{ group.doctor_name }}</h6>
@@ -257,13 +364,36 @@
             <div class="apx-table-wrap" style="margin-bottom:20px;">
                 <table class="hd-table">
                     <thead>
-                        <tr><th>ID</th><th>Patient</th><th>Date / Slot</th><th>Status</th><th>Action</th></tr>
+                        <tr><th>Appointment</th><th>Patient</th><th>Date / Slot</th><th>Status</th><th>Action</th></tr>
                     </thead>
                     <tbody>
                         {% for a in group.appointments %}
                         <tr>
-                            <td><strong>#{{ a.appointment_id }}</strong></td>
-                            <td>#{{ a.patient_id }}</td>
+                            <td>
+                                <button type="button"
+                                        class="apx-link-btn"
+                                        data-appointment-detail
+                                        data-appointment-id="{{ a.appointment_id }}"
+                                        data-patient-id="{{ a.patient_id }}"
+                                        data-patient-name="{{ a.patient_name }}"
+                                        data-patient-phone="{{ a.patient_phone }}"
+                                        data-patient-age="{{ a.patient_age }}"
+                                        data-patient-gender="{{ a.patient_gender }}"
+                                        data-patient-symptoms="{{ a.patient_symptoms }}"
+                                        data-doctor-name="{{ a.doctor_name }}"
+                                        data-department="{{ a.department }}"
+                                        data-date="{{ a.date }}"
+                                        data-time-slot="{{ a.time_slot }}"
+                                        data-status="{{ a.workflow_status }}">
+                                    Appt #{{ a.appointment_id }}
+                                </button>
+                            </td>
+                            <td>
+                                <div class="apx-entity">
+                                    <strong>{{ a.patient_name or "Patient record" }}</strong>
+                                    <small>Patient ID #{{ a.patient_id }}</small>
+                                </div>
+                            </td>
                             <td><div>{{ a.date }}</div><small class="text-muted">{{ a.time_slot }}</small></td>
                             <td>
                                 <span class="hd-badge {{ a.workflow_status|lower|replace('-','') }}">{{ a.workflow_status }}</span>
@@ -272,7 +402,8 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <form action="/update_appointment" method="POST" class="apx-action-form"
+                                {% if a.status in ['Booked', 'No-show'] %}
+                                <form action="/update_appointment" method="POST" class="apx-action-form" novalidate
                                       data-appointment-id="{{ a.appointment_id }}"
                                       data-original-doctor-id="{{ a.doctor_id }}"
                                       data-reassign-department="{{ a.reassign_department }}"
@@ -289,25 +420,12 @@
                                         <option value="reschedule">Reschedule</option>
                                         <option value="reassign">Reassign</option>
                                     </select>
-                                    <input type="date"   class="form-control apx-extra apx-extra-date" name="new_date"      title="New date" style="display:none;">
-                                    <select             class="form-select apx-extra apx-extra-time"   name="new_time"      title="New slot" style="display:none;">
-                                        <option value="">Slot</option>
-                                        <option>08:30 AM</option><option>09:30 AM</option><option>10:30 AM</option><option>11:40 AM</option>
-                                        <option>02:00 PM</option><option>04:00 PM</option><option>06:00 PM</option><option>08:05 PM</option>
-                                    </select>
-                                    <select class="form-select apx-extra apx-extra-doctor" name="new_doctor_id" style="display:none;min-width:220px;">
-                                        <option value="">Replacement doctor</option>
-                                    </select>
-                                    <div class="apx-inline-note apx-extra apx-reassign-help" style="display:none;"></div>
-                                    <label class="apx-confirm-wrap apx-extra apx-reassign-confirm" style="display:none;">
-                                        <input type="checkbox" name="patient_confirmed" value="yes">
-                                        Patient has agreed to this reassignment
-                                    </label>
-                                    <input type="text" class="form-control apx-extra apx-reassign-note" name="confirmation_note"
-                                           placeholder="Confirmation note: phone call, time, and who confirmed"
-                                           style="display:none;min-width:280px;">
-                                    <button class="hd-btn hd-btn-primary hd-btn-sm">Apply</button>
+                                    <div class="apx-inline-note apx-form-msg" style="display:none;"></div>
+                                    <button type="submit" class="hd-btn hd-btn-primary hd-btn-sm apx-action-submit">Apply</button>
                                 </form>
+                                {% else %}
+                                <span class="text-muted small">No further actions on {{ a.status|lower }} appointments.</span>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -323,7 +441,172 @@
             {% endif %}
         </div>
     </div>
+
+    <div class="apx-card">
+        <div class="apx-body">
+            <div class="apx-head">
+                <div>
+                    <h5 class="apx-title"><i class="bi bi-calendar-x me-1"></i> Cancelled Appointments</h5>
+                    <p class="apx-sub">Cancelled rows are kept separate from active appointment actions.</p>
+                </div>
+            </div>
+
+            {% if cancelled_appointments %}
+            <div class="apx-table-wrap">
+                <table class="hd-table">
+                    <thead>
+                        <tr><th>Appointment</th><th>Patient</th><th>Doctor</th><th>Date / Slot</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for a in cancelled_appointments %}
+                        <tr>
+                            <td>
+                                <button type="button"
+                                        class="apx-link-btn"
+                                        data-appointment-detail
+                                        data-appointment-id="{{ a.appointment_id }}"
+                                        data-patient-id="{{ a.patient_id }}"
+                                        data-patient-name="{{ a.patient_name }}"
+                                        data-patient-phone="{{ a.patient_phone }}"
+                                        data-patient-age="{{ a.patient_age }}"
+                                        data-patient-gender="{{ a.patient_gender }}"
+                                        data-patient-symptoms="{{ a.patient_symptoms }}"
+                                        data-doctor-name="{{ a.doctor_name }}"
+                                        data-department="{{ a.department }}"
+                                        data-date="{{ a.date }}"
+                                        data-time-slot="{{ a.time_slot }}"
+                                        data-status="{{ a.workflow_status }}">
+                                    Appt #{{ a.appointment_id }}
+                                </button>
+                            </td>
+                            <td>
+                                <div class="apx-entity">
+                                    <strong>{{ a.patient_name or "Patient record" }}</strong>
+                                    <small>Patient ID #{{ a.patient_id }}</small>
+                                </div>
+                            </td>
+                            <td>Dr {{ a.doctor_name }}{% if a.department %}<small class="text-muted d-block">{{ a.department }}</small>{% endif %}</td>
+                            <td><div>{{ a.date }}</div><small class="text-muted">{{ a.time_slot }}</small></td>
+                            <td><span class="hd-badge {{ a.workflow_status|lower|replace('-','') }}">{{ a.workflow_status }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="apx-empty">
+                <i class="bi bi-calendar-x"></i>
+                No cancelled appointments in the current window.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="apx-card">
+        <div class="apx-body">
+            <div id="apxPreviousSection">
+                {% include "_appointments_history_section.html" %}
+            </div>
+        </div>
+    </div>
 </div>
+
+    <!-- Modals -->
+    <div id="rescheduleModal" class="hd-modal-overlay">
+        <div class="hd-modal-content">
+            <button class="hd-modal-close" onclick="closeModal('rescheduleModal')" type="button">&times;</button>
+            <h5 class="apx-title" style="margin-bottom:18px;">Reschedule Appointment</h5>
+            <form action="/update_appointment" method="POST" id="formRescheduleModal">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="reschedule">
+                <input type="hidden" name="appointment_id" id="resch_appointment_id">
+                <input type="hidden" name="patient_id" id="resch_patient_id">
+                
+                <div style="margin-bottom:14px;">
+                    <label class="form-label">New Date</label>
+                    <input type="date" class="form-control" name="new_date" id="resch_date" required>
+                </div>
+                <div style="margin-bottom:20px;">
+                    <label class="form-label">New Slot</label>
+                    <select class="form-select" name="new_time" id="resch_time" required>
+                        <option value="">Slot</option>
+                        <option>08:30 AM</option><option>09:30 AM</option><option>10:30 AM</option><option>11:40 AM</option>
+                        <option>02:00 PM</option><option>04:00 PM</option><option>06:00 PM</option><option>08:05 PM</option>
+                    </select>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:10px;">
+                    <button type="button" class="hd-btn hd-btn-outline" onclick="closeModal('rescheduleModal')">Cancel</button>
+                    <button type="submit" class="hd-btn hd-btn-primary">Reschedule</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="reassignModal" class="hd-modal-overlay">
+        <div class="hd-modal-content">
+            <button class="hd-modal-close" onclick="closeModal('reassignModal')" type="button">&times;</button>
+            <h5 class="apx-title" style="margin-bottom:18px;">Reassign Appointment</h5>
+            <form action="/update_appointment" method="POST" id="formReassignModal">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="reassign">
+                <input type="hidden" name="appointment_id" id="reassign_appointment_id">
+                <input type="hidden" name="patient_id" id="reassign_patient_id">
+                
+                <div class="apx-inline-note info" id="reassign_help_note" style="margin-bottom:14px;">Loading...</div>
+                
+                <div style="margin-bottom:14px;">
+                    <label class="form-label">New Date</label>
+                    <input type="date" class="form-control" name="new_date" id="reassign_date" required>
+                </div>
+                <div style="margin-bottom:14px;">
+                    <label class="form-label">Replacement Doctor</label>
+                    <select class="form-select" name="new_doctor_id" id="reassign_doctor" required>
+                        <option value="">Replacement doctor</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:14px;">
+                    <label class="form-label">Replacement Slot</label>
+                    <select class="form-select" name="new_time" id="reassign_time" required>
+                        <option value="">Select replacement slot</option>
+                    </select>
+                </div>
+                <div class="apx-confirm-wrap" style="margin-bottom:14px; align-items:flex-start;">
+                    <input type="checkbox" name="patient_confirmed" value="yes" id="reassign_confirm" required style="margin-top:4px;">
+                    <label for="reassign_confirm" style="font-size:0.85rem; cursor:pointer;">
+                        Patient has agreed to this reassignment
+                    </label>
+                </div>
+                <div style="margin-bottom:20px;">
+                    <label class="form-label">Confirmation Note</label>
+                    <input type="text" class="form-control" name="confirmation_note" id="reassign_note" placeholder="E.g., Called patient, they agreed" required>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:10px;">
+                    <button type="button" class="hd-btn hd-btn-outline" onclick="closeModal('reassignModal')">Cancel</button>
+                    <button type="submit" class="hd-btn hd-btn-primary">Reassign</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="appointmentDetailModal" class="hd-modal-overlay">
+        <div class="hd-modal-content">
+            <button class="hd-modal-close" onclick="closeModal('appointmentDetailModal')" type="button">&times;</button>
+            <h5 class="apx-title" style="margin-bottom:18px;">Appointment Details</h5>
+            <div class="apx-modal-grid">
+                <div class="apx-modal-field"><small>Appointment ID</small><strong id="detail_appt_id">—</strong></div>
+                <div class="apx-modal-field"><small>Status</small><span id="detail_status">—</span></div>
+                <div class="apx-modal-field"><small>Patient</small><strong id="detail_patient_name">—</strong></div>
+                <div class="apx-modal-field"><small>Patient ID</small><span id="detail_patient_id">—</span></div>
+                <div class="apx-modal-field"><small>Phone</small><span id="detail_patient_phone">—</span></div>
+                <div class="apx-modal-field"><small>Age / Gender</small><span id="detail_patient_demo">—</span></div>
+                <div class="apx-modal-field"><small>Doctor</small><strong id="detail_doctor_name">—</strong></div>
+                <div class="apx-modal-field"><small>Department</small><span id="detail_department">—</span></div>
+                <div class="apx-modal-field"><small>Date</small><span id="detail_date">—</span></div>
+                <div class="apx-modal-field"><small>Slot</small><span id="detail_time">—</span></div>
+                <div class="apx-modal-field full"><small>Symptoms / Reason</small><span id="detail_symptoms">—</span></div>
+            </div>
+        </div>
+    </div>
 
 <script id="apxDoctorsJson" type="application/json">{{ doctors|tojson }}</script>
 <script>
@@ -392,136 +675,288 @@
             grid.insertBefore(lbl, el);
         });
     }
-    /* Show/hide extra fields based on action */
-    document.querySelectorAll(".apx-action-sel").forEach(function(sel) {
-        var form = sel.closest("form");
-        var timeSelect = form.querySelector(".apx-extra-time");
-        var defaultTimeOptions = timeSelect ? timeSelect.innerHTML : "";
-        form.dataset.defaultTimeOptions = defaultTimeOptions;
+    /* Modal Handlers */
+    window.closeModal = function(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+    };
 
-        function resetTimeOptions() {
-            if (!timeSelect) return;
-            timeSelect.innerHTML = form.dataset.defaultTimeOptions || '<option value="">Slot</option>';
-        }
+    document.querySelectorAll("[data-appointment-detail]").forEach(function(btn) {
+        btn.addEventListener("click", function() {
+            document.getElementById("detail_appt_id").textContent = "#" + (btn.dataset.appointmentId || "—");
+            document.getElementById("detail_status").textContent = btn.dataset.status || "—";
+            document.getElementById("detail_patient_name").textContent = btn.dataset.patientName || "Patient record";
+            document.getElementById("detail_patient_id").textContent = "#" + (btn.dataset.patientId || "—");
+            document.getElementById("detail_patient_phone").textContent = btn.dataset.patientPhone || "—";
+            document.getElementById("detail_patient_demo").textContent = ((btn.dataset.patientAge || "—") + " / " + (btn.dataset.patientGender || "—"));
+            document.getElementById("detail_doctor_name").textContent = btn.dataset.doctorName || "—";
+            document.getElementById("detail_department").textContent = btn.dataset.department || "—";
+            document.getElementById("detail_date").textContent = btn.dataset.date || "—";
+            document.getElementById("detail_time").textContent = btn.dataset.timeSlot || "—";
+            document.getElementById("detail_symptoms").textContent = btn.dataset.patientSymptoms || "No symptoms/reason recorded.";
+            document.getElementById("appointmentDetailModal").classList.add("active");
+        });
+    });
 
-        function populateReplacementSlots() {
-            var doctorSelect = form.querySelector(".apx-extra-doctor");
-            if (!doctorSelect || !timeSelect) return;
-            var candidates = form._reassignCandidates || [];
-            var selectedDoctor = doctorSelect.value;
-            var selectedCandidate = candidates.find(function(candidate) {
-                return String(candidate.id) === String(selectedDoctor);
+    var reassignContext = {
+        department: "",
+        originalDoctorId: "",
+        contextLabel: ""
+    };
+    var reassignCandidates = [];
+    
+    function loadReassignmentOptionsModal() {
+        var helpNote = document.getElementById("reassign_help_note");
+        var doctorSelect = document.getElementById("reassign_doctor");
+        var timeSelect = document.getElementById("reassign_time");
+        var dateInput = document.getElementById("reassign_date");
+        var btn = document.querySelector("#formReassignModal button[type='submit']");
+        
+        if (!dateInput.value) return;
+        
+        helpNote.textContent = "Loading replacement doctors and open slots...";
+        btn.disabled = true;
+        
+        fetch(
+            "/appointment_reassign_options?appointment_id=" + encodeURIComponent(document.getElementById("reassign_appointment_id").value) +
+            "&department=" + encodeURIComponent(reassignContext.department) +
+            "&date=" + encodeURIComponent(dateInput.value) +
+            "&exclude_doctor_id=" + encodeURIComponent(reassignContext.originalDoctorId),
+            { headers: { "X-Requested-With": "XMLHttpRequest" } }
+        )
+        .then(function(res) { 
+            if (!res.ok) throw new Error("Could not load options");
+            return res.json(); 
+        })
+        .then(function(payload) {
+            reassignCandidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+            doctorSelect.innerHTML = '<option value="">Replacement doctor</option>';
+            
+            reassignCandidates.forEach(function(candidate) {
+                var option = document.createElement("option");
+                option.value = String(candidate.id);
+                option.textContent = "Dr " + candidate.name + " - " + candidate.available_slots.length + " open slot" + (candidate.available_slots.length === 1 ? "" : "s");
+                doctorSelect.appendChild(option);
             });
+            
+            if (!doctorSelect.value && reassignCandidates.length) {
+                doctorSelect.value = String(reassignCandidates[0].id);
+            }
+            populateReplacementSlotsModal();
+            
+            if (reassignCandidates.length) {
+                helpNote.textContent = reassignContext.contextLabel + ". Confirm with the patient first, then choose the replacement doctor and slot.";
+                btn.disabled = false;
+            } else {
+                helpNote.textContent = "No alternative doctors have open slots on this date. Choose another date.";
+                timeSelect.innerHTML = '<option value="">Select replacement slot</option>';
+            }
+        })
+        .catch(function() {
+            helpNote.textContent = "Could not load alternative doctors. Please try another date.";
+            doctorSelect.innerHTML = '<option value="">Replacement doctor</option>';
             timeSelect.innerHTML = '<option value="">Select replacement slot</option>';
-            (selectedCandidate ? selectedCandidate.available_slots : []).forEach(function(slot) {
+        });
+    }
+
+    function populateReplacementSlotsModal() {
+        var doctorSelect = document.getElementById("reassign_doctor");
+        var timeSelect = document.getElementById("reassign_time");
+        if (!doctorSelect || !timeSelect) return;
+        
+        var selectedCandidate = reassignCandidates.find(function(c) {
+            return String(c.id) === String(doctorSelect.value);
+        });
+        
+        timeSelect.innerHTML = '<option value="">Select replacement slot</option>';
+        if (selectedCandidate) {
+            selectedCandidate.available_slots.forEach(function(slot) {
                 var option = document.createElement("option");
                 option.value = slot;
                 option.textContent = slot;
                 timeSelect.appendChild(option);
             });
         }
+    }
 
-        function loadReassignmentOptions(preferredDoctorId) {
-            var reassignDate = form.querySelector(".apx-extra-date");
-            var doctorSelect = form.querySelector(".apx-extra-doctor");
-            var helpNote = form.querySelector(".apx-reassign-help");
-            if (!reassignDate || !doctorSelect || !helpNote || !reassignDate.value) return;
+    var reassignDate = document.getElementById("reassign_date");
+    if (reassignDate) reassignDate.addEventListener("change", loadReassignmentOptionsModal);
+    var reassignDoctor = document.getElementById("reassign_doctor");
+    if (reassignDoctor) reassignDoctor.addEventListener("change", populateReplacementSlotsModal);
 
-            helpNote.textContent = "Loading replacement doctors and open slots...";
-            fetch(
-                "/appointment_reassign_options?appointment_id=" + encodeURIComponent(form.dataset.appointmentId || "") +
-                "&department=" + encodeURIComponent(form.dataset.reassignDepartment || "") +
-                "&date=" + encodeURIComponent(reassignDate.value) +
-                "&exclude_doctor_id=" + encodeURIComponent(form.dataset.originalDoctorId || ""),
-                { headers: { "X-Requested-With": "XMLHttpRequest" } }
-            )
-            .then(function(response) {
-                if (!response.ok) throw new Error("Could not load reassignment options");
-                return response.json();
-            })
-            .then(function(payload) {
-                var candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
-                form._reassignCandidates = candidates;
-                doctorSelect.innerHTML = '<option value="">Replacement doctor</option>';
+    /* Show/hide extra fields based on action */
+    document.querySelectorAll(".apx-action-sel").forEach(function(sel) {
+        var form = sel.closest("form");
+        var formMsg = form.querySelector(".apx-form-msg");
+        var submitBtn = form.querySelector('button[type="submit"]');
 
-                candidates.forEach(function(candidate) {
-                    var option = document.createElement("option");
-                    option.value = String(candidate.id);
-                    option.textContent = "Dr " + candidate.name + " - " + candidate.available_slots.length + " open slot" + (candidate.available_slots.length === 1 ? "" : "s");
-                    if (String(candidate.id) === String(preferredDoctorId)) {
-                        option.selected = true;
-                    }
-                    doctorSelect.appendChild(option);
-                });
-
-                if (!doctorSelect.value && candidates.length) {
-                    doctorSelect.value = String(candidates[0].id);
-                }
-
-                populateReplacementSlots();
-                if (candidates.length) {
-                    helpNote.textContent = (form.dataset.reassignContext || "Manual reassignment") + ". Confirm with the patient first, then choose the replacement doctor and slot.";
-                } else {
-                    helpNote.textContent = "No same-department doctors currently have open slots on this date. Choose another date after patient confirmation.";
-                }
-            })
-            .catch(function() {
-                form._reassignCandidates = [];
-                doctorSelect.innerHTML = '<option value="">Replacement doctor</option>';
-                timeSelect.innerHTML = '<option value="">Select replacement slot</option>';
-                helpNote.textContent = "Could not load reassignment options right now.";
-            });
+        function clearFormMessage() {
+            if (!formMsg) return;
+            formMsg.style.display = "none";
+            formMsg.textContent = "";
+            formMsg.className = "apx-inline-note apx-form-msg";
         }
 
-        if (timeSelect) {
-            timeSelect.addEventListener("focus", function() {
-                if (sel.value === "reschedule") {
-                    resetTimeOptions();
-                }
-            });
+        function showFormMessage(text, tone) {
+            if (!formMsg) return;
+            formMsg.textContent = text;
+            formMsg.className = "apx-inline-note apx-form-msg " + (tone || "warning");
+            formMsg.style.display = "";
         }
 
-        var doctorSelect = form.querySelector(".apx-extra-doctor");
-        if (doctorSelect) {
-            doctorSelect.addEventListener("change", populateReplacementSlots);
-        }
-
-        var reassignDate = form.querySelector(".apx-extra-date");
-        if (reassignDate) {
-            reassignDate.addEventListener("change", function() {
-                if (sel.value === "reassign") {
-                    loadReassignmentOptions("");
-                }
-            });
+        function setSubmitLabel(label) {
+            if (submitBtn) submitBtn.textContent = label || "Apply";
         }
 
         sel.addEventListener("change", function() {
-            form.querySelectorAll(".apx-extra").forEach(function(f) { f.style.display = "none"; f.required = false; });
-            var confirmCheckbox = form.querySelector(".apx-reassign-confirm input");
-            if (confirmCheckbox) {
-                confirmCheckbox.required = false;
-            }
-            var noteInput = form.querySelector(".apx-reassign-note");
-            if (noteInput) {
-                noteInput.required = false;
-            }
+            clearFormMessage();
             var v = sel.value;
-            if (v === "reschedule") {
-                resetTimeOptions();
-                form.querySelector(".apx-extra-date").style.display = ""; form.querySelector(".apx-extra-date").required = true;
-                form.querySelector(".apx-extra-time").style.display = ""; form.querySelector(".apx-extra-time").required = true;
-            } else if (v === "reassign") {
-                var dateInput = form.querySelector(".apx-extra-date");
-                dateInput.style.display = ""; dateInput.required = true;
-                dateInput.value = dateInput.value || form.dataset.originalDate || "";
-                form.querySelector(".apx-extra-doctor").style.display = ""; form.querySelector(".apx-extra-doctor").required = true;
-                form.querySelector(".apx-extra-time").style.display = ""; form.querySelector(".apx-extra-time").required = true;
-                form.querySelector(".apx-reassign-help").style.display = "";
-                form.querySelector(".apx-reassign-confirm").style.display = ""; form.querySelector(".apx-reassign-confirm input").required = true;
-                form.querySelector(".apx-reassign-note").style.display = ""; form.querySelector(".apx-reassign-note").required = true;
-                loadReassignmentOptions("");
+            if (v === "reschedule" || v === "reassign") {
+                setSubmitLabel(v === "reschedule" ? "Reschedule" : "Reassign");
+            } else if (v === "cancel") {
+                setSubmitLabel("Cancel");
+            } else if (v === "noshow") {
+                setSubmitLabel("Mark No-show");
+            } else {
+                setSubmitLabel("Apply");
             }
         });
+
+        form.addEventListener("submit", function(event) {
+            clearFormMessage();
+            if (!sel.value) {
+                event.preventDefault();
+                showFormMessage("Choose an action first.", "warning");
+                sel.focus();
+                return;
+            }
+
+            if (sel.value === "reschedule" || sel.value === "reassign") {
+                event.preventDefault();
+                var todayIso = new Date().toLocaleDateString("en-CA");
+                var originalDate = form.dataset.originalDate || "";
+                var safeDate = (originalDate && originalDate >= todayIso) ? originalDate : todayIso;
+                
+                if (sel.value === "reschedule") {
+                    document.getElementById('resch_appointment_id').value = form.dataset.appointmentId;
+                    document.getElementById('resch_patient_id').value = form.querySelector('input[name="patient_id"]').value;
+                    var dateInp = document.getElementById('resch_date');
+                    dateInp.min = todayIso;
+                    dateInp.value = safeDate;
+                    document.getElementById('resch_time').value = "";
+                    document.getElementById('rescheduleModal').classList.add('active');
+                } else if (sel.value === "reassign") {
+                    document.getElementById('reassign_appointment_id').value = form.dataset.appointmentId;
+                    document.getElementById('reassign_patient_id').value = form.querySelector('input[name="patient_id"]').value;
+                    reassignContext.department = form.dataset.reassignDepartment;
+                    reassignContext.originalDoctorId = form.dataset.originalDoctorId;
+                    reassignContext.contextLabel = form.dataset.reassignContext || "Manual reassignment";
+                    
+                    var dateInp = document.getElementById('reassign_date');
+                    dateInp.min = todayIso;
+                    dateInp.value = safeDate;
+                    document.getElementById('reassign_confirm').checked = false;
+                    document.getElementById('reassign_note').value = "";
+                    document.getElementById('reassignModal').classList.add('active');
+                    loadReassignmentOptionsModal();
+                }
+                return;
+            }
+
+            setSubmitLabel("Saving...");
+        });
+    });
+})();
+</script>
+<script>
+(function () {
+    "use strict";
+
+    function fillAppointmentDetail(btn) {
+        var detailMap = {
+            detail_appt_id: "#" + (btn.dataset.appointmentId || "—"),
+            detail_status: btn.dataset.status || "—",
+            detail_patient_name: btn.dataset.patientName || "Patient record",
+            detail_patient_id: "#" + (btn.dataset.patientId || "—"),
+            detail_patient_phone: btn.dataset.patientPhone || "—",
+            detail_patient_demo: (btn.dataset.patientAge || "—") + " / " + (btn.dataset.patientGender || "—"),
+            detail_doctor_name: btn.dataset.doctorName || "—",
+            detail_department: btn.dataset.department || "—",
+            detail_date: btn.dataset.date || "—",
+            detail_time: btn.dataset.timeSlot || "—",
+            detail_symptoms: btn.dataset.patientSymptoms || "No symptoms or reason recorded."
+        };
+
+        Object.keys(detailMap).forEach(function (id) {
+            var node = document.getElementById(id);
+            if (node) node.textContent = detailMap[id];
+        });
+
+        var modal = document.getElementById("appointmentDetailModal");
+        if (modal) modal.classList.add("active");
+    }
+
+    async function reloadHistorySection(form) {
+        var container = document.getElementById("apxPreviousSection");
+        if (!form || !container) return;
+
+        var params = new URLSearchParams(new FormData(form));
+        params.set("history_only", "1");
+        container.style.opacity = "0.55";
+        container.style.pointerEvents = "none";
+
+        try {
+            var response = await fetch("/appointments?" + params.toString(), {
+                headers: { "X-Requested-With": "XMLHttpRequest" }
+            });
+            if (!response.ok) throw new Error("Could not load appointment history.");
+
+            container.innerHTML = await response.text();
+
+            var currentUrl = new URL(window.location.href);
+            ["department", "doctor_id", "date", "history_date"].forEach(function (key) {
+                var value = params.get(key) || "";
+                if (value) {
+                    currentUrl.searchParams.set(key, value);
+                } else {
+                    currentUrl.searchParams.delete(key);
+                }
+            });
+            currentUrl.searchParams.delete("history_only");
+            window.history.replaceState({}, "", currentUrl.toString());
+        } catch (error) {
+            console.warn("Appointment history refresh failed.", error);
+        } finally {
+            container.style.opacity = "";
+            container.style.pointerEvents = "";
+        }
+    }
+
+    document.addEventListener("click", function (event) {
+        var detailBtn = event.target.closest("[data-appointment-detail]");
+        if (detailBtn) {
+            event.preventDefault();
+            fillAppointmentDetail(detailBtn);
+            return;
+        }
+
+        var historyLoadBtn = event.target.closest("[data-history-load]");
+        if (historyLoadBtn) {
+            event.preventDefault();
+            reloadHistorySection(historyLoadBtn.closest("[data-history-form]"));
+        }
+    });
+
+    document.addEventListener("change", function (event) {
+        if (event.target.matches("[data-history-date]")) {
+            reloadHistorySection(event.target.closest("[data-history-form]"));
+        }
+    });
+
+    document.addEventListener("submit", function (event) {
+        if (event.target.matches("[data-history-form]")) {
+            event.preventDefault();
+            reloadHistorySection(event.target);
+        }
     });
 })();
 </script>

@@ -247,6 +247,59 @@
     </div>
 
     {# ── Quick Access ── #}
+    {% if advances_attention.stranded or advances_attention.forfeited %}
+    <div class="rd-card">
+        <div class="rd-card-body">
+            <div class="rd-card-head">
+                <div>
+                    <h5 class="rd-card-title"><i class="bi bi-cash-coin me-1"></i> Advance Payments Needing Attention</h5>
+                    <p class="rd-card-sub">These entries help reception respond quickly when patients call about paid, failed, or disputed advances.</p>
+                </div>
+            </div>
+
+            {% if advances_attention.stranded %}
+            <div style="margin-bottom:16px;">
+                <p class="rd-card-sub" style="font-weight:700;color:var(--hd-text);margin-bottom:10px;">Paid but booking not linked</p>
+                {% for adv in advances_attention.stranded %}
+                <div class="rd-req">
+                    <div class="rd-req-top">
+                        <div>
+                            <p class="rd-req-name">{{ adv.patient_name }}</p>
+                            <p class="rd-req-meta"><i class="bi bi-person-badge me-1"></i>{{ adv.doctor_name }}{% if adv.department %} &middot; {{ adv.department }}{% endif %}</p>
+                            <p class="rd-req-meta"><i class="bi bi-calendar-event me-1"></i>{{ adv.human_date }} &middot; {{ adv.amount_label }}</p>
+                        </div>
+                        <span class="hd-badge urgent">Stranded</span>
+                    </div>
+                    <div class="rd-req-reason">Payment received, but booking not confirmed. Manually confirm or refund.</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if advances_attention.forfeited %}
+            <div>
+                <p class="rd-card-sub" style="font-weight:700;color:var(--hd-text);margin-bottom:10px;">Forfeited advances</p>
+                {% for adv in advances_attention.forfeited %}
+                <div class="rd-req">
+                    <div class="rd-req-top">
+                        <div>
+                            <p class="rd-req-name">{{ adv.patient_name }}</p>
+                            <p class="rd-req-meta"><i class="bi bi-calendar-event me-1"></i>{{ adv.human_date }} &middot; {{ adv.amount_label }}</p>
+                            {% if adv.patient_phone %}
+                            <p class="rd-req-meta"><i class="bi bi-telephone me-1"></i>{{ adv.patient_phone }}</p>
+                            {% endif %}
+                        </div>
+                        <span class="hd-badge cancelled">Forfeited</span>
+                    </div>
+                    <div class="rd-req-reason">No-show advance. Patient may call to dispute.</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
     <div class="rd-bottom">
         <div class="rd-card">
             <div class="rd-card-body">

@@ -231,12 +231,14 @@
 .pb-date-btn.active .pb-date-mon { color: var(--hd-primary-dark); }
 
 /* ── slot grid ── */
-.pb-slot-section-label {
-    font-size: .68rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 1px; color: var(--hd-text-muted); margin: 16px 0 8px;
-    display: flex; align-items: center; gap: 8px;
+.pb-slot-title {
+    font-size: .76rem;
+    font-weight: 700;
+    letter-spacing: .7px;
+    text-transform: uppercase;
+    color: var(--hd-text-muted);
+    margin: 2px 0 12px;
 }
-.pb-slot-section-label::after { content: ''; flex: 1; height: 1px; background: var(--hd-border); }
 
 .pb-slot-grid {
     display: grid;
@@ -259,13 +261,17 @@
 .pb-slot.available .pb-slot-state { color: var(--pb-green); font-weight: 600; }
 
 .pb-slot.active {
-    border-color: var(--hd-primary); background: var(--hd-primary-light);
-    box-shadow: 0 0 0 3px rgba(46,134,193,.18);
+    border-color: #c2410c; background: #fff2e8;
+    box-shadow: 0 0 0 3px rgba(194,65,12,.18);
 }
-.pb-slot.active .pb-slot-time { color: var(--hd-primary-dark); }
+.pb-slot.active .pb-slot-time { color: #9a3412; }
+.pb-slot.active .pb-slot-state,
+.pb-slot.active .pb-slot-doc { color: #c2410c; }
 
 .pb-slot.pending   { border-color: #f0c97a; background: var(--pb-amber-light); cursor: not-allowed; }
 .pb-slot.pending   .pb-slot-state { color: var(--pb-amber); }
+.pb-slot.elapsed   { border-color: #d0d5dd; background: #f8fafc; cursor: not-allowed; opacity: .78; }
+.pb-slot.elapsed   .pb-slot-state { color: #667085; }
 .pb-slot.blocked,
 .pb-slot.booked,
 .pb-slot.completed,
@@ -516,7 +522,7 @@
                     <div class="pb-step-num">{% if is_new_patient %}4{% else %}3{% endif %}</div>
                     <div>
                         <div class="pb-card-title">Choose date &amp; time slot</div>
-                        <div class="pb-card-sub">Next 7 available days</div>
+                        <div class="pb-card-sub">Today + next 6 days</div>
                     </div>
                 </div>
             </div>
@@ -530,7 +536,7 @@
                 <div class="pb-date-strip" id="dateStrip" role="group" aria-label="Select date"></div>
 
                 <div id="slotArea">
-                    <div class="pb-slot-section-label">Select a department and doctor to see slots</div>
+                    <div class="pb-slot-title">Slots</div>
                     <div class="pb-slot-skeleton" id="slotSkeleton" style="display:none;">
                         {% for i in range(8) %}<div class="pb-skeleton-box"></div>{% endfor %}
                     </div>
@@ -700,22 +706,29 @@
     /* ── Doctor dropdown ── */
     function populateDoctors() {
         var dept = deptInput.value;
+        hiddenSlot.value = "";
+        hiddenDoc.value = "";
+        submitBtn.disabled = true;
+        slotGrid.innerHTML = "";
+        slotSkel.style.display = "none";
         docSelect.innerHTML = "";
         if (!dept) {
             docSelect.add(new Option("Select a department first", ""));
+            updateSummary(null);
             refreshStepper();
             return;
         }
+        docSelect.add(new Option("Select a doctor", ""));
         if (!IS_NEW) docSelect.add(new Option("Any available doctor", "any"));
         ALL_DOCTORS
             .filter(function (d) { return d.department === dept; })
             .forEach(function (d) {
                 docSelect.add(new Option(d.name + " (" + d.current_status + ")", d.id));
             });
-        if (docSelect.options.length === 0) {
+        if (docSelect.options.length === 1 || (!IS_NEW && docSelect.options.length === 2)) {
             docSelect.add(new Option("No doctors in this department", ""));
         }
-        loadSlots();
+        updateSummary(null);
         refreshStepper();
     }
     docSelect.addEventListener("change", function () {
@@ -741,6 +754,8 @@
             slotSkel.style.display = "none";
             if (!dept) {
                 slotGrid.innerHTML = '<div class="pb-slot-empty"><i class="bi bi-grid-3x3-gap" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.4;"></i>Choose a department to see available slots</div>';
+            } else if (!doc) {
+                slotGrid.innerHTML = '<div class="pb-slot-empty"><i class="bi bi-person-badge" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.4;"></i>Select a doctor to load available slots for this date</div>';
             }
             refreshStepper();
             return;
@@ -764,7 +779,7 @@
                 return;
             }
             if (!data.slots || !data.slots.length) {
-                slotGrid.innerHTML = '<div class="pb-slot-empty"><i class="bi bi-calendar-x" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.4;"></i>No slots available for this selection. Try another date or doctor.</div>';
+                slotGrid.innerHTML = '<div class="pb-slot-empty"><i class="bi bi-calendar-x" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.4;"></i>No slots are configured for this selection yet.</div>';
                 refreshStepper();
                 return;
             }
@@ -781,64 +796,47 @@
 
     function renderSlots(slots) {
         slotGrid.innerHTML = "";
-        var groups = { Morning: [], Afternoon: [], Evening: [] };
+        var availableCount = 0;
+        var elapsedCount = 0;
         slots.forEach(function (s) {
-            var h = parseInt(s.time.split(":")[0], 10);
-            if (h < 12) groups.Morning.push(s);
-            else if (h < 17) groups.Afternoon.push(s);
-            else groups.Evening.push(s);
+            if (s.state === "Available") availableCount += 1;
+            if (s.state === "Elapsed") elapsedCount += 1;
         });
 
-        var icons = { Morning: "bi-sunrise", Afternoon: "bi-sun", Evening: "bi-moon-stars" };
-        Object.keys(groups).forEach(function (period) {
-            if (!groups[period].length) return;
-            var lbl = document.createElement("div");
-            lbl.className = "pb-slot-section-label";
-            lbl.innerHTML = '<i class="bi ' + icons[period] + '"></i> ' + period;
-            slotGrid.parentNode.insertBefore(lbl, slotGrid);
-            slotGrid.parentNode.insertBefore(lbl, slotGrid);
+        if (availableCount === 0) {
+            var notice = document.createElement("div");
+            notice.className = "pb-slot-empty";
+            notice.innerHTML = elapsedCount
+                ? '<i class="bi bi-clock-history" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.5;"></i>No bookable slots remain for today. The earlier slots have already passed. Choose another date or doctor.'
+                : '<i class="bi bi-calendar2-x" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.5;"></i>All slots are booked for this day. You can still review the schedule below and pick another date or doctor.';
+            slotGrid.appendChild(notice);
+        }
 
-            // We render all slots flat in the grid — label is above the grid
-            // Rebuild each group inline
-        });
+        slots.forEach(function (s) {
+            var stateClass = s.state.toLowerCase().replace(/[- ]/g, "");
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "pb-slot " + stateClass;
+            btn.disabled = s.state !== "Available";
+            btn.innerHTML =
+                '<span class="pb-slot-time">' + s.time + '</span>' +
+                '<span class="pb-slot-state">' + s.state + '</span>' +
+                (s.doctor_name ? '<span class="pb-slot-doc">' + s.doctor_name + '</span>' : '');
 
-        // Flat render with inline group headers
-        slotGrid.innerHTML = "";
-        Object.keys(groups).forEach(function (period) {
-            if (!groups[period].length) return;
-
-            var lbl = document.createElement("div");
-            lbl.className = "pb-slot-section-label";
-            lbl.style.gridColumn = "1/-1";
-            lbl.innerHTML = '<i class="bi ' + icons[period] + '" style="margin-right:5px;"></i>' + period;
-            slotGrid.appendChild(lbl);
-
-            groups[period].forEach(function (s) {
-                var stateClass = s.state.toLowerCase().replace(/[- ]/g, "");
-                var btn = document.createElement("button");
-                btn.type = "button";
-                btn.className = "pb-slot " + stateClass;
-                btn.disabled = s.state !== "Available";
-                btn.innerHTML =
-                    '<span class="pb-slot-time">' + s.time + '</span>' +
-                    '<span class="pb-slot-state">' + s.state + '</span>' +
-                    (s.doctor_name ? '<span class="pb-slot-doc">' + s.doctor_name + '</span>' : '');
-
-                if (s.state === "Available") {
-                    btn.addEventListener("click", function () {
-                        document.querySelectorAll(".pb-slot.available, .pb-slot.active").forEach(function (b) {
-                            b.classList.remove("active");
-                        });
-                        btn.classList.add("active");
-                        hiddenSlot.value = s.time;
-                        hiddenDoc.value  = s.doctor_id;
-                        submitBtn.disabled = false;
-                        updateSummary(s);
-                        refreshStepper();
+            if (s.state === "Available") {
+                btn.addEventListener("click", function () {
+                    document.querySelectorAll(".pb-slot.available, .pb-slot.active").forEach(function (b) {
+                        b.classList.remove("active");
                     });
-                }
-                slotGrid.appendChild(btn);
-            });
+                    btn.classList.add("active");
+                    hiddenSlot.value = s.time;
+                    hiddenDoc.value  = s.doctor_id;
+                    submitBtn.disabled = false;
+                    updateSummary(s);
+                    refreshStepper();
+                });
+            }
+            slotGrid.appendChild(btn);
         });
     }
 
@@ -854,8 +852,10 @@
             summaryText.innerHTML = '<strong>Ready to submit:</strong> ' + dept + ' · ' + docText + ' · ' + dateVal + ' at ' + slotTime;
         } else {
             summaryBox.classList.remove("confirmed");
-            summaryText.textContent = dept !== "—"
-                ? 'Department: ' + dept + ' — now choose a doctor, date, and slot.'
+            summaryText.textContent = !deptInput.value
+                ? 'Choose a department, doctor, date, and slot to review your booking.'
+                : !docSelect.value
+                ? 'Department: ' + dept + ' — now choose a doctor before loading slots.'
                 : 'Choose a department, doctor, date, and slot to review your booking.';
         }
     }

@@ -424,6 +424,114 @@ void listAppointmentsForDoctorDate(int doctor_id, const char *date) {
     free(list);
 }
 
+void listAllAppointments(void) {
+    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    int count;
+    int i;
+
+    if (list == NULL) return;
+
+    count = loadAppointments(list, MAX_APPOINTMENTS);
+    for (i = 0; i < count; i++) {
+        printf("%d|%d|%d|%s|%s|%s\n",
+            list[i].appointment_id,
+            list[i].patient_id,
+            list[i].doctor_id,
+            list[i].date,
+            list[i].time_slot,
+            list[i].status
+        );
+    }
+
+    free(list);
+}
+
+int findAppointmentById(int appointment_id) {
+    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    int count;
+    int i;
+
+    if (list == NULL) {
+        printf("Error|MemoryAllocationFailed");
+        return 0;
+    }
+
+    count = loadAppointments(list, MAX_APPOINTMENTS);
+    for (i = 0; i < count; i++) {
+        if (list[i].appointment_id == appointment_id) {
+            printf("%d|%d|%d|%s|%s|%s",
+                list[i].appointment_id,
+                list[i].patient_id,
+                list[i].doctor_id,
+                list[i].date,
+                list[i].time_slot,
+                list[i].status
+            );
+            free(list);
+            return 1;
+        }
+    }
+
+    free(list);
+    return 0;
+}
+
+void listAppointmentsForPatient(int patient_id) {
+    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    int count;
+    int i;
+
+    if (list == NULL) return;
+
+    count = loadAppointments(list, MAX_APPOINTMENTS);
+    for (i = 0; i < count; i++) {
+        if (list[i].patient_id == patient_id) {
+            printf("%d|%d|%d|%s|%s|%s\n",
+                list[i].appointment_id,
+                list[i].patient_id,
+                list[i].doctor_id,
+                list[i].date,
+                list[i].time_slot,
+                list[i].status
+            );
+        }
+    }
+
+    free(list);
+}
+
+int findBookedAppointmentForPatientDate(int patient_id, const char *date) {
+    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    int count;
+    int i;
+
+    if (list == NULL) {
+        printf("Error|MemoryAllocationFailed");
+        return 0;
+    }
+
+    count = loadAppointments(list, MAX_APPOINTMENTS);
+    for (i = 0; i < count; i++) {
+        if (list[i].patient_id == patient_id &&
+            strcmp(list[i].date, date) == 0 &&
+            strcmp(list[i].status, "Booked") == 0) {
+            printf("%d|%d|%d|%s|%s|%s",
+                list[i].appointment_id,
+                list[i].patient_id,
+                list[i].doctor_id,
+                list[i].date,
+                list[i].time_slot,
+                list[i].status
+            );
+            free(list);
+            return 1;
+        }
+    }
+
+    free(list);
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
     int ok = 0;
 
@@ -451,6 +559,16 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[1], "list") == 0 && argc == 4) {
         listAppointmentsForDoctorDate(atoi(argv[2]), argv[3]);
         ok = 1;
+    } else if (strcmp(argv[1], "list-all") == 0) {
+        listAllAppointments();
+        ok = 1;
+    } else if (strcmp(argv[1], "find-id") == 0 && argc == 3) {
+        ok = findAppointmentById(atoi(argv[2]));
+    } else if (strcmp(argv[1], "list-for-patient") == 0 && argc == 3) {
+        listAppointmentsForPatient(atoi(argv[2]));
+        ok = 1;
+    } else if (strcmp(argv[1], "find-booked-patient-date") == 0 && argc == 4) {
+        ok = findBookedAppointmentForPatientDate(atoi(argv[2]), argv[3]);
     } else {
         printf("Error|InvalidCommand");
         return 1;

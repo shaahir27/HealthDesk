@@ -171,6 +171,68 @@
 .bx-remove-btn:hover { background: #fdedec; border-color: #f1aeb5; }
 /* Make selects in the table tall enough for touch */
 .bx-builder-table select { min-height: 44px; }
+.bx-link-btn {
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--hd-primary-dark);
+    font-weight: 700;
+    cursor: pointer;
+    text-align: left;
+}
+.bx-link-btn:hover { text-decoration: underline; }
+.bx-modal-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 12px;
+}
+.bx-modal-field {
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--hd-bg);
+    border: 1px solid var(--hd-border);
+}
+.bx-modal-field small {
+    display: block;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .7px;
+    text-transform: uppercase;
+    color: var(--hd-text-muted);
+    margin-bottom: 4px;
+}
+.bx-modal-field.full { grid-column: 1 / -1; }
+.hd-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 1050;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+}
+.hd-modal-overlay.active { display: flex; }
+.hd-modal-content {
+    background: var(--hd-surface);
+    border-radius: 16px;
+    width: min(720px, 92vw);
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 24px;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0,0,0,.2);
+}
+.hd-modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    border: none;
+    background: none;
+    font-size: 1.5rem;
+    color: var(--hd-text-muted);
+    cursor: pointer;
+}
 
 /* ── add-ons: lab tests ── */
 .bx-addon-card {
@@ -593,6 +655,24 @@
                         </div>
                         <p class="bx-queue-meta">Appt #{{ item.appointment_id }} &middot; {{ item.department or "—" }}</p>
                         <div class="bx-queue-actions">
+                            <button type="button"
+                                    class="hd-btn hd-btn-outline hd-btn-sm"
+                                    data-billing-ready-detail
+                                    data-patient-id="{{ item.patient_id }}"
+                                    data-patient-name="{{ item.name }}"
+                                    data-age="{{ item.age }}"
+                                    data-gender="{{ item.gender }}"
+                                    data-phone="{{ item.phone }}"
+                                    data-symptoms="{{ item.symptoms }}"
+                                    data-doctor-name="{{ item.doctor_name }}"
+                                    data-department="{{ item.department }}"
+                                    data-appointment-id="{{ item.appointment_id }}"
+                                    data-appointment-date="{{ item.appointment_date }}"
+                                    data-appointment-status="{{ item.appointment_status }}"
+                                    data-bill-id="{{ item.bill_id }}"
+                                    data-warning="{{ item.warning }}">
+                                <i class="bi bi-card-text"></i> Details
+                            </button>
                             {% if item.bill_id %}
                             <a class="hd-btn hd-btn-outline hd-btn-sm"
                                href="/billing?preview_bill_id={{ item.bill_id }}&patient_id={{ item.patient_id }}">
@@ -714,6 +794,29 @@
                             <strong>Rs {{ b.total|int }}</strong>
                         </div>
                         <div class="bx-hist-actions">
+                            <button type="button"
+                                    class="hd-btn hd-btn-outline hd-btn-sm"
+                                    data-bill-detail
+                                    data-bill-id="{{ b.bill_id }}"
+                                    data-patient-id="{{ b.patient_id }}"
+                                    data-patient-name="{{ b.name }}"
+                                    data-age="{{ b.age }}"
+                                    data-gender="{{ b.gender }}"
+                                    data-doctor-name="{{ b.doctor }}"
+                                    data-department="{{ b.department }}"
+                                    data-date="{{ b.date }}"
+                                    data-status="{{ b.status }}"
+                                    data-total="{{ b.total|int }}"
+                                    data-doctor-fee="{{ b.doctor_fee|int }}"
+                                    data-treatment-total="{{ b.treatment_total|int }}"
+                                    data-lab-total="{{ b.lab_total|int }}"
+                                    data-medicine-total="{{ b.medicine_total|int }}"
+                                    data-payment-method="{{ payment_method_label(b.payment_method) }}"
+                                    data-paid-at="{{ payment_timestamp_label(b.paid_at) }}"
+                                    data-appointment-id="{{ b.appointment_id }}"
+                                    data-medicine-notes="{{ b.medicine_notes }}">
+                                <i class="bi bi-card-text"></i> Details
+                            </button>
                             <a class="hd-btn hd-btn-outline hd-btn-sm"
                                href="/billing?preview_bill_id={{ b.bill_id }}">
                                 <i class="bi bi-eye"></i> Preview
@@ -762,6 +865,32 @@
     </div>
 </div>
 
+<div id="billingDetailModal" class="hd-modal-overlay">
+    <div class="hd-modal-content">
+        <button class="hd-modal-close" type="button" onclick="closeBillingModal()">&times;</button>
+        <h3 class="bx-card-title" style="margin-bottom:18px;">Billing Details</h3>
+        <div class="bx-modal-grid">
+            <div class="bx-modal-field"><small>Patient</small><strong id="bill_detail_patient">—</strong></div>
+            <div class="bx-modal-field"><small>Patient ID</small><span id="bill_detail_patient_id">—</span></div>
+            <div class="bx-modal-field"><small>Age / Gender</small><span id="bill_detail_demo">—</span></div>
+            <div class="bx-modal-field"><small>Phone</small><span id="bill_detail_phone">—</span></div>
+            <div class="bx-modal-field"><small>Doctor</small><strong id="bill_detail_doctor">—</strong></div>
+            <div class="bx-modal-field"><small>Department</small><span id="bill_detail_department">—</span></div>
+            <div class="bx-modal-field"><small>Appointment</small><span id="bill_detail_appointment">—</span></div>
+            <div class="bx-modal-field"><small>Status</small><span id="bill_detail_status">—</span></div>
+            <div class="bx-modal-field"><small>Bill ID</small><span id="bill_detail_bill_id">—</span></div>
+            <div class="bx-modal-field"><small>Date</small><span id="bill_detail_date">—</span></div>
+            <div class="bx-modal-field"><small>Total</small><strong id="bill_detail_total">—</strong></div>
+            <div class="bx-modal-field"><small>Payment</small><span id="bill_detail_payment">—</span></div>
+            <div class="bx-modal-field"><small>Doctor Fee</small><span id="bill_detail_doctor_fee">—</span></div>
+            <div class="bx-modal-field"><small>Treatments</small><span id="bill_detail_treatments">—</span></div>
+            <div class="bx-modal-field"><small>Lab Tests</small><span id="bill_detail_labs">—</span></div>
+            <div class="bx-modal-field"><small>Medicines</small><span id="bill_detail_medicines">—</span></div>
+            <div class="bx-modal-field full"><small>Symptoms / Notes</small><span id="bill_detail_notes">—</span></div>
+        </div>
+    </div>
+</div>
+
 <script>
 (function () {
     "use strict";
@@ -776,6 +905,61 @@
     const billDateInp = document.getElementById("bill_date");
     const medAmtInp   = document.getElementById("medicine_amount");
     const genBtn      = document.getElementById("generate_bill_btn");
+
+    window.closeBillingModal = function() {
+        document.getElementById("billingDetailModal").classList.remove("active");
+    };
+
+    function fillBillingDetail(fieldId, value, fallback) {
+        const el = document.getElementById(fieldId);
+        if (el) el.textContent = value || fallback || "—";
+    }
+
+    document.querySelectorAll("[data-billing-ready-detail]").forEach(function(btn) {
+        btn.addEventListener("click", function() {
+            fillBillingDetail("bill_detail_patient", btn.dataset.patientName, "Patient");
+            fillBillingDetail("bill_detail_patient_id", "#" + (btn.dataset.patientId || "—"));
+            fillBillingDetail("bill_detail_demo", (btn.dataset.age || "—") + " / " + (btn.dataset.gender || "—"));
+            fillBillingDetail("bill_detail_phone", btn.dataset.phone, "—");
+            fillBillingDetail("bill_detail_doctor", btn.dataset.doctorName, "Doctor pending");
+            fillBillingDetail("bill_detail_department", btn.dataset.department, "—");
+            fillBillingDetail("bill_detail_appointment", "Appt #" + (btn.dataset.appointmentId || "—") + " on " + (btn.dataset.appointmentDate || "—"));
+            fillBillingDetail("bill_detail_status", btn.dataset.appointmentStatus, "—");
+            fillBillingDetail("bill_detail_bill_id", btn.dataset.billId ? ("Bill #" + btn.dataset.billId) : "Not billed yet");
+            fillBillingDetail("bill_detail_date", btn.dataset.appointmentDate, "—");
+            fillBillingDetail("bill_detail_total", btn.dataset.billId ? "Open existing bill" : "Ready to generate");
+            fillBillingDetail("bill_detail_payment", btn.dataset.warning, "Awaiting billing");
+            fillBillingDetail("bill_detail_doctor_fee", "—");
+            fillBillingDetail("bill_detail_treatments", "—");
+            fillBillingDetail("bill_detail_labs", "—");
+            fillBillingDetail("bill_detail_medicines", "—");
+            fillBillingDetail("bill_detail_notes", btn.dataset.symptoms, "No notes recorded.");
+            document.getElementById("billingDetailModal").classList.add("active");
+        });
+    });
+
+    document.querySelectorAll("[data-bill-detail]").forEach(function(btn) {
+        btn.addEventListener("click", function() {
+            fillBillingDetail("bill_detail_patient", btn.dataset.patientName, "Patient");
+            fillBillingDetail("bill_detail_patient_id", "#" + (btn.dataset.patientId || "—"));
+            fillBillingDetail("bill_detail_demo", (btn.dataset.age || "—") + " / " + (btn.dataset.gender || "—"));
+            fillBillingDetail("bill_detail_phone", "—");
+            fillBillingDetail("bill_detail_doctor", btn.dataset.doctorName, "—");
+            fillBillingDetail("bill_detail_department", btn.dataset.department, "—");
+            fillBillingDetail("bill_detail_appointment", btn.dataset.appointmentId ? ("Appt #" + btn.dataset.appointmentId) : "Linked manually");
+            fillBillingDetail("bill_detail_status", btn.dataset.status, "—");
+            fillBillingDetail("bill_detail_bill_id", "Bill #" + (btn.dataset.billId || "—"));
+            fillBillingDetail("bill_detail_date", btn.dataset.date, "—");
+            fillBillingDetail("bill_detail_total", "Rs " + (btn.dataset.total || "0"));
+            fillBillingDetail("bill_detail_payment", btn.dataset.paidAt ? ((btn.dataset.paymentMethod || "Payment recorded") + " · " + btn.dataset.paidAt) : (btn.dataset.paymentMethod || "Pending"));
+            fillBillingDetail("bill_detail_doctor_fee", "Rs " + (btn.dataset.doctorFee || "0"));
+            fillBillingDetail("bill_detail_treatments", "Rs " + (btn.dataset.treatmentTotal || "0"));
+            fillBillingDetail("bill_detail_labs", "Rs " + (btn.dataset.labTotal || "0"));
+            fillBillingDetail("bill_detail_medicines", "Rs " + (btn.dataset.medicineTotal || "0"));
+            fillBillingDetail("bill_detail_notes", btn.dataset.medicineNotes, "No notes recorded.");
+            document.getElementById("billingDetailModal").classList.add("active");
+        });
+    });
 
     /* ─── helpers ─── */
     function fmt(v) { return "Rs " + Number(v || 0).toFixed(0); }

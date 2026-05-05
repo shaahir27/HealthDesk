@@ -1,54 +1,89 @@
 {% extends "index.html" %}
 {% block content %}
 <style>
-/* ── Doctor Management ── */
+/* Doctor Management */
 .drx-shell { display: grid; gap: 20px; }
 .drx-layout {
     display: grid;
-    grid-template-columns: 380px minmax(0,1fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 20px;
-    align-items: start;
 }
 .drx-card {
-    background: var(--hd-surface); border: 1px solid var(--hd-border);
-    border-radius: var(--hd-radius); box-shadow: var(--hd-shadow);
+    background: var(--hd-surface);
+    border: 1px solid var(--hd-border);
+    border-radius: var(--hd-radius);
+    box-shadow: var(--hd-shadow);
 }
-.drx-body { padding: clamp(16px,2.5vw,22px); }
+.drx-card--primary {
+    border-color: color-mix(in srgb, var(--hd-primary) 22%, var(--hd-border));
+}
+.drx-body { padding: clamp(16px, 2.5vw, 22px); }
 .drx-head {
-    display: flex; justify-content: space-between; align-items: flex-start;
-    gap: 14px; margin-bottom: 18px; flex-wrap: wrap;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
 }
 .drx-title { font-size: 1rem; font-weight: 700; color: var(--hd-text); margin: 0 0 3px; }
-.drx-sub   { font-size: .82rem; color: var(--hd-text-muted); margin: 0; }
+.drx-sub { font-size: .82rem; color: var(--hd-text-muted); margin: 0; }
 
-/* Password field with toggle */
 .drx-pw-wrap { position: relative; }
 .drx-pw-wrap input { padding-right: 44px; }
 .drx-pw-toggle {
-    position: absolute; right: 0; top: 0; bottom: 0;
-    width: 44px; display: flex; align-items: center; justify-content: center;
-    background: none; border: none; color: var(--hd-text-muted); cursor: pointer;
-    font-size: 1rem; transition: color .15s;
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--hd-text-muted);
+    cursor: pointer;
+    font-size: 1rem;
+    transition: color .15s;
 }
 .drx-pw-toggle:hover { color: var(--hd-primary); }
 
-/* Credentials alert box */
 .drx-creds {
-    padding: 16px 18px; border-radius: 12px; margin-bottom: 16px;
-    background: #edfaf3; border: 1px solid #a3d9bc;
+    padding: 16px 18px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    background: #edfaf3;
+    border: 1px solid #a3d9bc;
 }
 .drx-creds h6 { font-size: .9rem; font-weight: 700; color: #0f5132; margin: 0 0 10px; }
 .drx-creds-row {
-    display: flex; justify-content: space-between; align-items: center;
-    gap: 10px; padding: 8px 12px; border-radius: 8px;
-    background: rgba(255,255,255,.6); border: 1px solid #c3e6cb;
-    margin-bottom: 8px; flex-wrap: wrap;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .6);
+    border: 1px solid #c3e6cb;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
 }
 .drx-creds-row:last-child { margin-bottom: 0; }
-.drx-creds-row small { font-size: .68rem; text-transform: uppercase; letter-spacing: .6px; color: #0f5132; font-weight: 700; }
-.drx-creds-row code  { font-size: .92rem; color: #0f5132; font-family: monospace; word-break: break-all; }
+.drx-creds-row small {
+    font-size: .68rem;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: #0f5132;
+    font-weight: 700;
+}
+.drx-creds-row code {
+    font-size: .92rem;
+    color: #0f5132;
+    font-family: monospace;
+    word-break: break-all;
+}
 
-/* Doctor table wrap */
 .drx-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .drx-action-form { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
 .drx-action-form .form-select { min-height: 36px; font-size: .8rem; border-radius: 8px; min-width: 110px; }
@@ -67,17 +102,19 @@
     font-size: .72rem;
     color: var(--hd-text-muted);
 }
-
-/* Empty state */
 .drx-empty {
-    padding: 22px; text-align: center;
-    border: 2px dashed var(--hd-border); border-radius: 12px;
-    color: var(--hd-text-muted); font-size: .84rem;
+    padding: 22px;
+    text-align: center;
+    border: 2px dashed var(--hd-border);
+    border-radius: 12px;
+    color: var(--hd-text-muted);
+    font-size: .84rem;
 }
 
-/* Responsive */
-@media (max-width: 1000px) { .drx-layout { grid-template-columns: 1fr; } }
-@media (max-width: 560px)  { .drx-action-form { flex-direction: column; align-items: stretch; } .drx-action-form .hd-btn { width: 100%; justify-content: center; } }
+@media (max-width: 560px) {
+    .drx-action-form { flex-direction: column; align-items: stretch; }
+    .drx-action-form .hd-btn { width: 100%; justify-content: center; }
+}
 </style>
 
 <div class="hd-page-header">
@@ -89,10 +126,9 @@
 <div class="hd-alert warning"><i class="bi bi-exclamation-triangle me-1"></i> {{ status_note }}</div>
 {% endif %}
 
-{# ── New credentials banner ── #}
 {% if created_account %}
 <div class="drx-creds">
-    <h6><i class="bi bi-check-circle-fill me-1"></i> Doctor account created — share these credentials securely</h6>
+    <h6><i class="bi bi-check-circle-fill me-1"></i> Doctor account created - share these credentials securely</h6>
     <div class="drx-creds-row">
         <small>Doctor</small>
         <code>{{ created_account.doctor_name }}</code>
@@ -108,16 +144,33 @@
 </div>
 {% endif %}
 
+{% if reset_account %}
+<div class="drx-creds">
+    <h6><i class="bi bi-key-fill me-1"></i> Staff password regenerated - share this only with the staff member</h6>
+    <div class="drx-creds-row">
+        <small>Staff</small>
+        <code>{{ reset_account.staff_name }} ({{ reset_account.role }})</code>
+    </div>
+    <div class="drx-creds-row">
+        <small>Username</small>
+        <code>{{ reset_account.username }}</code>
+    </div>
+    <div class="drx-creds-row">
+        <small>New Password</small>
+        <code>{{ reset_account.password }}</code>
+    </div>
+</div>
+{% endif %}
+
 <div class="drx-shell">
     <div class="drx-layout">
 
-        {# ── Add doctor form ── #}
-        <div class="drx-card">
+        <div class="drx-card drx-card--primary">
             <div class="drx-body">
                 <div class="drx-head">
                     <div>
                         <h5 class="drx-title"><i class="bi bi-person-plus-fill me-1"></i> Add New Doctor</h5>
-                        <p class="drx-sub">Leave username / password blank to auto-generate credentials.</p>
+                        <p class="drx-sub">The add-doctor panel now stays at the top, with the rest of the management tools stacked below it.</p>
                     </div>
                 </div>
                 <form action="/add_doctor" method="POST">
@@ -142,14 +195,12 @@
                         </div>
                         <div class="col-12">
                             <label class="form-label">Username <span class="text-muted">(optional)</span></label>
-                            <input type="text" name="username" class="form-control"
-                                   placeholder="Auto-generated if blank" autocomplete="off">
+                            <input type="text" name="username" class="form-control" placeholder="Auto-generated if blank" autocomplete="off">
                         </div>
                         <div class="col-12">
                             <label class="form-label">Password <span class="text-muted">(optional)</span></label>
                             <div class="drx-pw-wrap">
-                                <input type="password" name="password" id="newDoctorPw" class="form-control"
-                                       placeholder="Auto-generated if blank" autocomplete="new-password">
+                                <input type="password" name="password" id="newDoctorPw" class="form-control" placeholder="Auto-generated if blank" autocomplete="new-password">
                                 <button type="button" class="drx-pw-toggle" id="togglePw" aria-label="Show/hide password">
                                     <i class="bi bi-eye" id="togglePwIcon"></i>
                                 </button>
@@ -169,7 +220,54 @@
             </div>
         </div>
 
-        {# ── Doctor directory ── #}
+        <div class="drx-card">
+            <div class="drx-body">
+                <div class="drx-head">
+                    <div>
+                        <h5 class="drx-title"><i class="bi bi-shield-lock-fill me-1"></i> Staff Access</h5>
+                        <p class="drx-sub">Regenerate passwords for doctor and reception accounts. Patients use OTP login, so they are excluded here.</p>
+                    </div>
+                </div>
+                {% if staff_accounts %}
+                <div class="drx-table-wrap">
+                    <table class="hd-table">
+                        <thead>
+                            <tr>
+                                <th>Role</th>
+                                <th>Staff</th>
+                                <th>Username</th>
+                                <th>Access</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for account in staff_accounts %}
+                            <tr>
+                                <td><span class="hd-badge {% if account.role == 'Doctor' %}booked{% else %}normal{% endif %}">{{ account.role }}</span></td>
+                                <td>
+                                    <div style="font-weight:700;">{{ account.staff_name or account.username }}</div>
+                                    {% if account.department %}<small class="text-muted">{{ account.department }}</small>{% endif %}
+                                </td>
+                                <td><code style="font-size:.82rem;">{{ account.username }}</code></td>
+                                <td>
+                                    <form action="/staff/reset-password" method="POST" onsubmit="return confirm('Generate a new password for {{ account.username }}? The old password will stop working immediately.');">
+                                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="account_id" value="{{ account.id }}">
+                                        <button class="hd-btn hd-btn-outline hd-btn-sm">
+                                            <i class="bi bi-key"></i> Regenerate Password
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="drx-empty">No staff login accounts found.</div>
+                {% endif %}
+            </div>
+        </div>
+
         <div class="drx-card">
             <div class="drx-body">
                 <div class="drx-head">
@@ -226,18 +324,18 @@
                                 <td>
                                     <form action="/doctor_status" method="POST" class="drx-action-form" data-doctor-status-form>
                                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                                        <input type="hidden" name="doctor_id"   value="{{ d.id }}">
+                                        <input type="hidden" name="doctor_id" value="{{ d.id }}">
                                         <select name="daily_status" class="form-select" data-daily-status-select required>
-                                            <option value="Available"   {% if d.daily_status == "Available"   %}selected{% endif %}>Available</option>
+                                            <option value="Available" {% if d.daily_status == "Available" %}selected{% endif %}>Available</option>
                                             <option value="Unavailable" {% if d.daily_status == "Unavailable" %}selected{% endif %}>Unavailable</option>
-                                            <option value="Off"         {% if d.daily_status == "Off"         %}selected{% endif %}>Off Duty</option>
+                                            <option value="Off" {% if d.daily_status == "Off" %}selected{% endif %}>Off Duty</option>
                                         </select>
                                         <select name="current_status" class="form-select" data-current-status-select required>
                                             {% if d.current_status not in ["Free", "Busy", "Emergency"] %}
                                             <option value="{{ d.current_status }}" selected>{{ d.current_status_label }}</option>
                                             {% endif %}
-                                            <option value="Free"      {% if d.current_status == "Free"      %}selected{% endif %}>Free</option>
-                                            <option value="Busy"      {% if d.current_status == "Busy"      %}selected{% endif %}>Busy</option>
+                                            <option value="Free" {% if d.current_status == "Free" %}selected{% endif %}>Free</option>
+                                            <option value="Busy" {% if d.current_status == "Busy" %}selected{% endif %}>Busy</option>
                                             <option value="Emergency" {% if d.current_status == "Emergency" %}selected{% endif %}>Emergency</option>
                                         </select>
                                         <input type="date"

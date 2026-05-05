@@ -77,6 +77,16 @@
 }
 .rcx-slot-label::after { content: ''; flex: 1; height: 1px; background: var(--hd-border); }
 
+.rcx-slot-form.selected .hd-slot.available {
+    border-color: #c2410c;
+    background: #fff2e8;
+    box-shadow: 0 0 0 3px rgba(194,65,12,.18);
+}
+.rcx-slot-form.selected .hd-slot-time,
+.rcx-slot-form.selected .hd-slot-label {
+    color: #9a3412;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
     .rcx-facts     { grid-template-columns: repeat(2, minmax(0,1fr)); }
@@ -121,8 +131,12 @@
         <div class="rcx-step-circle"><i class="bi bi-person-badge"></i></div>
         <div class="rcx-step-label">{% if show_registration %}Register{% else %}Profile{% endif %}</div>
     </div>
-    <div class="rcx-step {% if patient and not slots %}active{% elif slots %}done{% endif %}">
+    <div class="rcx-step {% if patient and not selected_doctor %}active{% elif selected_doctor %}done{% endif %}">
         <div class="rcx-step-circle"><i class="bi bi-calendar3"></i></div>
+        <div class="rcx-step-label">Choose Doctor</div>
+    </div>
+    <div class="rcx-step {% if selected_doctor and not slots %}active{% elif slots %}done{% endif %}">
+        <div class="rcx-step-circle"><i class="bi bi-grid-3x3-gap"></i></div>
         <div class="rcx-step-label">Choose Slot</div>
     </div>
     <div class="rcx-step {% if slots %}active{% endif %}">
@@ -212,6 +226,7 @@
                     <div class="col-12 col-md-4">
                         <label class="form-label">Doctor</label>
                         <select name="doctor_id" class="form-select">
+                            <option value="">Select doctor</option>
                             {% for d in doctors %}
                             {% if not selected_department or d.department == selected_department %}
                             <option value="{{ d.id }}" {% if selected_doctor|int == d.id %}selected{% endif %}>
@@ -232,6 +247,13 @@
                     </div>
                 </div>
             </form>
+
+            {% if not selected_doctor %}
+            <div class="hd-alert info mt-3 mb-0">
+                <i class="bi bi-info-circle me-1"></i>
+                Choose a doctor first. Slots will load only after a doctor is assigned.
+            </div>
+            {% endif %}
 
             {% if selected_doctor_info %}
             <div class="rcx-doc-strip mt-3">
@@ -266,7 +288,7 @@
     {% endif %}
 
     {# ── Step 4: Slots ── #}
-    {% if slots %}
+    {% if selected_doctor %}
     <div class="rcx-card">
         <div class="rcx-body">
             <div class="rcx-head">
@@ -276,14 +298,23 @@
                 </div>
             </div>
 
-            {# Group slots by time of day #}
-            {% set morning   = slots | selectattr('time', 'lt', '12') | list %}
-            {% set afternoon = slots | selectattr('time', 'ge', '12') | selectattr('time', 'lt', '17') | list %}
-            {% set evening   = slots | rejectattr('time', 'lt', '12') | rejectattr('time', 'lt', '17') | list %}
-
-            {% for period, icon, slot_list in [
-                ("Morning",   "bi-sunrise",      slots | selectattr('time', 'defined') | list),
-            ] %}{% endfor %}
+            {% set available_slots = slots | selectattr('state', 'equalto', 'Available') | list %}
+            {% set elapsed_slots = slots | selectattr('state', 'equalto', 'Elapsed') | list %}
+            {% if not slots %}
+            <div class="hd-alert info mb-3">
+                <i class="bi bi-calendar-x me-1"></i>
+                No slots are configured for this doctor on {{ selected_date }}.
+            </div>
+            {% elif not available_slots %}
+            <div class="hd-alert {% if elapsed_slots %}info{% else %}danger{% endif %} mb-3">
+                <i class="bi {% if elapsed_slots %}bi-clock-history{% else %}bi-calendar2-x{% endif %} me-1"></i>
+                {% if elapsed_slots %}
+                No bookable slots remain for {{ selected_date }}. Earlier slots have already passed.
+                {% else %}
+                All slots are booked for {{ selected_date }}. Review the full schedule below or choose another doctor/date.
+                {% endif %}
+            </div>
+            {% endif %}
 
             {# Simple flat render with inline period labels #}
             {% set ns = namespace(last_period='') %}
@@ -296,7 +327,7 @@
                     {# Close and reopen grid for label — done via JS below for cleanliness #}
                 {% endif %}
                 {% if slot.state == "Available" %}
-                <form action="/book_appointment" method="POST" data-period="{{ period }}">
+                <form action="/book_appointment" method="POST" class="rcx-slot-form" data-period="{{ period }}">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="return_to"        value="reception">
                     <input type="hidden" name="patient_id"       value="{{ patient.id }}">
@@ -398,6 +429,15 @@
         lbl.innerHTML = '<i class="bi ' + (icons[period]||"bi-clock") + '"></i>' + period +
             '<span style="flex:1;height:1px;background:var(--hd-border);display:inline-block;margin-left:4px;"></span>';
         grid.insertBefore(lbl, el);
+    });
+
+    grid.querySelectorAll(".rcx-slot-form").forEach(function(form) {
+        form.addEventListener("submit", function() {
+            grid.querySelectorAll(".rcx-slot-form").forEach(function(item) {
+                item.classList.remove("selected");
+            });
+            form.classList.add("selected");
+        });
     });
 })();
 </script>

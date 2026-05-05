@@ -200,6 +200,60 @@ int searchByPhone(const char *phone, struct Patient *result) {
     return 0;
 }
 
+int findById(int patient_id, struct Patient *result) {
+    struct PatientNode *current;
+
+    loadPatients();
+    current = patients_head;
+
+    while (current != NULL) {
+        if (current->data.id == patient_id) {
+            *result = current->data;
+            return 1;
+        }
+        current = current->next;
+    }
+
+    return 0;
+}
+
+void listPatients(void) {
+    struct PatientNode *current;
+
+    loadPatients();
+    current = patients_head;
+    while (current != NULL) {
+        struct Patient p = current->data;
+        printf("%d|%s|%d|%s|%s|%s|%s|%s|%s|%s\n",
+            p.id,
+            p.name,
+            p.age,
+            p.gender,
+            p.phone,
+            p.address,
+            p.symptoms,
+            p.visit_type,
+            p.priority,
+            p.department
+        );
+        current = current->next;
+    }
+}
+
+int countPatients(void) {
+    int count = 0;
+    struct PatientNode *current;
+
+    loadPatients();
+    current = patients_head;
+    while (current != NULL) {
+        count++;
+        current = current->next;
+    }
+
+    return count;
+}
+
 void parse_patient_data(const char *data, struct Patient *p) {
     char buffer[MAX_LINE];
     char *token;
@@ -292,6 +346,28 @@ int main(int argc, char *argv[]) {
 
         printf("PatientNotFound");
         return 1;
+    }
+
+    if (strcmp(argv[1], "get-by-id") == 0 && argc == 3) {
+        struct Patient p;
+
+        if (findById(atoi(argv[2]), &p)) {
+            printPatient(p);
+            return 0;
+        }
+
+        printf("PatientNotFound");
+        return 1;
+    }
+
+    if (strcmp(argv[1], "list") == 0) {
+        listPatients();
+        return 0;
+    }
+
+    if (strcmp(argv[1], "count") == 0) {
+        printf("%d", countPatients());
+        return 0;
     }
 
     addPatient(argv[1]);

@@ -63,6 +63,10 @@ void printDoctor(struct Doctor d) {
     );
 }
 
+int doctorMatchesAvailabilityCount(struct Doctor *d) {
+    return strcmp(d->daily_status, "Available") == 0 && strcmp(d->current_status, "Free") == 0;
+}
+
 int generate_id() {
     FILE *fp;
     int max_id = 0;
@@ -144,6 +148,49 @@ void viewDoctors() {
     }
 
     fclose(fp);
+}
+
+int getDoctorById(int doctor_id, struct Doctor *result) {
+    FILE *fp = fopen(DOCTOR_FILE, "r");
+    char line[MAX_LINE];
+
+    if (!fp) return 0;
+
+    while (fgets(line, sizeof(line), fp)) {
+        struct Doctor d;
+        if (!parseDoctorLine(line, &d)) continue;
+        if (d.id == doctor_id) {
+            *result = d;
+            fclose(fp);
+            return 1;
+        }
+    }
+
+    fclose(fp);
+    return 0;
+}
+
+int countAvailableDoctors(void) {
+    FILE *fp = fopen(DOCTOR_FILE, "r");
+    char line[MAX_LINE];
+    int count = 0;
+
+    if (!fp) return 0;
+
+    while (fgets(line, sizeof(line), fp)) {
+        struct Doctor d;
+        if (parseDoctorLine(line, &d) && doctorMatchesAvailabilityCount(&d)) {
+            count++;
+        }
+    }
+
+    fclose(fp);
+    return count;
+}
+
+int doctorExists(int doctor_id) {
+    struct Doctor doctor;
+    return getDoctorById(doctor_id, &doctor);
 }
 
 void updateDoctorStatuses(int doctor_id, char *daily_status, char *current_status) {
@@ -402,6 +449,21 @@ int main(int argc, char *argv[]) {
     }
     else if (strcmp(argv[1], "find") == 0 && argc == 3) {
         printf("%d", findAvailableDoctor(argv[2]));
+    }
+    else if (strcmp(argv[1], "get-by-id") == 0 && argc == 3) {
+        struct Doctor doctor;
+        if (getDoctorById(atoi(argv[2]), &doctor)) {
+            printDoctor(doctor);
+            return 0;
+        }
+        printf("DoctorNotFound");
+        return 1;
+    }
+    else if (strcmp(argv[1], "count-available") == 0) {
+        printf("%d", countAvailableDoctors());
+    }
+    else if (strcmp(argv[1], "exists") == 0 && argc == 3) {
+        printf("%d", doctorExists(atoi(argv[2])));
     }
     else {
         addDoctor(argv[1]);
