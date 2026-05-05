@@ -28,3 +28,9 @@ tmp*/
 
 changes.md
 v2.0.zip
+
+# Ignore Markdown files
+*.md
+
+# Ignore zip files
+*.zip
