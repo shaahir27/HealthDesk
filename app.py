@@ -4,6 +4,7 @@ import hmac
 from io import BytesIO
 import json
 import os
+import platform
 import re
 import secrets
 import subprocess
@@ -30,13 +31,15 @@ DIAGNOSIS_FILE = os.path.join(DATA_DIR, "diagnosis.txt")
 PENDING_APPOINTMENTS_FILE = os.path.join(DATA_DIR, "pending_appointments.txt")
 NEW_PATIENT_REQUESTS_FILE = os.path.join(DATA_DIR, "new_patient_requests.txt")
 DOCTOR_STATUS_META_FILE = os.path.join(DATA_DIR, "doctor_status_meta.json")
-BILLING_EXE = os.path.join(BACKEND_DIR, "c_modules", "billing.exe")
-ADVANCE_EXE = os.path.join(BACKEND_DIR, "c_modules", "advance.exe")
-PENDING_REQUEST_EXE = os.path.join(BACKEND_DIR, "c_modules", "pending_request.exe")
-PATIENT_EXE = os.path.join(BACKEND_DIR, "c_modules", "patient.exe")
-DOCTOR_EXE = os.path.join(BACKEND_DIR, "c_modules", "doctor.exe")
-APPOINTMENT_EXE = os.path.join(BACKEND_DIR, "c_modules", "appointment.exe")
-QUEUE_EXE = os.path.join(BACKEND_DIR, "c_modules", "queue.exe")
+_EXE_SUFFIX = ".exe" if platform.system() == "Windows" else ""
+BILLING_EXE = os.path.join(BACKEND_DIR, "c_modules", f"billing{_EXE_SUFFIX}")
+ADVANCE_EXE = os.path.join(BACKEND_DIR, "c_modules", f"advance{_EXE_SUFFIX}")
+PENDING_REQUEST_EXE = os.path.join(BACKEND_DIR, "c_modules", f"pending_request{_EXE_SUFFIX}")
+PATIENT_EXE = os.path.join(BACKEND_DIR, "c_modules", f"patient{_EXE_SUFFIX}")
+DOCTOR_EXE = os.path.join(BACKEND_DIR, "c_modules", f"doctor{_EXE_SUFFIX}")
+APPOINTMENT_EXE = os.path.join(BACKEND_DIR, "c_modules", f"appointment{_EXE_SUFFIX}")
+QUEUE_EXE = os.path.join(BACKEND_DIR, "c_modules", f"queue{_EXE_SUFFIX}")
+_UTILS_EXE = os.path.join(BACKEND_DIR, "c_modules", f"utils{_EXE_SUFFIX}")
 _appointment_lock = threading.Lock()
 _pending_appointment_lock = threading.Lock()
 _new_patient_request_lock = threading.Lock()
@@ -61,23 +64,6 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax"
 )
-def append_data_line(path, line):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    needs_newline = False
-    try:
-        with open(path, "rb") as existing:
-            existing.seek(0, os.SEEK_END)
-            if existing.tell() > 0:
-                existing.seek(-1, os.SEEK_END)
-                needs_newline = existing.read(1) != b"\n"
-    except FileNotFoundError:
-        pass
-
-    with open(path, "a", encoding="utf-8") as f:
-        if needs_newline:
-            f.write("\n")
-        f.write(f"{line}\n")
-
 def clean_record_field(value, max_length=180):
     cleaned = str(value or "").replace("|", "/").replace("\r", " ").replace("\n", " ").strip()
     return cleaned[:max_length]
@@ -163,40 +149,56 @@ def parse_doctor_record_line(line):
 def read_appointment_file():
     appointments = {}
     result = run_appointment_command("list-all")
-    if result and result.returncode == 0:
-        for line in result.stdout.splitlines():
-            appointment = parse_appointment_line(line)
-            if appointment:
-                appointments[appointment["appointment_id"]] = appointment
-        return sorted(appointments.values(), key=lambda item: item["appointment_id"])
-    try:
-        with open(APPOINTMENT_FILE, "r", encoding="utf-8") as f:
-            for line in f:
-                appointment = parse_appointment_line(line)
-                if appointment:
-                    appointments[appointment["appointment_id"]] = appointment
-    except FileNotFoundError:
-        return []
+    if not result or result.returncode != 0:
+        raise RuntimeError("appointment command failed: list-all")
+    for line in result.stdout.splitlines():
+        appointment = parse_appointment_line(line)
+        if appointment:
+            appointments[appointment["appointment_id"]] = appointment
     return sorted(appointments.values(), key=lambda item: item["appointment_id"])
 
 
 def write_appointment_file(appointments):
-    with open(APPOINTMENT_FILE, "w", encoding="utf-8") as f:
-        for appointment in appointments:
-            f.write(
-                f"{int(appointment['appointment_id'])}|{int(appointment['patient_id'])}|"
-                f"{int(appointment['doctor_id'])}|{clean_record_field(appointment['date'])}|"
-                f"{clean_record_field(appointment['time_slot'])}|{clean_record_field(appointment['status'])}\n"
-            )
+    lines = []
+    for appointment in appointments:
+        lines.append(
+            f"{int(appointment['appointment_id'])}|{int(appointment['patient_id'])}|"
+            f"{int(appointment['doctor_id'])}|{clean_record_field(appointment['date'])}|"
+            f"{clean_record_field(appointment['time_slot'])}|{clean_record_field(appointment['status'])}"
+        )
+    payload = "\n".join(lines)
+    if payload:
+        payload += "\n"
+    result = subprocess.run(
+        [APPOINTMENT_EXE, "write-all"],
+        input=payload,
+        capture_output=True,
+        text=True,
+        cwd=BASE_DIR
+    )
+    if not result or result.returncode != 0:
+        raise RuntimeError("appointment command failed: write-all")
 
 
 def write_queue_file(rows):
-    with open(QUEUE_FILE, "w", encoding="utf-8") as f:
-        for row in rows:
-            f.write(
-                f"{int(row['token'])}|{int(row['patient_id'])}|{int(row['doctor_id'])}|"
-                f"{clean_record_field(row['priority'])}|{clean_record_field(row['status'])}\n"
-            )
+    lines = []
+    for row in rows:
+        lines.append(
+            f"{int(row['token'])}|{int(row['patient_id'])}|{int(row['doctor_id'])}|"
+            f"{clean_record_field(row['priority'])}|{clean_record_field(row['status'])}"
+        )
+    payload = "\n".join(lines)
+    if payload:
+        payload += "\n"
+    result = subprocess.run(
+        [QUEUE_EXE, "write-all"],
+        input=payload,
+        capture_output=True,
+        text=True,
+        cwd=BASE_DIR
+    )
+    if not result or result.returncode != 0:
+        raise RuntimeError("queue command failed: write-all")
 
 def is_authenticated():
     return session.get("logged_in", False)
@@ -238,19 +240,38 @@ def authenticate_user(username, password):
             }
     return None
 
+
+def _run_utils_command(*args):
+    try:
+        return subprocess.run(
+            [_UTILS_EXE, *[str(arg) for arg in args]],
+            capture_output=True,
+            text=True,
+            cwd=BASE_DIR
+        )
+    except FileNotFoundError:
+        return None
+
+
 def normalize_phone(phone):
-    return re.sub(r"\D", "", str(phone or ""))
+    result = _run_utils_command("normalize-phone", str(phone or ""))
+    if result and result.returncode == 0:
+        return result.stdout.strip()
+    raise RuntimeError("utils command failed: normalize-phone")
 
 
 def is_valid_patient_phone(phone):
-    return bool(re.fullmatch(r"\d{10}", str(phone or "")))
+    result = _run_utils_command("valid-patient-phone", str(phone or ""))
+    if result and result.returncode == 0:
+        return result.stdout.strip() == "1"
+    raise RuntimeError("utils command failed: valid-patient-phone")
 
 
 def mask_phone(phone):
-    phone = normalize_phone(phone)
-    if len(phone) != 10:
-        return phone
-    return f"{phone[:2]}XXXXX{phone[-3:]}"
+    result = _run_utils_command("mask-phone", str(phone or ""))
+    if result and result.returncode == 0:
+        return result.stdout.strip()
+    raise RuntimeError("utils command failed: mask-phone")
 
 
 def hash_otp(otp):
@@ -330,50 +351,62 @@ def verify_otp(phone, entered):
 
 
 def read_user_accounts():
-    accounts = []
+    _auth_exe = os.path.join(BACKEND_DIR, "c_modules", "auth.exe")
     try:
-        with open(USER_FILE, "r", encoding="utf-8") as f:
-            for line in f:
-                data = line.strip().split("|")
-                if len(data) < 5:
-                    continue
-                try:
-                    accounts.append({
-                        "id": int(data[0]),
-                        "username": data[1],
-                        "password": data[2],
-                        "role": data[3],
-                        "doctor_id": int(data[4] or 0)
-                    })
-                except ValueError:
-                    continue
+        result = subprocess.run(
+            [_auth_exe, "list"],
+            capture_output=True, text=True, cwd=BASE_DIR
+        )
     except FileNotFoundError:
-        pass
+        return []
+    accounts = []
+    if not result or result.returncode != 0:
+        return accounts
+    for line in result.stdout.splitlines():
+        data = line.strip().split("|")
+        if len(data) < 5:
+            continue
+        try:
+            accounts.append({
+                "id": int(data[0]),
+                "username": data[1],
+                "password": data[2],
+                "role": data[3],
+                "doctor_id": int(data[4] or 0)
+            })
+        except ValueError:
+            continue
     return accounts
 
 
-def write_user_accounts(accounts):
-    with open(USER_FILE, "w", encoding="utf-8") as f:
-        for account in accounts:
-            f.write(
-                f"{int(account['id'])}|{clean_record_field(account['username'])}|"
-                f"{clean_record_field(account['password'], 260)}|"
-                f"{clean_record_field(account['role'])}|{int(account['doctor_id'] or 0)}\n"
-            )
-
-
 def next_user_id():
-    return max((account["id"] for account in read_user_accounts()), default=0) + 1
+    _auth_exe = os.path.join(BACKEND_DIR, "c_modules", "auth.exe")
+    try:
+        result = subprocess.run([_auth_exe, "next-id"], capture_output=True, text=True, cwd=BASE_DIR)
+        if result and result.returncode == 0:
+            return safe_int(result.stdout.strip(), 0) or \
+                   max((a["id"] for a in read_user_accounts()), default=0) + 1
+    except FileNotFoundError:
+        pass
+    return max((a["id"] for a in read_user_accounts()), default=0) + 1
+
 
 
 def strip_doctor_title(name):
-    return re.sub(r"^\s*dr\.?\s*", "", name.strip(), flags=re.IGNORECASE)
+    result = _run_utils_command("strip-title", str(name or ""))
+    if result and result.returncode == 0:
+        return result.stdout.strip()
+    raise RuntimeError("utils command failed: strip-title")
 
 
 def build_doctor_username(name, existing_usernames):
-    base_name = strip_doctor_title(name).lower()
-    base = re.sub(r"[^a-z0-9]+", ".", base_name).strip(".") or "doctor"
-    candidate = f"dr.{base}"
+    result = run_doctor_command("build-username", strip_doctor_title(name))
+    if not result or result.returncode != 0:
+        raise RuntimeError("doctor command failed: build-username")
+    candidate = result.stdout.strip() or "dr.doctor"
+    if not candidate.startswith("dr."):
+        candidate = f"dr.{candidate}"
+    base = candidate[3:] if candidate.startswith("dr.") else candidate
     suffix = 2
     while candidate in existing_usernames:
         candidate = f"dr.{base}{suffix}"
@@ -382,17 +415,22 @@ def build_doctor_username(name, existing_usernames):
 
 
 def build_doctor_password(doctor_id):
-    return f"HDDoc{doctor_id}@{date.today().year}"
+    result = run_doctor_command("build-password", int(doctor_id))
+    if result and result.returncode == 0:
+        return result.stdout.strip()
+    raise RuntimeError("doctor command failed: build-password")
 
 
 def save_user_account(username, password, role, doctor_id):
+    _auth_exe = os.path.join(BACKEND_DIR, "c_modules", "auth.exe")
     user_id = next_user_id()
     stored_password = generate_password_hash(password)
     line = (
         f"{user_id}|{clean_record_field(username)}|{clean_record_field(stored_password, 260)}|"
         f"{clean_record_field(role)}|{int(doctor_id or 0)}"
     )
-    append_data_line(USER_FILE, line)
+    subprocess.run([_auth_exe, "save", line], capture_output=True, text=True, cwd=BASE_DIR)
+
 
 
 def generate_staff_password(role, doctor_id=0):
@@ -402,6 +440,7 @@ def generate_staff_password(role, doctor_id=0):
 
 
 def reset_staff_password(account_id):
+    _auth_exe = os.path.join(BACKEND_DIR, "c_modules", "auth.exe")
     account_id = safe_int(account_id)
     accounts = read_user_accounts()
     for account in accounts:
@@ -410,8 +449,14 @@ def reset_staff_password(account_id):
         if str(account.get("role", "")).lower() == "patient":
             return None
         new_password = generate_staff_password(account.get("role", ""), account.get("doctor_id", 0))
-        account["password"] = generate_password_hash(new_password)
-        write_user_accounts(accounts)
+        new_hash = generate_password_hash(new_password)
+        result = subprocess.run(
+            [_auth_exe, "update", str(account["id"]), new_hash],
+            capture_output=True, text=True, cwd=BASE_DIR
+        )
+        if not result or result.returncode != 0:
+            return None
+        account["password"] = new_hash   # keep in-memory copy consistent
         return {
             "account_id": account["id"],
             "username": account["username"],
@@ -514,37 +559,14 @@ def run_queue_command(*args):
         return None
 
 
-def read_billing_lines_fallback():
-    try:
-        with open(BILLING_FILE, "r", encoding="utf-8") as f:
-            return [line.rstrip("\n") for line in f if line.strip()]
-    except FileNotFoundError:
-        return []
-
-
-def next_bill_id_fallback():
-    max_id = 999
-    for line in read_billing_lines_fallback():
-        head = line.split("|", 1)[0]
-        try:
-            max_id = max(max_id, int(head))
-        except ValueError:
-            continue
-    return max_id + 1
-
-
-def save_bill_line_fallback(line):
-    append_data_line(BILLING_FILE, line)
-
-
 def generate_bill_id():
     result = run_billing_command("next-id")
     if result and result.returncode == 0:
         try:
             return int(result.stdout.strip())
         except ValueError:
-            pass
-    return next_bill_id_fallback()
+            raise RuntimeError("invalid output from billing next-id")
+    raise RuntimeError("billing command failed: next-id")
 
 
 def parse_bill_line(line):
@@ -652,21 +674,27 @@ def parse_bill_line(line):
 
 
 def recalculate_bill_total(bill):
-    return (
-        float(bill.get("doctor_fee", 0) or 0)
-        + float(bill.get("treatment_total", 0) or 0)
-        + float(bill.get("lab_total", 0) or 0)
-        + float(bill.get("medicine_total", 0) or 0)
+    result = run_billing_command(
+        "recalc-total",
+        bill.get("doctor_fee", 0) or 0,
+        bill.get("treatment_total", 0) or 0,
+        bill.get("lab_total", 0) or 0,
+        bill.get("medicine_total", 0) or 0,
     )
+    if result and result.returncode == 0:
+        try:
+            return float(result.stdout.strip())
+        except ValueError:
+            raise RuntimeError("invalid output from billing recalc-total")
+    raise RuntimeError("billing command failed: recalc-total")
 
 
 def read_bills():
     bills = []
     result = run_billing_command("list")
-    if result and result.returncode == 0:
-        lines = [line for line in result.stdout.splitlines() if line.strip()]
-    else:
-        lines = read_billing_lines_fallback()
+    if not result or result.returncode != 0:
+        raise RuntimeError("billing command failed: list")
+    lines = [line for line in result.stdout.splitlines() if line.strip()]
 
     for line in lines:
         bill = parse_bill_line(line)
@@ -782,45 +810,25 @@ def serialize_advance_record(adv):
 
 
 def _read_advances_unlocked():
-    if not os.path.exists(ADVANCE_DATA_PATH):
+    result = run_advance_command("list")
+    if not result or result.returncode != 0:
         return []
-    with open(ADVANCE_DATA_PATH, "r", encoding="utf-8") as f:
-        return [record for record in (parse_advance_line(line) for line in f) if record]
+    return [r for r in (parse_advance_line(l) for l in result.stdout.splitlines() if l.strip()) if r]
 
 
 def read_advances():
     with _advance_lock:
-        result = run_advance_command("list")
-        if result and result.returncode == 0:
-            return [
-                record for record in
-                (parse_advance_line(line) for line in result.stdout.splitlines())
-                if record
-            ]
         return _read_advances_unlocked()
 
-
-def _write_all_advances_unlocked(records):
-    os.makedirs(os.path.dirname(ADVANCE_DATA_PATH), exist_ok=True)
-    with open(ADVANCE_DATA_PATH, "w", encoding="utf-8") as f:
-        for record in records:
-            f.write(serialize_advance_record(record) + "\n")
-
-
-def write_all_advances(records):
-    with _advance_lock:
-        _write_all_advances_unlocked(records)
 
 
 def next_advance_id():
     with _advance_lock:
         result = run_advance_command("next-id")
         if result and result.returncode == 0:
-            next_id = safe_int(result.stdout.strip(), 0)
-            if next_id > 0:
-                return next_id
-        records = _read_advances_unlocked()
-        return max((record["advance_id"] for record in records), default=0) + 1
+            return safe_int(result.stdout.strip(), 1)
+        return 1
+
 
 
 def find_advance_by_id(advance_id):
@@ -828,13 +836,8 @@ def find_advance_by_id(advance_id):
         result = run_advance_command("find-id", advance_id)
         if result and result.returncode == 0 and result.stdout.strip():
             return parse_advance_line(result.stdout.strip())
-        return next(
-            (
-                record for record in _read_advances_unlocked()
-                if record["advance_id"] == int(advance_id)
-            ),
-            None
-        )
+        return None
+
 
 
 def find_advance_by_appointment_id(appointment_id):
@@ -842,29 +845,20 @@ def find_advance_by_appointment_id(appointment_id):
         result = run_advance_command("find-appointment", appointment_id)
         if result and result.returncode == 0 and result.stdout.strip():
             return parse_advance_line(result.stdout.strip())
-        return next(
-            (
-                record for record in _read_advances_unlocked()
-                if record["appointment_id"] == int(appointment_id)
-                and record["status"] in {"PAID", "PENDING_PAYMENT"}
-            ),
-            None
-        )
+        return None
+
 
 
 def find_advance_by_order_id(order_id):
     order_id = str(order_id or "").strip()
+    if not order_id:
+        return None
     with _advance_lock:
         result = run_advance_command("find-order", order_id)
         if result and result.returncode == 0 and result.stdout.strip():
             return parse_advance_line(result.stdout.strip())
-        return next(
-            (
-                record for record in _read_advances_unlocked()
-                if record["razorpay_order_id"] == order_id
-            ),
-            None
-        )
+        return None
+
 
 
 def update_advance_record(updated):
@@ -877,9 +871,7 @@ def update_advance_record(updated):
 def create_advance_record(patient_id, doctor_id, appointment_date, amount, pending_request_id=0):
     with _advance_lock:
         result = run_advance_command("next-id")
-        next_id = safe_int(result.stdout.strip(), 0) if result and result.returncode == 0 else 0
-        if next_id <= 0:
-            next_id = max((record["advance_id"] for record in _read_advances_unlocked()), default=0) + 1
+        next_id = safe_int(result.stdout.strip(), 0) if result and result.returncode == 0 else 1
         adv = {
             "advance_id": next_id,
             "patient_id": int(patient_id),
@@ -898,8 +890,9 @@ def create_advance_record(patient_id, doctor_id, appointment_date, amount, pendi
         line = serialize_advance_record(adv)
         result = run_advance_command("save", line)
         if not result or result.returncode != 0:
-            raise RuntimeError(f"advance.exe save failed: {(result.stderr or result.stdout) if result else 'command not found'}")
+            raise RuntimeError("advance.exe save failed")
     return adv
+
 
 
 def get_advance_amount_for_department(department):
@@ -939,52 +932,36 @@ def serialize_booking_intent(advance_id, doctor_id, requested_date, requested_sl
     ])
 
 
-def _save_booking_intent_fallback(serialized_line):
-    append_data_line(BOOKING_INTENT_PATH, serialized_line)
-
-
-def _pop_booking_intent_fallback(advance_id):
-    if not os.path.exists(BOOKING_INTENT_PATH):
-        return None
-    kept, found = [], None
-    with open(BOOKING_INTENT_PATH, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            intent = parse_booking_intent_line(line)
-            if intent and intent["advance_id"] == int(advance_id):
-                found = intent
-            else:
-                kept.append(line)
-    with open(BOOKING_INTENT_PATH, "w", encoding="utf-8") as f:
-        f.write("\n".join(kept) + ("\n" if kept else ""))
-    return found
-
-
 def save_booking_intent(advance_id, doctor_id, requested_date, requested_slot, reason, visit_type, triage):
-    line = serialize_booking_intent(
+    serialized = serialize_booking_intent(
         advance_id, doctor_id, requested_date, requested_slot, reason, visit_type, triage
     )
-    with _advance_lock:
-        result = run_advance_command("save-intent", line)
-        if not result or result.returncode != 0:
-            raise RuntimeError(f"advance.exe save-intent failed: {(result.stderr or result.stdout) if result else 'command not found'}")
+    result = run_advance_command("intent-save", serialized)
+    return bool(result and result.returncode == 0)
 
 
 def pop_booking_intent(advance_id):
-    with _advance_lock:
-        result = run_advance_command("pop-intent", advance_id)
-        if result and result.returncode == 0 and result.stdout.strip():
-            return parse_booking_intent_line(result.stdout.strip())
-        return None
+    result = run_advance_command("intent-pop", advance_id)
+    if result and result.returncode == 0 and result.stdout.strip():
+        return parse_booking_intent_line(result.stdout.strip())
+    return None
+
 
 
 def _write_all_bill_records_unlocked(bills):
-    os.makedirs(os.path.dirname(BILLING_FILE), exist_ok=True)
-    with open(BILLING_FILE, "w", encoding="utf-8") as f:
-        for bill in bills:
-            f.write(f"{serialize_bill_record(bill)}\n")
+    lines = [serialize_bill_record(bill) for bill in bills]
+    payload = "\n".join(lines)
+    if payload:
+        payload += "\n"
+    result = subprocess.run(
+        [BILLING_EXE, "write-all"],
+        input=payload,
+        capture_output=True,
+        text=True,
+        cwd=BASE_DIR
+    )
+    if not result or result.returncode != 0:
+        raise RuntimeError("billing command failed: write-all")
 
 
 def write_all_bill_records(bills):
@@ -1013,72 +990,11 @@ def find_bill_by_razorpay_order_id(order_id):
 
 
 def build_bill_preview_text(bill):
-    printable_date = bill["date"]
-    parsed_date = parse_iso_date(bill["date"])
-    if parsed_date:
-        printable_date = parsed_date.strftime("%d-%m-%Y")
-
-    line_items = [{"name": "Doctor Fee", "price": bill["doctor_fee"]}]
-    line_items.extend(bill["treatments"])
-    line_items.extend(bill["lab_tests"])
-    if bill["medicine_total"]:
-        line_items.append({"name": "Medicines", "price": bill["medicine_total"]})
-
-    lines = [
-        "=========================================================",
-        "                    HEALTHDESK CLINIC",
-        "=========================================================",
-        "Address: Chennai",
-        "Phone: +91 XXXXX XXXXX",
-        "",
-        "---------------------------------------------------------",
-        f"Bill ID   : {bill['bill_id']}",
-        f"Date      : {printable_date}",
-        "---------------------------------------------------------",
-        f"Patient ID: {bill['patient_id']}",
-        f"Name      : {bill['name']}",
-        f"Age       : {bill['age']}",
-        f"Gender    : {bill['gender']}",
-        "",
-        f"Doctor    : {bill['doctor']}",
-        f"Department: {bill['department']}",
-        "---------------------------------------------------------",
-        "",
-        "                   BILL DETAILS",
-        "---------------------------------------------------------",
-        f"{'Description':<34}Amount (Rs)",
-        "---------------------------------------------------------"
-    ]
-    for item in line_items:
-        lines.append(f"{item['name']:<34}{item['price']:.0f}")
-    lines.extend([
-        "",
-        "---------------------------------------------------------",
-        f"{'TOTAL':<34}Rs {bill['total']:.0f}",
-        "---------------------------------------------------------",
-        f"Payment Status: {bill['status']}"
-    ])
-    payment_status = str(bill.get("status", "")).upper()
-    if payment_status in {"PAID", "REFUNDED"} and bill.get("payment_method"):
-        method_label = "Payment Method" if payment_status == "PAID" else "Original Payment Method"
-        lines.append(f"{method_label}: {payment_method_label(bill.get('payment_method'))}")
-        if bill.get("razorpay_payment_id"):
-            lines.append(f"Payment Reference: {bill['razorpay_payment_id']}")
-        if bill.get("paid_at"):
-            lines.append(f"Paid On: {payment_timestamp_label(bill.get('paid_at'))}")
-    if payment_status == "WAIVED":
-        lines.append("This bill was waived by the clinic.")
-    elif payment_status == "REFUNDED":
-        lines.append("This bill was refunded by the clinic.")
-    if bill["medicine_notes"]:
-        lines.append(f"Medicine Notes : {bill['medicine_notes']}")
-    lines.extend([
-        "",
-        "---------------------------------------------------------",
-        "         Thank you for visiting HealthDesk",
-        "---------------------------------------------------------"
-    ])
-    return "\n".join(lines)
+    line = serialize_bill_record(bill)
+    result = run_billing_command("preview", line)
+    if result and result.returncode == 0:
+        return result.stdout.rstrip("\n")
+    raise RuntimeError("billing command failed: preview")
 
 
 def build_bill_pdf(bill):
@@ -1229,13 +1145,16 @@ def create_bill_record(patient, doctor, bill_date, treatment_codes=None, lab_tes
     }
 
 def is_valid_phone(phone):
-    return phone.isdigit() and len(phone) == 10
+    result = _run_utils_command("valid-phone", str(phone or ""))
+    if result and result.returncode == 0:
+        return result.stdout.strip() == "1"
+    raise RuntimeError("utils command failed: valid-phone")
 
 def is_valid_age(age):
-    if not age.isdigit():
-        return False
-    value = int(age)
-    return 0 < value <= 120
+    result = _run_utils_command("valid-age", str(age or ""))
+    if result and result.returncode == 0:
+        return result.stdout.strip() == "1"
+    raise RuntimeError("utils command failed: valid-age")
 
 def load_appointment_slots(doctor_id, selected_date):
     slots = []
@@ -1321,23 +1240,23 @@ def slot_datetime(selected_date, time_slot):
 
 
 def is_slot_in_past(selected_date, time_slot):
-    slot_dt = slot_datetime(selected_date, time_slot)
-    if not slot_dt:
-        return False
-    return slot_dt <= datetime.now()
+    result = run_appointment_command("slot-in-past", selected_date, time_slot)
+    if result and result.returncode == 0:
+        return result.stdout.strip() == "1"
+    raise RuntimeError("appointment command failed: slot-in-past")
 
 def is_future_or_today(date_str):
-    parsed = parse_iso_date(date_str)
-    if not parsed:
-        return False
-    return parsed >= date.today()
+    result = _run_utils_command("future-or-today", str(date_str or ""))
+    if result and result.returncode == 0:
+        return result.stdout.strip() == "1"
+    raise RuntimeError("utils command failed: future-or-today")
 
 
 def format_human_date(date_str):
-    parsed = parse_iso_date(date_str)
-    if not parsed:
-        return date_str or ""
-    return parsed.strftime("%A, %d %B %Y")
+    result = _run_utils_command("format-date", str(date_str or ""))
+    if result and result.returncode == 0:
+        return result.stdout.strip()
+    raise RuntimeError("utils command failed: format-date")
 
 
 def format_human_datetime(value):
@@ -1388,62 +1307,36 @@ def preview_text(value, length=80):
 
 
 def remaining_time_label(expires_at):
-    if isinstance(expires_at, datetime):
-        expiry = expires_at
-    else:
-        expiry = None
-        for pattern in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M"):
-            try:
-                expiry = datetime.strptime(str(expires_at or ""), pattern)
-                break
-            except ValueError:
-                continue
-    if not expiry:
-        return ""
-    remaining = expiry - datetime.now()
-    if remaining.total_seconds() <= 0:
-        return "Expired"
-    minutes = int(remaining.total_seconds() // 60)
-    hours, mins = divmod(minutes, 60)
-    if hours:
-        return f"Expires in {hours}h {mins}m"
-    return f"Expires in {mins}m"
+    result = _run_utils_command("remaining-time", str(expires_at or ""))
+    if result and result.returncode == 0:
+        return result.stdout.strip()
+    raise RuntimeError("utils command failed: remaining-time")
 
 
 def parse_iso_datetime(value):
     if isinstance(value, datetime):
         return value
-    for pattern in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M"):
-        try:
-            return datetime.strptime(str(value or ""), pattern)
-        except ValueError:
-            continue
-    return None
+    result = _run_utils_command("parse-datetime", str(value or ""))
+    if result and result.returncode == 0:
+        text = result.stdout.strip()
+        if not text:
+            return None
+        return datetime.strptime(text, "%Y-%m-%dT%H:%M:%S")
+    raise RuntimeError("utils command failed: parse-datetime")
 
 
 def iso_now():
-    return datetime.now().replace(microsecond=0).isoformat()
+    result = _run_utils_command("iso-now")
+    if result and result.returncode == 0:
+        return result.stdout.strip()
+    raise RuntimeError("utils command failed: iso-now")
 
 
 def revert_stale_initiated_payments():
-    rows = read_bills()
-    now = datetime.now()
-    changed = False
-    for bill in rows:
-        if str(bill.get("status", "")).upper() != "INITIATED":
-            continue
-        started_at = parse_iso_datetime(bill.get("initiated_at") or bill.get("paid_at"))
-        if started_at and now - started_at <= timedelta(minutes=30):
-            continue
-        bill["status"] = "PENDING"
-        bill["razorpay_order_id"] = ""
-        bill["razorpay_payment_id"] = ""
-        bill["payment_method"] = ""
-        bill["paid_at"] = ""
-        bill["initiated_at"] = ""
-        if update_bill_record(bill):
-            changed = True
-    return changed
+    result = run_billing_command("revert-stale")
+    if result and result.returncode == 0:
+        return safe_int(result.stdout.strip(), 0) > 0
+    raise RuntimeError("billing command failed: revert-stale")
 
 
 def apply_reception_bill_status_update(bill, target_status):
@@ -1540,17 +1433,19 @@ def reassign_appointment_to_alternative(appointment):
     return None
 
 def auto_reassign_unavailable_doctor_appointments(doctor_id):
+    result = run_appointment_command("auto-reassign", int(doctor_id))
+    if not result or result.returncode != 0:
+        raise RuntimeError("appointment command failed: auto-reassign")
     reassigned = []
-    pending = [
-        appointment for appointment in read_appointments()
-        if appointment["doctor_id"] == int(doctor_id)
-        and appointment["status"] == "Booked"
-        and is_future_or_today(appointment["date"])
-    ]
-    for appointment in pending:
-        result = reassign_appointment_to_alternative(appointment)
-        if result:
-            reassigned.append(result)
+    for line in result.stdout.splitlines():
+        parts = line.strip().split("|")
+        if len(parts) >= 5 and parts[0] == "REASSIGNED":
+            reassigned.append({
+                "old_appointment_id": safe_int(parts[1]),
+                "new_appointment_id": safe_int(parts[2]),
+                "new_doctor_id": safe_int(parts[3]),
+                "new_doctor_name": parts[4],
+            })
     return reassigned
 
 def enrich_appointment_workflow_status(appointment):
@@ -1652,32 +1547,22 @@ def update_waiting_queue_status(patient_id, doctor_id=None, status="Completed"):
 
 
 def reconcile_waiting_queue_entries():
-    queue_rows = read_queue()
-    appointments = read_appointments()
-    latest_by_patient_doctor = {}
-    updated = False
-
-    for appointment in appointments:
-        key = (appointment["patient_id"], appointment["doctor_id"])
-        current = latest_by_patient_doctor.get(key)
-        if current is None or parse_appointment_datetime(appointment) > parse_appointment_datetime(current):
-            latest_by_patient_doctor[key] = appointment
-
-    for row in queue_rows:
-        if row["status"] != "Waiting":
+    result = run_queue_command("reconcile")
+    if not result or result.returncode != 0:
+        raise RuntimeError("queue command failed: reconcile")
+    rows = []
+    for line in result.stdout.splitlines():
+        data = line.strip().split("|")
+        if len(data) < 5:
             continue
-        latest = latest_by_patient_doctor.get((row["patient_id"], row["doctor_id"]))
-        if not latest:
-            continue
-        if latest["status"] in {"Completed", "Cancelled", "Rescheduled", "No-show"}:
-            if update_waiting_queue_status(row["patient_id"], row["doctor_id"], latest["status"]):
-                row["status"] = latest["status"]
-                updated = True
-
-    if not updated:
-        return queue_rows
-
-    return queue_rows
+        rows.append({
+            "token": int(data[0]),
+            "patient_id": int(data[1]),
+            "doctor_id": int(data[2]),
+            "priority": data[3],
+            "status": data[4],
+        })
+    return rows
 
 @app.before_request
 def require_login():
@@ -1724,38 +1609,42 @@ def inject_auth_state():
 def read_queue():
     queue = []
     result = run_queue_command("list")
-    try:
-        lines = result.stdout.splitlines() if result and result.returncode == 0 else []
-        if not lines:
-            with open(QUEUE_FILE, "r", encoding="utf-8") as f:
-                lines = list(f)
-        for line in lines:
-            data = line.strip().split("|")
-            if len(data) < 5:
-                continue
-
-            queue.append({
-                "token": int(data[0]),
-                "patient_id": int(data[1]),
-                "doctor_id": int(data[2]),
-                "priority": data[3],
-                "status": data[4]
-            })
-    except:
-        pass
-
+    if not result or result.returncode != 0:
+        raise RuntimeError("queue command failed: list")
+    for line in result.stdout.splitlines():
+        data = line.strip().split("|")
+        if len(data) < 5:
+            continue
+        queue.append({
+            "token": int(data[0]),
+            "patient_id": int(data[1]),
+            "doctor_id": int(data[2]),
+            "priority": data[3],
+            "status": data[4]
+        })
     return queue
 
 
 def write_doctor_file(doctors):
-    doctor_file = os.path.join(BACKEND_DIR, "data", "doctors.txt")
-    with open(doctor_file, "w", encoding="utf-8") as f:
-        for doctor in doctors:
-            f.write(
-                f"{int(doctor['id'])}|{clean_record_field(doctor['name'])}|"
-                f"{clean_record_field(doctor['department'])}|{int(doctor['experience'])}|"
-                f"{clean_record_field(doctor['daily_status'])}|{clean_record_field(doctor['current_status'])}\n"
-            )
+    lines = []
+    for doctor in doctors:
+        lines.append(
+            f"{int(doctor['id'])}|{clean_record_field(doctor['name'])}|"
+            f"{clean_record_field(doctor['department'])}|{int(doctor['experience'])}|"
+            f"{clean_record_field(doctor['daily_status'])}|{clean_record_field(doctor['current_status'])}"
+        )
+    payload = "\n".join(lines)
+    if payload:
+        payload += "\n"
+    result = subprocess.run(
+        [DOCTOR_EXE, "write-all"],
+        input=payload,
+        capture_output=True,
+        text=True,
+        cwd=BASE_DIR
+    )
+    if not result or result.returncode != 0:
+        raise RuntimeError("doctor command failed: write-all")
 
 
 def load_doctor_status_meta():
@@ -1774,47 +1663,21 @@ def save_doctor_status_meta(meta):
 
 
 def normalize_doctor_statuses(daily_status, current_status):
-    daily = str(daily_status or "").strip() or "Available"
-    current = str(current_status or "").strip()
-
-    if daily == "Off":
-        return "Off", "Off"
-    if daily == "Unavailable":
-        return "Unavailable", "Unavailable"
-    if current == "Emergency":
-        return daily, "Emergency"
-    if current == "Busy":
-        return daily, "Busy"
-    return daily, "Free"
+    result = run_doctor_command("normalize-status", str(daily_status or ""), str(current_status or ""))
+    if result and result.returncode == 0:
+        parts = result.stdout.strip().split("|")
+        if len(parts) == 2:
+            return parts[0], parts[1]
+    raise RuntimeError("doctor command failed: normalize-status")
 
 
 def doctor_current_status_view(daily_status, current_status):
-    daily, current = normalize_doctor_statuses(daily_status, current_status)
-
-    if daily == "Off":
-        return {
-            "current_status_label": "Off Duty",
-            "current_status_badge": "waived"
-        }
-    if daily == "Unavailable":
-        return {
-            "current_status_label": "Unavailable",
-            "current_status_badge": "cancelled"
-        }
-    if current == "Emergency":
-        return {
-            "current_status_label": "Emergency",
-            "current_status_badge": "cancelled"
-        }
-    if current == "Busy":
-        return {
-            "current_status_label": "Busy",
-            "current_status_badge": "pending"
-        }
-    return {
-        "current_status_label": "Free",
-        "current_status_badge": "booked"
-    }
+    result = run_doctor_command("status-view", str(daily_status or ""), str(current_status or ""))
+    if result and result.returncode == 0:
+        parts = result.stdout.strip().split("|")
+        if len(parts) == 2:
+            return {"current_status_label": parts[0], "current_status_badge": parts[1]}
+    raise RuntimeError("doctor command failed: status-view")
 
 
 def doctor_status_end_date(doctor_id, meta=None):
@@ -1825,24 +1688,10 @@ def doctor_status_end_date(doctor_id, meta=None):
 
 
 def doctor_is_blocked_for_date(doctor_id, selected_date, doctor=None, meta=None):
-    selected = parse_iso_date(selected_date)
-    if not selected:
-        return False
-
-    doctor = doctor or get_doctor_by_id(doctor_id) or {}
-    daily_status, current_status = normalize_doctor_statuses(
-        doctor.get("daily_status", "Available"),
-        doctor.get("current_status", "Free")
-    )
-    if daily_status not in {"Unavailable", "Off"} and current_status != "Emergency":
-        return False
-
-    expires_on = doctor_status_end_date(doctor_id, meta=meta)
-    if expires_on:
-        expiry = parse_iso_date(expires_on)
-        return bool(expiry and selected <= expiry)
-
-    return selected == date.today()
+    result = run_doctor_command("is-blocked", int(doctor_id), str(selected_date or ""))
+    if result and result.returncode == 0:
+        return result.stdout.strip() == "1"
+    raise RuntimeError("doctor command failed: is-blocked")
 
 
 def update_doctor_status_meta(doctor_id, daily_status, current_status, expires_on=None):
@@ -2069,22 +1918,10 @@ def doctor_has_live_workload(doctor_id):
 
 
 def sync_doctor_busy_statuses():
-    doctors = get_doctors()
-    changed = False
-
-    for doctor in doctors:
-        if doctor["daily_status"] != "Available":
-            continue
-        if doctor["current_status"] != "Busy":
-            continue
-        if doctor_has_live_workload(doctor["id"]):
-            continue
-
-        result = run_doctor_command("status", doctor["id"], doctor["daily_status"], "Free")
-        if result and result.returncode == 0:
-            changed = True
-
-    return changed
+    result = run_doctor_command("sync-busy")
+    if result and result.returncode == 0:
+        return result.stdout.strip() == "1"
+    raise RuntimeError("doctor command failed: sync-busy")
 
 def suggest_doctors_by_department(department):
     result = run_doctor_command("suggest", department)
@@ -2929,7 +2766,7 @@ def _expire_stale_advances():
             if not result or result.returncode != 0:
                 continue
             changed = True
-            run_advance_command("pop-intent", adv["advance_id"])
+            run_advance_command("intent-pop", adv["advance_id"])
             if adv["pending_request_id"]:
                 update_pending_status(adv["pending_request_id"], "Expired")
             patient = find_patient_by_id(adv["patient_id"])
@@ -3129,15 +2966,10 @@ def register_patient_from_request(row):
 
 
 def status_label_for_patient(status):
-    labels = {
-        "Booked": "Confirmed",
-        "Pending": "Pending Confirmation",
-        "Cancelled": "Cancelled",
-        "Completed": "Visit completed",
-        "No-show": "Appointment not attended",
-        "Rescheduled": "Rescheduled"
-    }
-    return labels.get(status, status or "Unknown")
+    result = _run_utils_command("status-label", str(status or ""))
+    if result and result.returncode == 0:
+        return result.stdout.strip()
+    raise RuntimeError("utils command failed: status-label")
 
 
 def status_sentence_for_patient(appointment, doctor_name):
@@ -3257,20 +3089,10 @@ def read_bills_for_patient(patient_id):
 
 
 def has_blocking_unpaid_bill(patient_id):
-    """
-    Returns True if the patient has a PENDING or INITIATED bill
-    older than 7 days. This gates new portal bookings.
-    7-day grace period allows counter payments to be reconciled.
-    """
-    cutoff = date.today() - timedelta(days=7)
-    for bill in read_bills_for_patient(int(patient_id)):
-        status = str(bill.get("status", "")).upper()
-        if status not in {"PENDING", "INITIATED"}:
-            continue
-        bill_date = parse_iso_date(bill.get("date", ""))
-        if bill_date and bill_date < cutoff:
-            return True
-    return False
+    result = run_billing_command("has-blocking", int(patient_id))
+    if result and result.returncode == 0:
+        return result.stdout.strip() == "1"
+    raise RuntimeError("billing command failed: has-blocking")
 
 
 def get_patient_billing_context(patient_id, latest_appointment=None):

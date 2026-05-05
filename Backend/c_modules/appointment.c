@@ -532,6 +532,53 @@ int findBookedAppointmentForPatientDate(int patient_id, const char *date) {
     return 0;
 }
 
+int commandWriteAll(void) {
+    FILE *out = fopen("Backend/data/appointment.tmp", "w");
+    char line[MAX_LINE];
+    if (!out) return 0;
+    while (fgets(line, sizeof(line), stdin)) {
+        fputs(line, out);
+    }
+    fclose(out);
+    remove(APPOINTMENT_FILE);
+    if (rename("Backend/data/appointment.tmp", APPOINTMENT_FILE) != 0) {
+        remove("Backend/data/appointment.tmp");
+        return 0;
+    }
+    return 1;
+}
+
+int parseSlotMinutes(const char *time_slot) {
+    int hour = 0, minute = 0;
+    char ampm[3] = {0};
+    if (!time_slot) return -1;
+    if (sscanf(time_slot, "%d:%d %2s", &hour, &minute, ampm) != 3) return -1;
+    if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return -1;
+    if (strcmp(ampm, "PM") == 0 && hour != 12) hour += 12;
+    if (strcmp(ampm, "AM") == 0 && hour == 12) hour = 0;
+    return hour * 60 + minute;
+}
+
+int slotInPast(const char *date, const char *time_slot) {
+    int y = 0, m = 0, d = 0;
+    time_t now = time(NULL);
+    struct tm *tm_now = localtime(&now);
+    int slot_minutes;
+    int now_minutes;
+    if (!tm_now) return 0;
+    if (sscanf(date, "%4d-%2d-%2d", &y, &m, &d) != 3) return 0;
+    if (y < tm_now->tm_year + 1900) return 1;
+    if (y > tm_now->tm_year + 1900) return 0;
+    if (m < tm_now->tm_mon + 1) return 1;
+    if (m > tm_now->tm_mon + 1) return 0;
+    if (d < tm_now->tm_mday) return 1;
+    if (d > tm_now->tm_mday) return 0;
+    slot_minutes = parseSlotMinutes(time_slot);
+    if (slot_minutes < 0) return 0;
+    now_minutes = (tm_now->tm_hour * 60) + tm_now->tm_min;
+    return slot_minutes <= now_minutes;
+}
+
 int main(int argc, char *argv[]) {
     int ok = 0;
 
@@ -569,6 +616,16 @@ int main(int argc, char *argv[]) {
         ok = 1;
     } else if (strcmp(argv[1], "find-booked-patient-date") == 0 && argc == 4) {
         ok = findBookedAppointmentForPatientDate(atoi(argv[2]), argv[3]);
+    } else if (strcmp(argv[1], "write-all") == 0) {
+        ok = commandWriteAll();
+        if (ok) printf("OK");
+    } else if (strcmp(argv[1], "slot-in-past") == 0 && argc == 4) {
+        printf("%d", slotInPast(argv[2], argv[3]));
+        ok = 1;
+    } else if (strcmp(argv[1], "auto-reassign") == 0 && argc == 3) {
+        /* Placeholder command to match migration contract; reassignment stays orchestrated in Python. */
+        (void)argv;
+        ok = 1;
     } else {
         printf("Error|InvalidCommand");
         return 1;

@@ -355,6 +355,75 @@ int updateWaitingStatus(int patient_id, int doctor_id, const char *status) {
     return 1;
 }
 
+int writeAllQueueFromStdin(void) {
+    FILE *tmp = fopen("Backend/data/queue.tmp", "w");
+    char line[MAX_LINE];
+    if (!tmp) return 0;
+    while (fgets(line, sizeof(line), stdin)) {
+        fputs(line, tmp);
+    }
+    fclose(tmp);
+    remove(QUEUE_FILE);
+    if (rename("Backend/data/queue.tmp", QUEUE_FILE) != 0) {
+        remove("Backend/data/queue.tmp");
+        return 0;
+    }
+    return 1;
+}
+
+int queueReconcile(void) {
+    struct QueueNode *current;
+    int updated = 0;
+    loadQueue();
+    current = queue_store.front;
+    while (current != NULL) {
+        if (strcmp(current->status, "Waiting") == 0) {
+            FILE *fp = fopen(APPOINTMENT_FILE, "r");
+            char line[MAX_LINE];
+            if (fp != NULL) {
+                while (fgets(line, sizeof(line), fp)) {
+                    char buffer[MAX_LINE];
+                    char *token;
+                    int patient_id = 0, doctor_id = 0;
+                    char status[MAX_SMALL] = "";
+                    safeCopy(buffer, line, sizeof(buffer));
+                    token = strtok(buffer, "|");
+                    if (!token) continue;
+                    strtok(NULL, "|");
+                    token = strtok(NULL, "|");
+                    if (!token) continue;
+                    doctor_id = atoi(token);
+                    token = strtok(NULL, "|");
+                    if (!token) continue;
+                    token = strtok(NULL, "|");
+                    if (!token) continue;
+                    token = strtok(NULL, "\n");
+                    if (!token) continue;
+                    safeCopy(status, token, sizeof(status));
+                    safeCopy(buffer, line, sizeof(buffer));
+                    strtok(buffer, "|");
+                    token = strtok(NULL, "|");
+                    if (!token) continue;
+                    patient_id = atoi(token);
+                    if (patient_id == current->patient_id && doctor_id == current->doctor_id &&
+                        (strcmp(status, "Completed") == 0 || strcmp(status, "Cancelled") == 0 ||
+                         strcmp(status, "Rescheduled") == 0 || strcmp(status, "No-show") == 0)) {
+                        safeCopy(current->status, status, sizeof(current->status));
+                        updated = 1;
+                    }
+                }
+                fclose(fp);
+            }
+        }
+        current = current->next;
+    }
+    if (updated) {
+        queue_dirty = 1;
+        saveQueueIfDirty();
+    }
+    return 1;
+}
+
 int main(int argc, char *argv[]) {
     int patient_id;
     int doctor_id = -1;
@@ -382,6 +451,21 @@ int main(int argc, char *argv[]) {
         }
         printf("NOT_FOUND");
         return 1;
+    }
+
+    if (strcmp(argv[1], "write-all") == 0) {
+        if (writeAllQueueFromStdin()) {
+            printf("OK");
+            return 0;
+        }
+        printf("Error|WriteAllFailed");
+        return 1;
+    }
+
+    if (strcmp(argv[1], "reconcile") == 0) {
+        queueReconcile();
+        listQueue();
+        return 0;
     }
 
     patient_id = atoi(argv[1]);

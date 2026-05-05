@@ -29,6 +29,8 @@
 #define PENDING_APPOINTMENTS_FILE "Backend/data/pending_appointments.txt"
 #define NEW_PATIENT_REQUESTS_FILE "Backend/data/new_patient_requests.txt"
 #define USER_FILE "Backend/data/users.txt"
+#define ADVANCE_FILE "Backend/data/advances.txt"
+#define BOOKING_INTENT_FILE "Backend/data/pending_booking_intents.txt"
 // STRUCT DECLARATIONS
 
 struct Patient;
@@ -39,6 +41,9 @@ struct Appointment;
 struct BillingItem;
 struct PendingAppointmentRequest;
 struct NewPatientRequest;
+typedef struct Advance Advance;
+typedef struct BookingIntent BookingIntent;
+typedef struct UserAccount UserAccount;
 
 // STRUCT DEFINITIONS
 
@@ -142,5 +147,45 @@ typedef struct NewPatientRequest {
     int appointment_id;
     struct NewPatientRequest *next;
 } NewPatientRequest;
+
+// Advance payment record
+typedef struct Advance {
+    int    advance_id;
+    int    patient_id;
+    int    appointment_id;
+    int    doctor_id;
+    char   appointment_date[20];
+    float  amount;
+    char   status[32];              // PENDING_PAYMENT | PAID | EXPIRED | SETTLED | REFUNDED
+    char   razorpay_order_id[84];
+    char   razorpay_payment_id[84];
+    char   created_at[MAX_TIMESTAMP];
+    char   paid_at[MAX_TIMESTAMP];
+    char   settled_at[MAX_TIMESTAMP];
+    int    pending_request_id;
+    struct Advance *next;
+} Advance;
+
+// Booking intent (links an advance to a pending slot request)
+typedef struct BookingIntent {
+    int  advance_id;
+    int  doctor_id;
+    char requested_date[20];
+    char requested_slot[32];
+    char reason[MAX_REASON];
+    char visit_type[32];
+    char triage[32];
+    struct BookingIntent *next;
+} BookingIntent;
+
+// Staff / doctor user account
+typedef struct UserAccount {
+    int  id;
+    char username[MAX_NAME];
+    char password[280];    // werkzeug scrypt hash is ~200 chars; 280 is safe
+    char role[MAX_SMALL];
+    int  doctor_id;
+    struct UserAccount *next;
+} UserAccount;
 
 #endif

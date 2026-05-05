@@ -1,7 +1,6 @@
 #include "common.h"
 
-#define ADVANCE_FILE "Backend/data/advances.txt"
-#define BOOKING_INTENT_FILE "Backend/data/pending_booking_intents.txt"
+/* ADVANCE_FILE and BOOKING_INTENT_FILE are now defined in common.h */
 #define ADVANCE_TEMP_FILE "Backend/data/advances.tmp"
 #define BOOKING_INTENT_TEMP_FILE "Backend/data/pending_booking_intents.tmp"
 #define FIELD_BUFFER 2048
@@ -243,6 +242,24 @@ static int pop_booking_intent(int advance_id) {
     return 1;
 }
 
+/* Find a booking intent by advance_id WITHOUT removing it from the file.
+   Prints the matching line to stdout. Returns 1 if found, 0 otherwise. */
+static int find_booking_intent(int advance_id) {
+    FILE *fp = fopen(BOOKING_INTENT_FILE, "r");
+    char line[FIELD_BUFFER];
+    char field[FIELD_BUFFER];
+    if (fp == NULL) return 0;
+    while (fgets(line, sizeof(line), fp)) {
+        if (extract_field(line, 0, field, sizeof(field)) && atoi(field) == advance_id) {
+            printf("%s", line);
+            fclose(fp);
+            return 1;
+        }
+    }
+    fclose(fp);
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         printf("Error|InvalidInput");
@@ -289,17 +306,22 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    if (strcmp(argv[1], "save-intent") == 0 && argc == 3) {
+    /* Booking intent commands (spec names) */
+    if ((strcmp(argv[1], "intent-save") == 0 || strcmp(argv[1], "save-intent") == 0) && argc == 3) {
         if (append_line(BOOKING_INTENT_FILE, argv[2])) {
             printf("SAVED");
             return 0;
         }
-        printf("Error|SaveIntentFailed");
+        printf("Error|SaveFailed");
         return 1;
     }
 
-    if (strcmp(argv[1], "pop-intent") == 0 && argc == 3) {
+    if ((strcmp(argv[1], "intent-pop") == 0 || strcmp(argv[1], "pop-intent") == 0) && argc == 3) {
         return pop_booking_intent(atoi(argv[2])) ? 0 : 1;
+    }
+
+    if (strcmp(argv[1], "intent-find") == 0 && argc == 3) {
+        return find_booking_intent(atoi(argv[2])) ? 0 : 1;
     }
 
     printf("Error|InvalidCommand");

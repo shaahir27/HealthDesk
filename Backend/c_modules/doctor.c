@@ -1,4 +1,5 @@
 #include "common.h"
+#include <time.h>
 #ifdef _WIN32
 #include <process.h>
 #define HEALTHDESK_GETPID _getpid
@@ -426,6 +427,46 @@ void printDepartmentSearch(char *department, int available_only) {
     freeDoctorTree(root);
 }
 
+void normalizeDoctorStatuses(const char *daily_in, const char *current_in,
+                             char *out_daily, size_t out_daily_size,
+                             char *out_current, size_t out_current_size) {
+    char daily[MAX_SMALL];
+    char current[MAX_SMALL];
+    snprintf(daily, sizeof(daily), "%s", (daily_in && daily_in[0]) ? daily_in : "Available");
+    snprintf(current, sizeof(current), "%s", current_in ? current_in : "");
+
+    if (strcmp(daily, "Off") == 0) {
+        snprintf(out_daily, out_daily_size, "Off");
+        snprintf(out_current, out_current_size, "Off");
+        return;
+    }
+    if (strcmp(daily, "Unavailable") == 0) {
+        snprintf(out_daily, out_daily_size, "Unavailable");
+        snprintf(out_current, out_current_size, "Unavailable");
+        return;
+    }
+    snprintf(out_daily, out_daily_size, "%s", daily);
+    if (strcmp(current, "Emergency") == 0) snprintf(out_current, out_current_size, "Emergency");
+    else if (strcmp(current, "Busy") == 0) snprintf(out_current, out_current_size, "Busy");
+    else snprintf(out_current, out_current_size, "Free");
+}
+
+int writeAllDoctorsFromStdin(void) {
+    FILE *tmp = fopen("Backend/data/doctors.tmp", "w");
+    char line[MAX_LINE];
+    if (!tmp) return 0;
+    while (fgets(line, sizeof(line), stdin)) {
+        fputs(line, tmp);
+    }
+    fclose(tmp);
+    remove(DOCTOR_FILE);
+    if (rename("Backend/data/doctors.tmp", DOCTOR_FILE) != 0) {
+        remove("Backend/data/doctors.tmp");
+        return 0;
+    }
+    return 1;
+}
+
 int main(int argc, char *argv[]) {
     if (argc < 2) return 1;
 
@@ -464,6 +505,63 @@ int main(int argc, char *argv[]) {
     }
     else if (strcmp(argv[1], "exists") == 0 && argc == 3) {
         printf("%d", doctorExists(atoi(argv[2])));
+    }
+    else if (strcmp(argv[1], "normalize-status") == 0 && argc == 4) {
+        char nd[MAX_SMALL], nc[MAX_SMALL];
+        normalizeDoctorStatuses(argv[2], argv[3], nd, sizeof(nd), nc, sizeof(nc));
+        printf("%s|%s", nd, nc);
+    }
+    else if (strcmp(argv[1], "status-view") == 0 && argc == 4) {
+        char nd[MAX_SMALL], nc[MAX_SMALL];
+        const char *label = "Free";
+        const char *badge = "booked";
+        normalizeDoctorStatuses(argv[2], argv[3], nd, sizeof(nd), nc, sizeof(nc));
+        if (strcmp(nd, "Off") == 0) { label = "Off Duty"; badge = "waived"; }
+        else if (strcmp(nd, "Unavailable") == 0) { label = "Unavailable"; badge = "cancelled"; }
+        else if (strcmp(nc, "Emergency") == 0) { label = "Emergency"; badge = "cancelled"; }
+        else if (strcmp(nc, "Busy") == 0) { label = "Busy"; badge = "pending"; }
+        printf("%s|%s", label, badge);
+    }
+    else if (strcmp(argv[1], "write-all") == 0) {
+        if (writeAllDoctorsFromStdin()) printf("OK");
+        else return 1;
+    }
+    else if (strcmp(argv[1], "is-blocked") == 0 && argc == 4) {
+        struct Doctor doctor;
+        if (!getDoctorById(atoi(argv[2]), &doctor)) {
+            printf("0");
+            return 0;
+        }
+        if (strcmp(doctor.daily_status, "Unavailable") == 0 || strcmp(doctor.daily_status, "Off") == 0 ||
+            strcmp(doctor.current_status, "Emergency") == 0) {
+            printf("1");
+        } else {
+            printf("0");
+        }
+    }
+    else if (strcmp(argv[1], "sync-busy") == 0) {
+        printf("0");
+    }
+    else if (strcmp(argv[1], "build-username") == 0 && argc == 3) {
+        char username[MAX_NAME] = "dr.";
+        int j = 3;
+        const char *src = argv[2];
+        int i;
+        for (i = 0; src[i] && j + 1 < (int)sizeof(username); i++) {
+            char c = src[i];
+            if ((c >= 'A' && c <= 'Z')) c = (char)(c - 'A' + 'a');
+            if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) username[j++] = c;
+            else if ((c == ' ' || c == '.' || c == '-') && username[j - 1] != '.') username[j++] = '.';
+        }
+        if (username[j - 1] == '.') j--;
+        username[j] = '\0';
+        printf("%s", username);
+    }
+    else if (strcmp(argv[1], "build-password") == 0 && argc == 3) {
+        time_t now = time(NULL);
+        struct tm *tm_now = localtime(&now);
+        int year = tm_now ? (tm_now->tm_year + 1900) : 2026;
+        printf("HDDoc%d@%d", atoi(argv[2]), year);
     }
     else {
         addDoctor(argv[1]);

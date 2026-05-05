@@ -1,8 +1,1 @@
-1000|2026-04-28|6|Farah|26|Female|Dr. Arun Kumar|General|500|300|250|150|1200|PAID|1|followup_consult~300|cbc~250|Paracetamol syrup and steam inhalation|5||||||0|0.00|
-1001|2026-04-29|7|Gokul|18|Male|Dr. Priya Sharma|Dermatology|700|750|200|100|1750|PAID|6|skin_procedure~750|urine_analysis~200|Antihistamine tablets|6|order_SklMbnztyMV6T7|pay_TEST_WEBHOOK_1001|upi|2026-05-03T10:11:08||0|0.00|
-1002|2026-04-26|12|Lavanya|24|Female|Dr. Deepa Menon|Dermatology|700|750|0|0|1450|PAID|10|skin_procedure~750|||12||||||0|0.00|
-1003|2026-04-30|15|Omkar|33|Male|Dr. Priya Sharma|Dermatology|700|0|0|200|900|PENDING|6|||Cetirizine and moisturizer|15||||||0|0.00|
-1004|2026-04-20|21|Shaahir|22|Male|Dr. Priya Sharma|Dermatology|700|750|0|100|1550|PAID|6|skin_procedure~750||Antibiotics|22|||UPI|2026-04-20 10:00:00||0|0.00|
-1005|2026-05-02|21|Shaahir|22|Male|Dr. Arun Kumar|General|500|0|0|0|500|WAIVED|1||||0||||||0|0.00|
-1006|2026-04-18|21|Shaahir|22|Male|Dr. Deepa Menon|Dermatology|700|300|0|250|1250|PAID|10|followup_consult~300||Night gel and sunscreen|24|||card|2026-04-18 12:15:00||0|0.00|
-1007|2026-05-03|21|Shaahir|22|Male|Dr. Priya Sharma|Dermatology|700|0|0|0|700|INITIATED|6|||Manual Razorpay test bill for Shaahir|0|order_SlYs6a0YbOJH8J||razorpay||2026-05-05T10:36:56|0|0.00|
+999001|2026-05-05|1|Tmp|20|Male|Dr X|General|100|0|0|0|100|PENDING|0||||0||||||0|0.00|
