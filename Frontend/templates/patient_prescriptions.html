@@ -1,0 +1,28 @@
+<!-- Patient Prescriptions Partial -->
+<div style="margin-top:28px;">
+    <div class="pd-section-label"><i class="bi bi-file-earmark-medical"></i> Prescriptions</div>
+    <div class="pd-cards">
+        {% for rx in patient_prescriptions %}
+        <article class="pd-card" aria-label="Prescription from {{ rx.human_date }}">
+            <div class="pd-card-top">
+                <div>
+                    <h3 class="pd-card-title">{{ rx.human_date }}</h3>
+                    <p class="pd-card-meta">{{ rx.doctor_name }}</p>
+                    {% if rx.diagnosis_summary %}
+                    <p class="pd-card-meta" style="margin-top:3px;">{{ rx.diagnosis_summary[:80] }}{% if rx.diagnosis_summary|length > 80 %}…{% endif %}</p>
+                    {% endif %}
+                </div>
+                <span class="pd-badge completed">
+                    <i class="bi bi-capsule"></i> {{ rx.medicine_count }} medicine{{ 's' if rx.medicine_count != 1 }}
+                </span>
+            </div>
+            <div class="pd-card-actions">
+                <a href="/patient/prescription/pdf/{{ rx.prescription_id }}"
+                   class="hd-btn hd-btn-outline hd-btn-sm" target="_blank">
+                    <i class="bi bi-file-earmark-pdf"></i> Download Prescription PDF
+                </a>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+</div>

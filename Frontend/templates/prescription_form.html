@@ -1,0 +1,220 @@
+<!-- Structured Prescription Form Partial -->
+<style>
+.rx-section {
+    margin-top: 20px;
+    padding: 20px;
+    background: var(--hd-bg);
+    border: 1px solid var(--hd-border);
+    border-radius: var(--hd-radius);
+}
+.rx-section-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--hd-text);
+    margin: 0 0 14px;
+}
+.rx-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.rx-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+.rx-table th {
+    background: var(--hd-surface);
+    border: 1px solid var(--hd-border);
+    padding: 8px 10px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--hd-text);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+.rx-table td {
+    border: 1px solid var(--hd-border);
+    padding: 6px 8px;
+    vertical-align: middle;
+}
+.rx-table input[type="text"],
+.rx-table input[type="number"] {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--hd-border);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    background: var(--hd-surface);
+    color: var(--hd-text);
+}
+.rx-table input[type="text"]:focus,
+.rx-table input[type="number"]:focus {
+    outline: none;
+    border-color: var(--hd-primary);
+    box-shadow: 0 0 0 2px rgba(46, 134, 193, 0.12);
+}
+.rx-table input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--hd-primary);
+}
+.rx-check-cell { text-align: center; }
+.rx-remove-btn {
+    background: none;
+    border: none;
+    color: var(--hd-text-muted);
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.15s;
+}
+.rx-remove-btn:hover {
+    color: #B91C1C;
+    background: rgba(185, 28, 28, 0.06);
+}
+.rx-add-row {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.rx-advice-wrap { margin-top: 16px; }
+.rx-advice-wrap label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--hd-text);
+    margin-bottom: 6px;
+}
+.rx-advice-wrap textarea {
+    width: 100%;
+    min-height: 70px;
+    resize: vertical;
+    padding: 10px 12px;
+    border: 1px solid var(--hd-border);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.88rem;
+    color: var(--hd-text);
+    background: var(--hd-surface);
+    outline: none;
+    transition: border-color 0.18s;
+}
+.rx-advice-wrap textarea:focus {
+    border-color: var(--hd-primary);
+    box-shadow: 0 0 0 2px rgba(46, 134, 193, 0.12);
+}
+.rx-empty-row td {
+    text-align: center;
+    color: var(--hd-text-muted);
+    padding: 16px;
+    font-size: 0.82rem;
+    font-style: italic;
+}
+</style>
+
+<div class="rx-section">
+    <h6 class="rx-section-title"><i class="bi bi-capsule me-1"></i> Structured Prescription (Optional)</h6>
+    <p style="font-size:0.8rem; color:var(--hd-text-muted); margin:0 0 12px;">
+        Add individual medicines below. This creates a downloadable PDF prescription alongside the plain-text prescription above.
+    </p>
+
+    <input type="hidden" id="medicines_json" name="medicines_json" value="">
+
+    <div class="rx-table-wrap">
+        <table class="rx-table" id="rxMedicineTable">
+            <thead>
+                <tr>
+                    <th style="min-width:180px;">Medicine Name</th>
+                    <th class="rx-check-cell" style="width:70px;">Morning</th>
+                    <th class="rx-check-cell" style="width:80px;">Afternoon</th>
+                    <th class="rx-check-cell" style="width:60px;">Night</th>
+                    <th style="width:60px;">Days</th>
+                    <th style="min-width:150px;">Instructions</th>
+                    <th style="width:40px;"></th>
+                </tr>
+            </thead>
+            <tbody id="rxMedicineBody">
+                <!-- Rows added via JS -->
+            </tbody>
+        </table>
+    </div>
+
+    <div class="rx-add-row">
+        <button type="button" class="hd-btn hd-btn-outline hd-btn-sm" id="rxAddMedicine">
+            <i class="bi bi-plus-circle"></i> Add Medicine
+        </button>
+        <span style="font-size:0.78rem; color:var(--hd-text-muted);" id="rxMedCount"></span>
+    </div>
+
+    <div class="rx-advice-wrap">
+        <label for="advice_notes"><i class="bi bi-chat-square-text me-1"></i> Advice / Notes</label>
+        <textarea id="advice_notes" name="advice_notes" placeholder="e.g. Rest, drink fluids, avoid cold food, revisit in 3 days if symptoms persist"></textarea>
+    </div>
+</div>
+
+<script>
+(function() {
+    var tbody = document.getElementById('rxMedicineBody');
+    var addBtn = document.getElementById('rxAddMedicine');
+    var countEl = document.getElementById('rxMedCount');
+
+    function createRow() {
+        var tr = document.createElement('tr');
+        tr.className = 'rx-medicine-row';
+        tr.innerHTML =
+            '<td><input type="text" class="rx-med-name" placeholder="e.g. Paracetamol 500mg"></td>' +
+            '<td class="rx-check-cell"><input type="checkbox" class="rx-morning"></td>' +
+            '<td class="rx-check-cell"><input type="checkbox" class="rx-afternoon"></td>' +
+            '<td class="rx-check-cell"><input type="checkbox" class="rx-night"></td>' +
+            '<td><input type="number" class="rx-days" value="3" min="1" max="365" style="width:55px;"></td>' +
+            '<td><input type="text" class="rx-instructions" placeholder="e.g. After food"></td>' +
+            '<td><button type="button" class="rx-remove-btn" title="Remove">&times;</button></td>';
+        tr.querySelector('.rx-remove-btn').addEventListener('click', function() {
+            tr.remove();
+            updateCount();
+        });
+        return tr;
+    }
+
+    function updateCount() {
+        var rows = tbody.querySelectorAll('.rx-medicine-row');
+        if (countEl) {
+            countEl.textContent = rows.length ? rows.length + ' medicine' + (rows.length > 1 ? 's' : '') : '';
+        }
+    }
+
+    if (addBtn) {
+        addBtn.addEventListener('click', function() {
+            tbody.appendChild(createRow());
+            updateCount();
+            var lastRow = tbody.lastElementChild;
+            if (lastRow) lastRow.querySelector('.rx-med-name').focus();
+        });
+    }
+
+    // Serialize medicines to JSON on form submit
+    var diagForm = document.getElementById('diagnosis-form');
+    if (diagForm) {
+        diagForm.addEventListener('submit', function() {
+            var rows = document.querySelectorAll('.rx-medicine-row');
+            var medicines = [];
+            rows.forEach(function(row) {
+                var name = row.querySelector('.rx-med-name').value.trim();
+                if (!name) return;
+                medicines.push({
+                    medicine_name: name,
+                    morning:       row.querySelector('.rx-morning').checked ? 'Yes' : 'No',
+                    afternoon:     row.querySelector('.rx-afternoon').checked ? 'Yes' : 'No',
+                    night:         row.querySelector('.rx-night').checked ? 'Yes' : 'No',
+                    days:          row.querySelector('.rx-days').value.trim() || '1',
+                    instructions:  row.querySelector('.rx-instructions').value.trim()
+                });
+            });
+            document.getElementById('medicines_json').value = JSON.stringify(medicines);
+        });
+    }
+})();
+</script>

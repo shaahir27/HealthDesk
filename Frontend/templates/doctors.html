@@ -322,7 +322,8 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <form action="/doctor_status" method="POST" class="drx-action-form" data-doctor-status-form>
+                                    <button type="button" class="hd-btn hd-btn-sm hd-btn-outline" onclick="openDoctorEditModal('{{ d.id }}', '{{ d.name }}', '{{ d.department }}', '{{ d.experience }}')">Edit</button>
+                                    <form action="/doctor_status" method="POST" class="drx-action-form" data-doctor-status-form style="margin-top: 10px;">
                                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                         <input type="hidden" name="doctor_id" value="{{ d.id }}">
                                         <select name="daily_status" class="form-select" data-daily-status-select required>
@@ -421,4 +422,7 @@ document.querySelectorAll("[data-doctor-status-form]").forEach(function(form) {
     syncCurrentStatusOptions();
 });
 </script>
+
+{% include 'doctor_edit_modal.html' %}
+
 {% endblock %}

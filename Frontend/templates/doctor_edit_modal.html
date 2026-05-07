@@ -1,0 +1,128 @@
+<!-- Doctor Edit Modal -->
+<div id="doctor-edit-modal" class="hd-modal" style="display: none;">
+    <div class="hd-modal-content">
+        <div class="hd-modal-header">
+            <h2>Edit Doctor</h2>
+            <button type="button" class="hd-modal-close" onclick="document.getElementById('doctor-edit-modal').style.display='none';">&times;</button>
+        </div>
+        <div class="hd-modal-body">
+            <form id="doctor-edit-form" action="{{ url_for('edit_doctor') }}" method="POST">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" id="edit-doctor-id" name="doctor_id" value="">
+                
+                <div class="hd-field-group">
+                    <label class="hd-label" for="edit-doctor-name">Name</label>
+                    <input type="text" id="edit-doctor-name" name="name" class="hd-input" required>
+                </div>
+
+                <div class="hd-field-group">
+                    <label class="hd-label" for="edit-doctor-dept">Department</label>
+                    <input type="text" id="edit-doctor-dept" name="department" class="hd-input" required>
+                </div>
+
+                <div class="hd-field-group">
+                    <label class="hd-label" for="edit-doctor-exp">Experience (years)</label>
+                    <input type="number" id="edit-doctor-exp" name="experience" class="hd-input" min="0" required>
+                </div>
+
+                <div class="hd-modal-footer">
+                    <button type="button" class="hd-btn hd-btn-muted" onclick="document.getElementById('doctor-edit-modal').style.display='none';">Cancel</button>
+                    <button type="submit" class="hd-btn hd-btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openDoctorEditModal(doctorId, name, department, experience) {
+    document.getElementById('edit-doctor-id').value = doctorId;
+    document.getElementById('edit-doctor-name').value = name;
+    document.getElementById('edit-doctor-dept').value = department;
+    document.getElementById('edit-doctor-exp').value = experience;
+    document.getElementById('doctor-edit-modal').style.display = 'block';
+}
+
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('doctor-edit-modal');
+    if (event.target === modal) {
+        modal.style.display = 'none';
+    }
+});
+</script>
+
+<style>
+.hd-modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+}
+
+.hd-modal-content {
+    background-color: var(--hd-surface);
+    margin: auto;
+    padding: 0;
+    border: 1px solid var(--hd-border);
+    box-shadow: var(--hd-shadow);
+    width: 90%;
+    max-width: 500px;
+    border-radius: var(--hd-radius);
+    top: 50%;
+    transform: translateY(-50%);
+    position: relative;
+    margin-top: 10vh;
+}
+
+.hd-modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--hd-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.hd-modal-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--hd-text);
+    font-weight: 600;
+}
+
+.hd-modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--hd-text-muted);
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.hd-modal-close:hover {
+    color: var(--hd-text);
+    background-color: var(--hd-bg);
+}
+
+.hd-modal-body {
+    padding: 20px;
+}
+
+.hd-modal-footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--hd-border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+</style>

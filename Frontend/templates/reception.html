@@ -257,7 +257,7 @@
 
             {% if selected_doctor_info %}
             <div class="rcx-doc-strip mt-3">
-                <div class="rcx-doc-strip-item"><small>Doctor</small><strong>Dr {{ selected_doctor_info.name }}</strong></div>
+                <div class="rcx-doc-strip-item"><small>Doctor</small><strong>{{ selected_doctor_info.name }}</strong></div>
                 <div class="rcx-doc-strip-item"><small>Department</small><strong>{{ selected_doctor_info.department }}</strong></div>
                 <div class="rcx-doc-strip-item"><small>Duty Status</small><span class="hd-badge {{ selected_doctor_info.daily_status|lower }}">{{ selected_doctor_info.daily_status }}</span></div>
                 <div class="rcx-doc-strip-item">

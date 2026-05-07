@@ -1083,6 +1083,8 @@ details[open] summary::before { transform: rotate(90deg); }
             {% endif %}
         </div>
         {% endif %}
+
+        {% if patient_prescriptions %}{% include 'patient_prescriptions.html' %}{% endif %}
     </section>
 
     {# ══════════════════════════════════

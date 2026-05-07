@@ -1,4 +1,4 @@
-1|Dr. Arun Kumar|General|10|Off|Off
+1|Dr. Arun Kumar|General|10|Available|Free
 2|Dr. Meena Ravi|Cardiology|8|Unavailable|Unavailable
 3|Dr. Suresh Babu|Orthopaedics|12|Available|Emergency
 4|Dr. Kavya Nair|ENT|6|Unavailable|Free

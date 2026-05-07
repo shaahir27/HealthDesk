@@ -299,7 +299,11 @@
                     <div class="dgx-fact"><small>Phone</small><strong>{{ patient.phone }}</strong></div>
                     <div class="dgx-fact"><small>Age / Gender</small><strong>{{ patient.age }} / {{ patient.gender }}</strong></div>
                     <div class="dgx-fact"><small>Department</small><strong><span class="hd-badge booked">{{ patient.department }}</span></strong></div>
-                    <div class="dgx-fact"><small>Visit Type</small><strong>{{ patient.visit_type or "-" }}</strong></div>
+                    <div class="dgx-fact"><small>Visit Type</small><strong>
+                        <span class="hd-badge {% if patient.visit_type == 'New' %}urgent{% else %}booked{% endif %}">
+                            {{ patient.visit_type or "-" }}
+                        </span>
+                    </strong></div>
                     {% if patient.symptoms %}
                     <div class="dgx-fact" style="grid-column:1/-1;">
                         <small>Symptoms / Reason</small>
@@ -309,6 +313,8 @@
                 </div>
             </div>
         </div>
+
+        {% if vitals %}{% include 'vitals_display.html' %}{% endif %}
 
         <div class="dgx-card">
             <div class="dgx-body">
@@ -326,7 +332,7 @@
                 </div>
                 {% endif %}
 
-                <form action="/add_diagnosis" method="POST">
+                <form action="/add_diagnosis" method="POST" id="diagnosis-form">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="appointment_id" value="{{ appointment_id }}">
                     <div class="row g-3">
@@ -360,6 +366,9 @@
                                 required
                             ></textarea>
                         </div>
+
+                        {% include 'prescription_form.html' %}
+
                         <div class="col-12">
                             <button class="hd-btn hd-btn-success" {% if not appointment_id %}disabled{% endif %}>
                                 <i class="bi bi-check2-circle"></i> Save Diagnosis &amp; Complete Consultation
@@ -416,6 +425,9 @@
         </div>
     </div>
     {% endif %}
+
+    {% if rx_header %}{% include 'prescription_display.html' %}{% endif %}
+
 </div>
 
 <script>

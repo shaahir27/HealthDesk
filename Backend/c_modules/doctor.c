@@ -563,6 +563,67 @@ int main(int argc, char *argv[]) {
         int year = tm_now ? (tm_now->tm_year + 1900) : 2026;
         printf("HDDoc%d@%d", atoi(argv[2]), year);
     }
+    else if (strcmp(argv[1], "edit") == 0 && argc == 6) {
+        int doc_id = atoi(argv[2]);
+        char *new_name = argv[3];
+        char *new_dept = argv[4];
+        int new_exp = atoi(argv[5]);
+        
+        FILE *fp = fopen(DOCTOR_FILE, "r");
+        char temp_path[MAX_LINE];
+        FILE *temp;
+        char line[MAX_LINE];
+        int found = 0;
+
+        buildDoctorTempPath(temp_path, sizeof(temp_path));
+        temp = fopen(temp_path, "w");
+
+        if (fp == NULL || temp == NULL) {
+            if (fp != NULL) fclose(fp);
+            if (temp != NULL) fclose(temp);
+            printf("Error|SaveFailed");
+            return 1;
+        }
+
+        while (fgets(line, sizeof(line), fp)) {
+            struct Doctor d;
+
+            if (!parseDoctorLine(line, &d)) {
+                fprintf(temp, "%s", line);
+                continue;
+            }
+
+            if (d.id == doc_id) {
+                strcpy(d.name, new_name);
+                strcpy(d.specialization, new_dept);
+                d.experience = new_exp;
+                found = 1;
+            }
+
+            fprintf(temp, "%d|%s|%s|%d|%s|%s\n",
+                d.id,
+                d.name,
+                d.specialization,
+                d.experience,
+                d.daily_status,
+                d.current_status
+            );
+        }
+
+        fclose(fp);
+        fclose(temp);
+
+        if (!found) {
+            remove(temp_path);
+            printf("Error|NotFound");
+            return 1;
+        }
+
+        remove(DOCTOR_FILE);
+        rename(temp_path, DOCTOR_FILE);
+        printf("UPDATED");
+        return 0;
+    }
     else {
         addDoctor(argv[1]);
     }

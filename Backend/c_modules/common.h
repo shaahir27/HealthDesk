@@ -15,7 +15,7 @@
 #define MAX_ADDRESS 200
 #define MAX_TEXT 200
 #define MAX_SMALL 20
-#define MAX_LINE 500
+#define MAX_LINE 1200
 #define MAX_REASON 221
 #define MAX_TIMESTAMP 40
 
@@ -31,6 +31,8 @@
 #define USER_FILE "Backend/data/users.txt"
 #define ADVANCE_FILE "Backend/data/advances.txt"
 #define BOOKING_INTENT_FILE "Backend/data/pending_booking_intents.txt"
+#define VITALS_FILE "Backend/data/vitals.txt"
+#define PRESCRIPTION_FILE "Backend/data/prescriptions.txt"
 // STRUCT DECLARATIONS
 
 struct Patient;
@@ -187,5 +189,51 @@ typedef struct UserAccount {
     int  doctor_id;
     struct UserAccount *next;
 } UserAccount;
+
+// Vitals (patient health measurements)
+typedef struct Vitals {
+    int    vitals_id;
+    int    patient_id;
+    int    doctor_id;
+    int    token;
+    char   recorded_at[MAX_TIMESTAMP];
+    char   temperature[MAX_SMALL];
+    char   bp_systolic[MAX_SMALL];
+    char   bp_diastolic[MAX_SMALL];
+    char   pulse_rate[MAX_SMALL];
+    char   weight[MAX_SMALL];
+    char   oxygen_level[MAX_SMALL];
+    char   sugar_level[MAX_SMALL];
+    char   allergy_conditions[MAX_TEXT];
+    char   health_conditions[MAX_TEXT];
+    char   notes[MAX_TEXT];
+    char   smoking_habit[MAX_SMALL];
+    char   drinking_habit[MAX_SMALL];
+    struct Vitals *next;
+} Vitals;
+
+// Prescription header
+typedef struct PrescriptionHeader {
+    int  prescription_id;
+    int  appointment_id;
+    int  patient_id;
+    int  doctor_id;
+    char date[20];
+    char diagnosis_summary[400];
+    char advice_notes[400];
+    struct PrescriptionHeader *next;
+} PrescriptionHeader;
+
+// Medicine row for prescription
+typedef struct MedicineRow {
+    int  prescription_id;
+    char medicine_name[100];
+    char morning[8];
+    char afternoon[8];
+    char night[8];
+    char days[8];
+    char instructions[MAX_TEXT];
+    struct MedicineRow *next;
+} MedicineRow;
 
 #endif

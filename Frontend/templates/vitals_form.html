@@ -1,0 +1,185 @@
+{% extends "index.html" %}
+{% block content %}
+<style>
+  .vitals-shell { display: grid; gap: 20px; margin: 20px auto; max-width: 900px; padding: 20px; }
+  .vitals-card { background: var(--hd-surface); border: 1px solid var(--hd-border); border-radius: var(--hd-radius); box-shadow: var(--hd-shadow); padding: 24px; }
+  .vitals-header { margin-bottom: 20px; }
+  .vitals-title { font-size: 1.3rem; font-weight: 700; color: var(--hd-text); margin: 0 0 12px; }
+  .vitals-back { display: inline-block; margin-bottom: 16px; color: var(--hd-primary); text-decoration: none; font-size: 0.9rem; }
+  .vitals-back:hover { text-decoration: underline; }
+  .vitals-back-icon { margin-right: 6px; }
+  .vitals-info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  .vitals-info-card { background: var(--hd-bg); border: 1px solid var(--hd-border); border-radius: var(--hd-radius); padding: 16px; }
+  .vitals-info-label { font-size: 0.75rem; font-weight: 700; color: var(--hd-text-muted); text-transform: uppercase; margin-bottom: 8px; }
+  .vitals-info-value { font-size: 1rem; color: var(--hd-text); font-weight: 600; }
+  .vitals-warning { background: #fff3cd; border: 1px solid #ffc107; border-radius: var(--hd-radius); padding: 12px; margin-bottom: 20px; font-size: 0.9rem; color: #856404; }
+  .vitals-form { display: grid; gap: 16px; }
+  .vitals-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .vitals-form-row.full { grid-template-columns: 1fr; }
+  .hd-field-group { display: flex; flex-direction: column; }
+  .hd-label { font-size: 0.9rem; font-weight: 600; color: var(--hd-text); margin-bottom: 6px; }
+  .hd-input { padding: 10px 12px; border: 1px solid var(--hd-border); border-radius: 4px; font-size: 0.95rem; font-family: inherit; }
+  .hd-input:focus { outline: none; border-color: var(--hd-primary); box-shadow: 0 0 0 2px rgba(var(--hd-primary-rgb), 0.1); }
+  .hd-btn { padding: 10px 16px; border: none; border-radius: 4px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .hd-btn-primary { background: var(--hd-primary); color: white; }
+  .hd-btn-primary:hover { opacity: 0.9; }
+  .hd-btn-muted { background: var(--hd-bg); color: var(--hd-text); border: 1px solid var(--hd-border); }
+  .hd-btn-muted:hover { background: rgba(0,0,0,0.05); }
+  .vitals-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+  .vitals-note { color: var(--hd-text-muted); font-size: 0.85rem; margin-top: 8px; }
+  .vitals-section-heading { font-size: 0.95rem; font-weight: 700; color: var(--hd-text); margin: 20px 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--hd-border); }
+  .vitals-alert-danger { background: #f8d7da; border: 1px solid #f5c6cb; border-radius: var(--hd-radius); padding: 12px; margin-bottom: 20px; font-size: 0.9rem; color: #721c24; }
+</style>
+
+<div class="vitals-shell">
+  <a href="{{ url_for('queue_page') }}" class="vitals-back">
+    <span class="vitals-back-icon">← Back to Queue</span>
+  </a>
+
+  <div class="vitals-card">
+    <div class="vitals-header">
+      <h1 class="vitals-title">Record Vitals</h1>
+      {% if status_note %}
+      <div class="vitals-alert-danger">{{ status_note }}</div>
+      {% endif %}
+    </div>
+
+    <div class="vitals-info">
+      <div class="vitals-info-card">
+        <div class="vitals-info-label">Patient</div>
+        <div class="vitals-info-value">{{ patient.name }}</div>
+        <div style="font-size: 0.85rem; color: var(--hd-text-muted); margin-top: 4px;">ID: {{ patient.id }} • Age: {{ patient.age }}</div>
+      </div>
+      <div class="vitals-info-card">
+        <div class="vitals-info-label">Doctor & Department</div>
+        <div class="vitals-info-value">{{ doctor.name }}</div>
+        <div style="font-size: 0.85rem; color: var(--hd-text-muted); margin-top: 4px;">{{ doctor.department }} • Token: {{ token }}</div>
+      </div>
+    </div>
+
+    {% if existing_vitals %}
+    <div class="vitals-warning">
+      <strong>Vitals already recorded for this visit.</strong> Submitting again will create a new entry.
+    </div>
+    {% endif %}
+
+    <form action="{{ url_for('vitals_save') }}" method="POST" class="vitals-form">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="patient_id" value="{{ patient.id }}">
+      <input type="hidden" name="doctor_id" value="{{ doctor.id }}">
+      <input type="hidden" name="token" value="{{ token }}">
+
+      <div class="vitals-section-heading">Vital Signs</div>
+
+      <div class="vitals-form-row">
+        <div class="hd-field-group">
+          <label class="hd-label" for="temperature">Temperature (°F)</label>
+          <input type="text" id="temperature" name="temperature" class="hd-input" placeholder="e.g. 98.6" 
+                 value="{{ existing_vitals.temperature if existing_vitals else '' }}">
+          <div class="vitals-note">Fahrenheit scale</div>
+        </div>
+        <div class="hd-field-group">
+          <label class="hd-label" for="pulse_rate">Pulse Rate (bpm)</label>
+          <input type="text" id="pulse_rate" name="pulse_rate" class="hd-input" placeholder="e.g. 72"
+                 value="{{ existing_vitals.pulse_rate if existing_vitals else '' }}">
+          <div class="vitals-note">Beats per minute</div>
+        </div>
+      </div>
+
+      <div class="vitals-form-row">
+        <div class="hd-field-group">
+          <label class="hd-label" for="bp_systolic">Blood Pressure Systolic (mmHg)</label>
+          <input type="text" id="bp_systolic" name="bp_systolic" class="hd-input" placeholder="e.g. 120"
+                 value="{{ existing_vitals.bp_systolic if existing_vitals else '' }}">
+        </div>
+        <div class="hd-field-group">
+          <label class="hd-label" for="bp_diastolic">Blood Pressure Diastolic (mmHg)</label>
+          <input type="text" id="bp_diastolic" name="bp_diastolic" class="hd-input" placeholder="e.g. 80"
+                 value="{{ existing_vitals.bp_diastolic if existing_vitals else '' }}">
+        </div>
+      </div>
+
+      <div class="vitals-form-row">
+        <div class="hd-field-group">
+          <label class="hd-label" for="weight">Weight (kg)</label>
+          <input type="text" id="weight" name="weight" class="hd-input" placeholder="e.g. 70.5"
+                 value="{{ existing_vitals.weight if existing_vitals else '' }}">
+        </div>
+        <div class="hd-field-group">
+          <label class="hd-label" for="oxygen_level">Oxygen Level (SpO2 %)</label>
+          <input type="text" id="oxygen_level" name="oxygen_level" class="hd-input" placeholder="e.g. 98"
+                 value="{{ existing_vitals.oxygen_level if existing_vitals else '' }}">
+        </div>
+      </div>
+
+      <div class="vitals-form-row full">
+        <div class="hd-field-group">
+          <label class="hd-label" for="sugar_level">Blood Sugar Level (mg/dL)</label>
+          <input type="text" id="sugar_level" name="sugar_level" class="hd-input" placeholder="Optional - Fasting or random"
+                 value="{{ existing_vitals.sugar_level if existing_vitals else '' }}">
+          <div class="vitals-note">Optional field</div>
+        </div>
+      </div>
+
+      <div class="vitals-section-heading">Medical Conditions (Safety Critical)</div>
+
+      <div class="vitals-form-row full">
+        <div class="hd-field-group">
+          <label class="hd-label" for="allergy_conditions">Known Allergies</label>
+          <input type="text" id="allergy_conditions" name="allergy_conditions" class="hd-input" 
+                 placeholder="e.g. Penicillin, Peanuts, Shellfish"
+                 value="{{ existing_vitals.allergy_conditions if existing_vitals else '' }}">
+          <div class="vitals-note">Critical for prescription and treatment planning</div>
+        </div>
+      </div>
+
+      <div class="vitals-form-row full">
+        <div class="hd-field-group">
+          <label class="hd-label" for="health_conditions">Existing Health Conditions</label>
+          <input type="text" id="health_conditions" name="health_conditions" class="hd-input"
+                 placeholder="e.g. Diabetes, Hypertension, Asthma" maxlength="200"
+                 value="{{ existing_vitals.health_conditions if existing_vitals else '' }}">
+          <div class="vitals-note">Chronic or significant conditions</div>
+        </div>
+    </div>
+
+      <div class="vitals-section-heading">Personal Habits</div>
+      <div class="vitals-form-row">
+        <div class="hd-field-group">
+          <label class="hd-label" for="smoking_habit">Smoking Habit</label>
+          <select id="smoking_habit" name="smoking_habit" class="hd-input">
+              <option value="" {% if not existing_vitals or existing_vitals.smoking_habit == '' %}selected{% endif %}>Select...</option>
+              <option value="Non-smoker" {% if existing_vitals and existing_vitals.smoking_habit == 'Non-smoker' %}selected{% endif %}>Non-smoker</option>
+              <option value="Occasional" {% if existing_vitals and existing_vitals.smoking_habit == 'Occasional' %}selected{% endif %}>Occasional</option>
+              <option value="Regular" {% if existing_vitals and existing_vitals.smoking_habit == 'Regular' %}selected{% endif %}>Regular</option>
+          </select>
+        </div>
+        <div class="hd-field-group">
+          <label class="hd-label" for="drinking_habit">Drinking Habit</label>
+          <select id="drinking_habit" name="drinking_habit" class="hd-input">
+              <option value="" {% if not existing_vitals or existing_vitals.drinking_habit == '' %}selected{% endif %}>Select...</option>
+              <option value="Non-drinker" {% if existing_vitals and existing_vitals.drinking_habit == 'Non-drinker' %}selected{% endif %}>Non-drinker</option>
+              <option value="Occasional" {% if existing_vitals and existing_vitals.drinking_habit == 'Occasional' %}selected{% endif %}>Occasional</option>
+              <option value="Regular" {% if existing_vitals and existing_vitals.drinking_habit == 'Regular' %}selected{% endif %}>Regular</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="vitals-form-row full">
+        <div class="hd-field-group">
+          <label class="hd-label" for="notes">Additional Notes</label>
+          <input type="text" id="notes" name="notes" class="hd-input"
+                 placeholder="e.g. Patient appeared anxious, recent viral symptoms" maxlength="200"
+                 value="{{ existing_vitals.notes if existing_vitals else '' }}">
+          <div class="vitals-note">Short observations during recording</div>
+        </div>
+      </div>
+
+      <div class="vitals-actions">
+        <a href="{{ url_for('queue_page') }}" class="hd-btn hd-btn-muted">Cancel</a>
+        <button type="submit" class="hd-btn hd-btn-primary">Save Vitals</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

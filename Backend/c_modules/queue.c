@@ -380,6 +380,8 @@ int queueReconcile(void) {
         if (strcmp(current->status, "Waiting") == 0) {
             FILE *fp = fopen(APPOINTMENT_FILE, "r");
             char line[MAX_LINE];
+            int has_booked = 0;
+            char last_terminal[MAX_SMALL] = "";
             if (fp != NULL) {
                 while (fgets(line, sizeof(line), fp)) {
                     char buffer[MAX_LINE];
@@ -405,14 +407,21 @@ int queueReconcile(void) {
                     token = strtok(NULL, "|");
                     if (!token) continue;
                     patient_id = atoi(token);
-                    if (patient_id == current->patient_id && doctor_id == current->doctor_id &&
-                        (strcmp(status, "Completed") == 0 || strcmp(status, "Cancelled") == 0 ||
-                         strcmp(status, "Rescheduled") == 0 || strcmp(status, "No-show") == 0)) {
-                        safeCopy(current->status, status, sizeof(current->status));
-                        updated = 1;
+                    if (patient_id != current->patient_id || doctor_id != current->doctor_id)
+                        continue;
+                    if (strcmp(status, "Booked") == 0) {
+                        has_booked = 1;
+                    }
+                    if (strcmp(status, "Completed") == 0 || strcmp(status, "Cancelled") == 0 ||
+                        strcmp(status, "Rescheduled") == 0 || strcmp(status, "No-show") == 0) {
+                        safeCopy(last_terminal, status, sizeof(last_terminal));
                     }
                 }
                 fclose(fp);
+                if (!has_booked && last_terminal[0] != '\0') {
+                    safeCopy(current->status, last_terminal, sizeof(current->status));
+                    updated = 1;
+                }
             }
         }
         current = current->next;

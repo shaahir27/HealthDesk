@@ -1,0 +1,96 @@
+<!-- Vitals Display Partial -->
+<div style="background: var(--hd-surface); border: 1px solid var(--hd-border); border-radius: var(--hd-radius); gap: 12px; padding: 16px; margin-bottom: 16px;">
+  <h3 style="margin: 0 0 12px; font-size: 0.95rem; font-weight: 700; color: var(--hd-text);">
+    <i class="bi bi-heart-pulse" style="margin-right: 6px;"></i>Vitals on Record
+  </h3>
+  
+  {% if not vitals %}
+    <div style="color: var(--hd-text-muted); font-size: 0.9rem; font-style: italic;">
+      No vitals recorded for this visit yet.
+    </div>
+  {% else %}
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 0.9rem;">
+      
+      <!-- Vital Signs Grid -->
+      <div style="background: var(--hd-bg); border-radius: 4px; padding: 12px;">
+        <div style="font-weight: 700; color: var(--hd-text-muted); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 8px;">Temperature</div>
+        <div style="font-size: 1.1rem; font-weight: 600; color: var(--hd-text);">{{ vitals.temperature }}°F</div>
+      </div>
+      
+      <div style="background: var(--hd-bg); border-radius: 4px; padding: 12px;">
+        <div style="font-weight: 700; color: var(--hd-text-muted); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 8px;">Pulse Rate</div>
+        <div style="font-size: 1.1rem; font-weight: 600; color: var(--hd-text);">{{ vitals.pulse_rate }} bpm</div>
+      </div>
+      
+      <div style="background: var(--hd-bg); border-radius: 4px; padding: 12px;">
+        <div style="font-weight: 700; color: var(--hd-text-muted); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 8px;">Blood Pressure</div>
+        <div style="font-size: 1.1rem; font-weight: 600; color: var(--hd-text);">{{ vitals.bp_systolic }}/{{ vitals.bp_diastolic }} mmHg</div>
+      </div>
+      
+      <div style="background: var(--hd-bg); border-radius: 4px; padding: 12px;">
+        <div style="font-weight: 700; color: var(--hd-text-muted); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 8px;">Weight</div>
+        <div style="font-size: 1.1rem; font-weight: 600; color: var(--hd-text);">{{ vitals.weight }} kg</div>
+      </div>
+      
+      <div style="background: var(--hd-bg); border-radius: 4px; padding: 12px;">
+        <div style="font-weight: 700; color: var(--hd-text-muted); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 8px;">Oxygen Level (SpO2)</div>
+        <div style="font-size: 1.1rem; font-weight: 600; color: var(--hd-text);">{{ vitals.oxygen_level }}%</div>
+      </div>
+      
+      {% if vitals.sugar_level %}
+      <div style="background: var(--hd-bg); border-radius: 4px; padding: 12px;">
+        <div style="font-weight: 700; color: var(--hd-text-muted); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 8px;">Blood Sugar</div>
+        <div style="font-size: 1.1rem; font-weight: 600; color: var(--hd-text);">{{ vitals.sugar_level }} mg/dL</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Safety-Critical Information -->
+    {% if vitals.allergy_conditions or vitals.health_conditions %}
+    <div style="margin-top: 16px; border-top: 1px solid var(--hd-border); padding-top: 12px;">
+      {% if vitals.allergy_conditions %}
+      <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; border-radius: 4px; margin-bottom: 12px;">
+        <div style="font-weight: 700; color: #856404; font-size: 0.8rem; text-transform: uppercase; margin-bottom: 6px;">
+          ⚠️ Known Allergies
+        </div>
+        <div style="color: #856404;">{{ vitals.allergy_conditions }}</div>
+      </div>
+      {% endif %}
+      
+      {% if vitals.health_conditions %}
+      <div style="background: #e7f3ff; border-left: 4px solid #0066cc; padding: 10px; border-radius: 4px; margin-bottom: 12px;">
+        <div style="font-weight: 700; color: #004085; font-size: 0.8rem; text-transform: uppercase; margin-bottom: 6px;">
+          Existing Conditions
+        </div>
+        <div style="color: #004085;">{{ vitals.health_conditions }}</div>
+      </div>
+      {% endif %}
+
+      {% if vitals.smoking_habit or vitals.drinking_habit %}
+      <div style="background: #e2e8f0; border-left: 4px solid #475569; padding: 10px; border-radius: 4px;">
+        <div style="font-weight: 700; color: #334155; font-size: 0.8rem; text-transform: uppercase; margin-bottom: 6px;">
+          Personal Habits
+        </div>
+        <div style="color: #334155;">
+          {% if vitals.smoking_habit %}<div><strong>Smoking:</strong> {{ vitals.smoking_habit }}</div>{% endif %}
+          {% if vitals.drinking_habit %}<div><strong>Drinking:</strong> {{ vitals.drinking_habit }}</div>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Additional Notes -->
+    {% if vitals.notes %}
+    <div style="margin-top: 12px; padding: 10px; background: var(--hd-bg); border-radius: 4px; border-left: 3px solid var(--hd-primary);">
+      <div style="font-weight: 700; color: var(--hd-text-muted); font-size: 0.8rem; text-transform: uppercase; margin-bottom: 4px;">Notes</div>
+      <div style="color: var(--hd-text); font-size: 0.9rem;">{{ vitals.notes }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Recorded Timestamp -->
+    <div style="margin-top: 12px; color: var(--hd-text-muted); font-size: 0.85rem; border-top: 1px solid var(--hd-border); padding-top: 8px;">
+      Recorded: {{ vitals.recorded_at }}
+    </div>
+  {% endif %}
+</div>

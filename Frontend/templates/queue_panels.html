@@ -85,19 +85,20 @@
                             <th>Patient</th>
                             <th>Priority</th>
                             <th>Symptoms</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for patient in group.patients %}
                         <tr {% if patient.priority == 'Urgent' %}style="background:rgba(231,76,60,.04);"{% endif %}>
-                            <td><strong>{{ patient.token }}</strong></td>
-                            <td>
-                                <div>#{{ patient.patient_id }}</div>
-                                <small class="text-muted">
-                                    {{ patient.name or "-" }}
+                            <td style="vertical-align: middle;"><strong>{{ patient.token }}</strong></td>
+                            <td style="vertical-align: middle;">
+                                <div style="font-weight: 600; color: #334155;">{{ patient.name or "-" }}</div>
+                                <small class="text-muted d-flex align-items-center gap-2 mt-1">
+                                    <span>#{{ patient.patient_id }}</span>
                                     {% if patient.outstanding_amount and patient.outstanding_amount > 0 %}
                                     <span class="hd-badge danger"
-                                          style="margin-left:6px; cursor:pointer;"
+                                          style="cursor:pointer; padding: 2px 6px; font-size: 0.65rem;"
                                           onclick="window.location='/billing?patient_id={{ patient.patient_id }}'"
                                           title="Outstanding bill - collect before consultation">
                                       Due ₹{{ patient.outstanding_amount | int }}
@@ -105,13 +106,24 @@
                                     {% endif %}
                                 </small>
                             </td>
-                            <td>
+                            <td style="vertical-align: middle;">
                                 <span class="hd-badge {% if patient.priority == 'Urgent' %}urgent{% else %}normal{% endif %}">
                                     {{ patient.priority }}
                                 </span>
                             </td>
-                            <td style="max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                            <td style="vertical-align: middle; max-width:240px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color: #64748b;">
                                 {{ patient.symptoms or "-" }}
+                            </td>
+                            <td style="vertical-align: middle; text-align: right; width: 120px;">
+                                <!-- Vitals Action Button for Queue -->
+                                {% if patient.vitals_url %}
+                                <a href="{{ patient.vitals_url }}"
+                                   class="hd-btn hd-btn-sm {% if patient.vitals_recorded %}hd-btn-outline{% else %}hd-btn-primary{% endif %}"
+                                   style="width: 100%; justify-content: center;"
+                                   title="{% if patient.vitals_recorded %}Vitals already recorded. Click to update.{% else %}Record vitals for this patient.{% endif %}">
+                                  {% if patient.vitals_recorded %}✓ Vitals{% else %}Add Vitals{% endif %}
+                                </a>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}

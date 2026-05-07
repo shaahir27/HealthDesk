@@ -299,7 +299,7 @@
     <div class="dd-hero">
         <div>
             <div class="dd-hero-eyebrow"><i class="bi bi-stethoscope me-1"></i> Doctor Portal</div>
-            <h4>{{ "Dr " + doctor_info.name if doctor_info else "Doctor Dashboard" }}</h4>
+            <h4>{{ doctor_info.name if doctor_info else "Doctor Dashboard" }}</h4>
             <p>{{ doctor_info.department + " Department" if doctor_info else "Manage your live queue, upcoming appointments, and availability." }}</p>
         </div>
         {% if doctor_info %}
@@ -332,11 +332,25 @@
     </div>
 
     <div id="ddPanels" data-refresh-url="/doctor/dashboard-panels">
-        {% include "_doctor_dashboard_panels.html" %}
+        {% include "doctor_dashboard_panels.html" %}
     </div>
 </div>
 
 <script>
+function toggleVitals(id) {
+    var panel = document.getElementById(id);
+    if (!panel) return;
+    var chevronId = 'vp-chevron-' + id.replace('vp-', '');
+    var chevron = document.getElementById(chevronId);
+    if (panel.style.display === 'none' || panel.style.display === '') {
+        panel.style.display = 'block';
+        if (chevron) { chevron.classList.remove('bi-chevron-down'); chevron.classList.add('bi-chevron-up'); }
+    } else {
+        panel.style.display = 'none';
+        if (chevron) { chevron.classList.remove('bi-chevron-up'); chevron.classList.add('bi-chevron-down'); }
+    }
+}
+
 (function() {
     var countdown = 30;
     var panels = document.getElementById("ddPanels");

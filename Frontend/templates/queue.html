@@ -1,81 +1,5 @@
 {% extends "index.html" %}
 {% block content %}
-<style>
-/* Queue Monitor */
-.qx-shell { display: grid; gap: 20px; }
-
-.qx-card {
-    background: var(--hd-surface); border: 1px solid var(--hd-border);
-    border-radius: var(--hd-radius); box-shadow: var(--hd-shadow);
-}
-.qx-body { padding: clamp(16px,2.5vw,22px); }
-.qx-head {
-    display: flex; justify-content: space-between; align-items: flex-start;
-    gap: 14px; margin-bottom: 18px; flex-wrap: wrap;
-}
-.qx-title { font-size: 1rem; font-weight: 700; color: var(--hd-text); margin: 0 0 3px; }
-.qx-sub   { font-size: .82rem; color: var(--hd-text-muted); margin: 0; }
-
-.qx-stats {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0,1fr));
-    gap: 14px;
-}
-.qx-stat {
-    padding: 16px 18px; border-radius: 12px;
-    background: var(--hd-bg); border: 1px solid var(--hd-border);
-    display: flex; flex-direction: column; gap: 4px;
-}
-.qx-stat-label { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--hd-text-muted); }
-.qx-stat-value { font-size: 1.5rem; font-weight: 700; line-height: 1; }
-.qx-stat-value.waiting   { color: var(--hd-warning); }
-.qx-stat-value.completed { color: var(--hd-accent); }
-.qx-stat-value.urgent    { color: var(--hd-danger); }
-.qx-stat-value.total     { color: var(--hd-primary); }
-
-.qx-refresh-bar {
-    display: flex; align-items: center; gap: 12px;
-    padding: 12px 16px; border-radius: 10px;
-    background: var(--hd-primary-light); border: 1px solid #c8def2;
-    font-size: .82rem; color: var(--hd-primary-dark);
-}
-.qx-refresh-dot {
-    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-    background: var(--hd-accent);
-    animation: qx-pulse 2s ease-in-out infinite;
-}
-@keyframes qx-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.6)} }
-.qx-refresh-bar progress {
-    flex: 1; height: 4px; border-radius: 3px; border: none;
-    appearance: none; -webkit-appearance: none;
-}
-.qx-refresh-bar progress::-webkit-progress-bar  { background: rgba(46,134,193,.15); border-radius: 3px; }
-.qx-refresh-bar progress::-webkit-progress-value{ background: var(--hd-primary); border-radius: 3px; }
-.qx-refresh-bar progress::-moz-progress-bar      { background: var(--hd-primary); border-radius: 3px; }
-
-.qx-group { margin-bottom: 24px; }
-.qx-group:last-child { margin-bottom: 0; }
-.qx-group-head {
-    display: flex; justify-content: space-between; align-items: center;
-    gap: 12px; padding-bottom: 10px; margin-bottom: 12px;
-    border-bottom: 2px solid var(--hd-border); flex-wrap: wrap;
-}
-.qx-group-head h6 { font-size: .95rem; font-weight: 700; margin: 0; color: var(--hd-text); }
-.qx-group-head small { font-size: .78rem; color: var(--hd-text-muted); }
-
-.qx-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-
-.qx-empty {
-    padding: 28px; text-align: center;
-    border: 2px dashed var(--hd-border); border-radius: 12px;
-    color: var(--hd-text-muted); font-size: .84rem;
-}
-.qx-empty i { display: block; font-size: 1.8rem; margin-bottom: 10px; opacity: .4; }
-
-@media (max-width: 900px) { .qx-stats { grid-template-columns: repeat(2, minmax(0,1fr)); } }
-@media (max-width: 480px) { .qx-stats { grid-template-columns: 1fr 1fr; } }
-</style>
-
 <div class="hd-page-header">
     <h4><i class="bi bi-people-fill me-2"></i>Doctor Queue Monitor</h4>
     <small>Live view of each doctor's waiting list. Patients clear automatically after diagnosis is saved.</small>
@@ -96,7 +20,7 @@
     </div>
 
     <div id="qxPanels" data-refresh-url="/queue/panels">
-        {% include "_queue_panels.html" %}
+        {% include "queue_panels.html" %}
     </div>
 </div>
 

@@ -1,0 +1,75 @@
+<!-- Prescription Display Partial (read-only) -->
+<div style="margin-top:20px; background:var(--hd-surface); border:1px solid var(--hd-border); border-radius:var(--hd-radius); padding:18px;">
+  <h6 style="font-size:0.95rem; font-weight:700; color:var(--hd-text); margin:0 0 14px;">
+    <i class="bi bi-file-earmark-medical" style="margin-right:6px;"></i>Prescription on File
+  </h6>
+
+  {% if not rx_header %}
+  <div style="color:var(--hd-text-muted); font-size:0.85rem; font-style:italic;">
+    No structured prescription on file for this consultation.
+  </div>
+  {% else %}
+
+  {% if rx_header.diagnosis_summary %}
+  <div style="margin-bottom:14px;">
+    <div style="font-weight:700; color:var(--hd-text-muted); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.4px; margin-bottom:4px;">Diagnosis Summary</div>
+    <div style="font-size:0.9rem; color:var(--hd-text); line-height:1.55;">{{ rx_header.diagnosis_summary }}</div>
+  </div>
+  {% endif %}
+
+  {% if rx_medicines %}
+  <div style="overflow-x:auto; -webkit-overflow-scrolling:touch; margin-bottom:14px;">
+    <table class="hd-table" style="font-size:0.84rem;">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Medicine</th>
+          <th style="text-align:center;">Morning</th>
+          <th style="text-align:center;">Afternoon</th>
+          <th style="text-align:center;">Night</th>
+          <th>Days</th>
+          <th>Instructions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in rx_medicines %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><strong>{{ m.medicine_name }}</strong></td>
+          <td style="text-align:center;">
+            {% if m.morning == 'Yes' %}<i class="bi bi-check-circle-fill" style="color:var(--hd-primary);"></i>{% else %}<span style="color:var(--hd-text-muted);">—</span>{% endif %}
+          </td>
+          <td style="text-align:center;">
+            {% if m.afternoon == 'Yes' %}<i class="bi bi-check-circle-fill" style="color:var(--hd-primary);"></i>{% else %}<span style="color:var(--hd-text-muted);">—</span>{% endif %}
+          </td>
+          <td style="text-align:center;">
+            {% if m.night == 'Yes' %}<i class="bi bi-check-circle-fill" style="color:var(--hd-primary);"></i>{% else %}<span style="color:var(--hd-text-muted);">—</span>{% endif %}
+          </td>
+          <td>{{ m.days }} day{{ 's' if m.days != '1' }}</td>
+          <td style="color:var(--hd-text-muted);">{{ m.instructions or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if rx_header.advice_notes %}
+  <div style="padding:10px 14px; background:var(--hd-bg); border-radius:8px; border-left:3px solid var(--hd-primary); margin-bottom:14px;">
+    <div style="font-weight:700; color:var(--hd-text-muted); font-size:0.72rem; text-transform:uppercase; margin-bottom:4px;">Advice / Notes</div>
+    <div style="font-size:0.88rem; color:var(--hd-text); line-height:1.5;">{{ rx_header.advice_notes }}</div>
+  </div>
+  {% endif %}
+
+  <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; border-top:1px solid var(--hd-border); padding-top:12px;">
+    <small style="color:var(--hd-text-muted);">
+      Prescription #{{ rx_header.prescription_id }} &middot; {{ rx_header.date }}
+    </small>
+    <a href="/doctor/prescription/pdf/{{ rx_header.prescription_id }}"
+       class="hd-btn hd-btn-outline hd-btn-sm" target="_blank">
+      <i class="bi bi-file-earmark-pdf"></i> Download PDF
+    </a>
+  </div>
+
+  {% endif %}
+</div>

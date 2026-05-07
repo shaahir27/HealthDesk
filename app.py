@@ -28,6 +28,8 @@ PRICING_FILE = os.path.join(DATA_DIR, "pricing_catalog.json")
 APPOINTMENT_FILE = os.path.join(DATA_DIR, "appointment.txt")
 QUEUE_FILE = os.path.join(DATA_DIR, "queue.txt")
 DIAGNOSIS_FILE = os.path.join(DATA_DIR, "diagnosis.txt")
+VITALS_FILE = os.path.join(DATA_DIR, "vitals.txt")
+PRESCRIPTION_FILE = os.path.join(DATA_DIR, "prescriptions.txt")
 PENDING_APPOINTMENTS_FILE = os.path.join(DATA_DIR, "pending_appointments.txt")
 NEW_PATIENT_REQUESTS_FILE = os.path.join(DATA_DIR, "new_patient_requests.txt")
 DOCTOR_STATUS_META_FILE = os.path.join(DATA_DIR, "doctor_status_meta.json")
@@ -40,12 +42,17 @@ DOCTOR_EXE = os.path.join(BACKEND_DIR, "c_modules", f"doctor{_EXE_SUFFIX}")
 APPOINTMENT_EXE = os.path.join(BACKEND_DIR, "c_modules", f"appointment{_EXE_SUFFIX}")
 QUEUE_EXE = os.path.join(BACKEND_DIR, "c_modules", f"queue{_EXE_SUFFIX}")
 _UTILS_EXE = os.path.join(BACKEND_DIR, "c_modules", f"utils{_EXE_SUFFIX}")
+VITALS_EXE = os.path.join(BACKEND_DIR, "c_modules", f"vitals{_EXE_SUFFIX}")
+PRESCRIPTION_EXE = os.path.join(BACKEND_DIR, "c_modules", f"prescription{_EXE_SUFFIX}")
 _appointment_lock = threading.Lock()
 _pending_appointment_lock = threading.Lock()
 _new_patient_request_lock = threading.Lock()
 _billing_lock = threading.Lock()
 _otp_lock = threading.Lock()
 _advance_lock = threading.Lock()
+_diagnosis_lock = threading.Lock()
+_vitals_lock = threading.Lock()
+_prescription_lock = threading.Lock()
 _otp_store = {}
 ALLOWED_PAYMENT_STATUSES = {"PENDING", "INITIATED", "PAID", "WAIVED", "REFUNDED"}
 ADVANCE_DATA_PATH = os.path.join(DATA_DIR, "advances.txt")
@@ -62,7 +69,8 @@ app = Flask(__name__,
 app.secret_key = os.environ.get("HEALTHDESK_SECRET") or secrets.token_hex(32)
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Lax"
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("FLASK_ENV") == "production"
 )
 def clean_record_field(value, max_length=180):
     cleaned = str(value or "").replace("|", "/").replace("\r", " ").replace("\n", " ").strip()
@@ -947,6 +955,469 @@ def pop_booking_intent(advance_id):
     return None
 
 
+# ── VITALS HELPERS ──
+
+def run_vitals_command(*args):
+    try:
+        return subprocess.run(
+            [VITALS_EXE, *[str(a) for a in args]],
+            capture_output=True, text=True, cwd=BASE_DIR
+        )
+    except FileNotFoundError:
+        return None
+
+
+def parse_vitals_line(line):
+    """Parse a pipe-delimited vitals record into a dict. Returns None on failure."""
+    data = line.strip().split("|")
+    if len(data) < 15:
+        data += [""] * (15 - len(data))
+    try:
+        return {
+            "vitals_id":          safe_int(data[0]),
+            "patient_id":         safe_int(data[1]),
+            "doctor_id":          safe_int(data[2]),
+            "token":              safe_int(data[3]),
+            "recorded_at":        data[4].strip(),
+            "temperature":        data[5].strip(),
+            "bp_systolic":        data[6].strip(),
+            "bp_diastolic":       data[7].strip(),
+            "pulse_rate":         data[8].strip(),
+            "weight":             data[9].strip(),
+            "oxygen_level":       data[10].strip(),
+            "sugar_level":        data[11].strip(),
+            "allergy_conditions": data[12].strip(),
+            "health_conditions":  data[13].strip(),
+            "notes":              data[14].strip(),
+            "smoking_habit":      data[15].strip() if len(data) > 15 else "",
+            "drinking_habit":     data[16].strip() if len(data) > 16 else "",
+        }
+    except (IndexError, ValueError):
+        return None
+
+
+def serialize_vitals_record(v):
+    """Serialise a vitals dict to pipe-delimited string (safe for flat-file storage)."""
+    return "|".join([
+        str(v.get("vitals_id", 0)),
+        str(v.get("patient_id", 0)),
+        str(v.get("doctor_id", 0)),
+        str(v.get("token", 0)),
+        clean_record_field(v.get("recorded_at", ""), 40),
+        clean_record_field(v.get("temperature", ""), 20),
+        clean_record_field(v.get("bp_systolic", ""), 20),
+        clean_record_field(v.get("bp_diastolic", ""), 20),
+        clean_record_field(v.get("pulse_rate", ""), 20),
+        clean_record_field(v.get("weight", ""), 20),
+        clean_record_field(v.get("oxygen_level", ""), 20),
+        clean_record_field(v.get("sugar_level", ""), 20),
+        clean_record_field(v.get("allergy_conditions", ""), 200),
+        clean_record_field(v.get("health_conditions", ""), 200),
+        clean_record_field(v.get("notes", ""), 200),
+        clean_record_field(v.get("smoking_habit", ""), 50),
+        clean_record_field(v.get("drinking_habit", ""), 50),
+    ])
+
+
+def next_vitals_id():
+    with _vitals_lock:
+        result = run_vitals_command("next-id")
+        return safe_int(result.stdout.strip(), 1) if result and result.returncode == 0 else 1
+
+
+def save_vitals_record(v):
+    line = serialize_vitals_record(v)
+    with _vitals_lock:
+        result = run_vitals_command("save", line)
+        return bool(result and result.returncode == 0)
+
+
+def find_vitals_for_patient_doctor(patient_id, doctor_id):
+    """
+    Return the most recent vitals for this patient.
+    Vitals are patient-level history — tries the specific doctor pair first
+    (most relevant for current consultation), then falls back to any prior
+    vitals for the patient regardless of doctor.
+    This ensures the receptionist form is always pre-filled with real data.
+    """
+    with _vitals_lock:
+        result = run_vitals_command("find-patient-doctor", patient_id, doctor_id)
+    if result and result.returncode == 0 and result.stdout.strip():
+        return parse_vitals_line(result.stdout.strip())
+    # Fallback: return the most recent vitals for this patient from any doctor visit
+    return find_vitals_for_patient(patient_id)
+
+def find_vitals_for_patient(patient_id):
+    """Return the most recent vitals record for this patient (any doctor), or None."""
+    with _vitals_lock:
+        result = run_vitals_command("find-patient", patient_id)
+    if result and result.returncode == 0 and result.stdout.strip():
+        return parse_vitals_line(result.stdout.strip())
+    return None
+
+def get_all_vitals_dict():
+    """
+    Returns a dict mapping patient_id -> vitals_dict (latest record for each patient).
+
+    Vitals are patient-level health history — a patient's blood pressure, temperature,
+    weight and other measurements are relevant regardless of which doctor they are
+    currently seeing. The receptionist should see 'Update Vitals' for any patient
+    who has had vitals recorded in any prior visit, not just visits to the same doctor.
+
+    The vitals record still stores doctor_id for consultation reference, but the
+    'has vitals' check is patient-scoped.
+    """
+    mapping = {}
+    with _vitals_lock:
+        result = run_vitals_command("list-all")
+    if result and result.returncode == 0:
+        for line in result.stdout.strip().split("\n"):
+            if not line.strip(): continue
+            v = parse_vitals_line(line)
+            # Keep latest record per patient (list-all is ordered by vitals_id ascending,
+            # so later entries overwrite earlier ones — last write wins = most recent)
+            if v: mapping[v["patient_id"]] = v
+    return mapping
+
+def get_doctor_vitals_dict(doctor_id):
+    """
+    Returns a dict mapping patient_id -> vitals_dict for patients in this doctor's queue.
+    Vitals are patient-level history — fetches the latest record per patient regardless
+    of which doctor previously recorded it, since measurements like BP and temperature
+    are clinically relevant across all consultations.
+    """
+    mapping = {}
+    with _vitals_lock:
+        result = run_vitals_command("list-all")
+    if result and result.returncode == 0:
+        for line in result.stdout.strip().split("\n"):
+            if not line.strip(): continue
+            v = parse_vitals_line(line)
+            # Keep latest record per patient (ascending vitals_id, so last wins)
+            if v: mapping[v["patient_id"]] = v
+    return mapping
+
+
+# ── PRESCRIPTION HELPERS ──
+
+def run_prescription_command(*args):
+    try:
+        return subprocess.run(
+            [PRESCRIPTION_EXE, *[str(a) for a in args]],
+            capture_output=True, text=True, cwd=BASE_DIR
+        )
+    except FileNotFoundError:
+        return None
+
+
+def parse_prescription_header_line(line):
+    """Parse a header line (not starting with MED|). Returns dict or None."""
+    line = line.strip()
+    if not line or line.startswith("MED|"):
+        return None
+    data = line.split("|")
+    if len(data) < 5:
+        return None
+    return {
+        "prescription_id":   safe_int(data[0]),
+        "appointment_id":    safe_int(data[1]),
+        "patient_id":        safe_int(data[2]),
+        "doctor_id":         safe_int(data[3]),
+        "date":              data[4].strip(),
+        "diagnosis_summary": data[5].strip() if len(data) > 5 else "",
+        "advice_notes":      data[6].strip() if len(data) > 6 else "",
+    }
+
+
+def parse_medicine_line(line):
+    """Parse a MED| prefixed line. Returns dict or None."""
+    line = line.strip()
+    if not line.startswith("MED|"):
+        return None
+    data = line.split("|")
+    if len(data) < 8:
+        data += [""] * (8 - len(data))
+    return {
+        "prescription_id": safe_int(data[1]),
+        "medicine_name":   data[2].strip(),
+        "morning":         data[3].strip(),
+        "afternoon":       data[4].strip(),
+        "night":           data[5].strip(),
+        "days":            data[6].strip(),
+        "instructions":    data[7].strip(),
+    }
+
+
+def serialize_prescription_header(rx):
+    """Serialise prescription header (without MED| prefix) for C save command."""
+    return "|".join([
+        str(rx.get("prescription_id", 0)),
+        str(rx.get("appointment_id", 0)),
+        str(rx.get("patient_id", 0)),
+        str(rx.get("doctor_id", 0)),
+        clean_record_field(rx.get("date", ""), 20),
+        clean_record_field(rx.get("diagnosis_summary", ""), 400),
+        clean_record_field(rx.get("advice_notes", ""), 400),
+    ])
+
+
+def serialize_medicine_row(med, prescription_id):
+    """Serialise one medicine row. C will prepend MED| when saving."""
+    return "|".join([
+        str(prescription_id),
+        clean_record_field(med.get("medicine_name", ""), 100),
+        clean_record_field(med.get("morning", "No"), 8),
+        clean_record_field(med.get("afternoon", "No"), 8),
+        clean_record_field(med.get("night", "No"), 8),
+        clean_record_field(str(med.get("days", "1")), 8),
+        clean_record_field(med.get("instructions", ""), 200),
+    ])
+
+
+def next_prescription_id():
+    with _prescription_lock:
+        result = run_prescription_command("next-id")
+        return safe_int(result.stdout.strip(), 1) if result and result.returncode == 0 else 1
+
+
+def save_prescription(appointment_id, patient_id, doctor_id, date,
+                      diagnosis_summary, advice_notes, medicines):
+    """
+    Save a full prescription: one header + N medicine rows.
+    Returns the new prescription_id on success, or 0 on failure.
+    medicines: list of dicts with keys: medicine_name, morning, afternoon,
+               night, days, instructions
+    """
+    rx_id = next_prescription_id()
+    header = {
+        "prescription_id":   rx_id,
+        "appointment_id":    appointment_id,
+        "patient_id":        patient_id,
+        "doctor_id":         doctor_id,
+        "date":              date,
+        "diagnosis_summary": diagnosis_summary,
+        "advice_notes":      advice_notes,
+    }
+    header_line = serialize_prescription_header(header)
+    with _prescription_lock:
+        result = run_prescription_command("save-header", header_line)
+        if not result or result.returncode != 0:
+            return 0
+        for med in (medicines or []):
+            med_line = serialize_medicine_row(med, rx_id)
+            run_prescription_command("save-med", med_line)
+    return rx_id
+
+
+def find_prescription_by_appointment(appointment_id):
+    """Return (header_dict, [medicine_dicts]) or (None, [])."""
+    with _prescription_lock:
+        result = run_prescription_command("find-appointment", appointment_id)
+    if not result or result.returncode != 0 or not result.stdout.strip():
+        return None, []
+    header = parse_prescription_header_line(result.stdout.strip())
+    if not header:
+        return None, []
+    meds = []
+    with _prescription_lock:
+        result2 = run_prescription_command("find-meds", header["prescription_id"])
+    if result2 and result2.returncode == 0:
+        for line in result2.stdout.splitlines():
+            med = parse_medicine_line(line)
+            if med:
+                meds.append(med)
+    return header, meds
+
+
+def _find_prescription_by_id(prescription_id):
+    """
+    Find a prescription header and its medicines by prescription_id.
+    Returns (header_dict, [medicine_dicts]) or (None, []).
+    """
+    with _prescription_lock:
+        result = run_prescription_command("find-meds", prescription_id)
+    meds = []
+    if result and result.returncode == 0:
+        for line in result.stdout.splitlines():
+            med = parse_medicine_line(line)
+            if med:
+                meds.append(med)
+    # Scan prescriptions.txt for the header matching this prescription_id
+    try:
+        with _prescription_lock:
+            with open(PRESCRIPTION_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip().startswith("MED|"):
+                        continue
+                    header = parse_prescription_header_line(line)
+                    if header and header["prescription_id"] == int(prescription_id):
+                        return header, meds
+    except FileNotFoundError:
+        pass
+    return None, []
+
+
+# ── PRESCRIPTION PDF ──
+
+def build_prescription_pdf(rx_header, rx_medicines, patient, doctor, vitals=None):
+    """
+    Build a formatted prescription PDF using ReportLab.
+    Returns bytes of the PDF.
+    """
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                             rightMargin=2*cm, leftMargin=2*cm,
+                             topMargin=2*cm, bottomMargin=2*cm)
+
+    styles = getSampleStyleSheet()
+    story = []
+
+    # ── Clinic header ──
+    clinic_style = ParagraphStyle('ClinicHeader', fontSize=18, fontName='Helvetica-Bold',
+                                   textColor=colors.HexColor('#1E3A5F'), spaceAfter=4)
+    story.append(Paragraph("HEALTHDESK CLINIC", clinic_style))
+    story.append(Paragraph("Prescription", styles['Normal']))
+    story.append(Spacer(1, 0.4*cm))
+
+    # ── Horizontal rule ──
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#2563EB')))
+    story.append(Spacer(1, 0.3*cm))
+
+    # ── Date + Prescription ID ──
+    date_str = rx_header.get("date", "")
+    parsed_date = parse_iso_date(date_str)
+    printable_date = parsed_date.strftime("%d-%m-%Y") if parsed_date else date_str
+    story.append(Paragraph(f"Date: {printable_date}    |    Prescription #: {rx_header.get('prescription_id', '')}", styles['Normal']))
+    story.append(Spacer(1, 0.4*cm))
+
+    # ── Patient details ──
+    story.append(Paragraph("PATIENT DETAILS", ParagraphStyle('SectionHead', fontSize=11, fontName='Helvetica-Bold', textColor=colors.HexColor('#0D7377'), spaceAfter=4)))
+    pat_data = [
+        ["Name", patient.get("name", ""), "Age", patient.get("age", "")],
+        ["Gender", patient.get("gender", ""), "Dept.", patient.get("department", "")],
+    ]
+    pat_table = Table(pat_data, colWidths=[3*cm, 7*cm, 2.5*cm, 5*cm])
+    pat_table.setStyle(TableStyle([
+        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+        ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+        ('FONTNAME', (2,0), (2,-1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 10),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+    ]))
+    story.append(pat_table)
+    story.append(Spacer(1, 0.3*cm))
+
+    # ── Doctor details ──
+    story.append(Paragraph("CONSULTING DOCTOR", ParagraphStyle('SectionHead2', fontSize=11, fontName='Helvetica-Bold', textColor=colors.HexColor('#0D7373'), spaceAfter=4)))
+    doc_data = [["Name", doctor.get("name", ""), "Dept.", doctor.get("department", "")]]
+    doc_table = Table(doc_data, colWidths=[3*cm, 7*cm, 2.5*cm, 5*cm])
+    doc_table.setStyle(TableStyle([
+        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+        ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+        ('FONTNAME', (2,0), (2,-1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 10),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+    ]))
+    story.append(doc_table)
+    story.append(Spacer(1, 0.3*cm))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
+    story.append(Spacer(1, 0.3*cm))
+
+    # ── Vitals (if available) ──
+    if vitals:
+        story.append(Paragraph("VITALS", ParagraphStyle('VitalsHead', fontSize=11, fontName='Helvetica-Bold', textColor=colors.HexColor('#B45309'), spaceAfter=4)))
+        vitals_data = [
+            ["Temp.", vitals.get("temperature", "\u2014") + " \u00b0F",
+             "BP", f"{vitals.get('bp_systolic','\u2014')}/{vitals.get('bp_diastolic','\u2014')} mmHg"],
+            ["Pulse", vitals.get("pulse_rate", "\u2014") + " bpm",
+             "SpO2", vitals.get("oxygen_level", "\u2014") + " %"],
+            ["Weight", vitals.get("weight", "\u2014") + " kg",
+             "Sugar", vitals.get("sugar_level", "\u2014") or "Not recorded"],
+        ]
+        vt = Table(vitals_data, colWidths=[2.5*cm, 5*cm, 2.5*cm, 7.5*cm])
+        vt.setStyle(TableStyle([
+            ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+            ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+            ('FONTNAME', (2,0), (2,-1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,-1), 10),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ]))
+        story.append(vt)
+
+        if vitals.get("allergy_conditions"):
+            story.append(Spacer(1, 0.2*cm))
+            story.append(Paragraph(
+                f"ALLERGIES: {vitals['allergy_conditions']}",
+                ParagraphStyle('Allergy', fontSize=10, fontName='Helvetica-Bold',
+                               textColor=colors.HexColor('#B91C1C'), backColor=colors.HexColor('#FEF2F2'),
+                               borderPadding=4)
+            ))
+
+        if vitals.get("health_conditions"):
+            story.append(Paragraph(
+                f"Existing Conditions: {vitals['health_conditions']}",
+                ParagraphStyle('HealthCond', fontSize=10, fontName='Helvetica')
+            ))
+
+        story.append(Spacer(1, 0.3*cm))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
+        story.append(Spacer(1, 0.3*cm))
+
+    # ── Diagnosis ──
+    story.append(Paragraph("DIAGNOSIS", ParagraphStyle('DiagHead', fontSize=11, fontName='Helvetica-Bold', textColor=colors.HexColor('#1E3A5F'), spaceAfter=4)))
+    story.append(Paragraph(rx_header.get("diagnosis_summary", ""), styles['Normal']))
+    story.append(Spacer(1, 0.4*cm))
+
+    # ── Medicines table ──
+    if rx_medicines:
+        story.append(Paragraph("MEDICINES", ParagraphStyle('MedsHead', fontSize=11, fontName='Helvetica-Bold', textColor=colors.HexColor('#1E3A5F'), spaceAfter=4)))
+        med_header = [["#", "Medicine", "Morning", "Afternoon", "Night", "Days", "Instructions"]]
+        med_rows = [
+            [str(i+1), m.get("medicine_name",""), m.get("morning",""),
+             m.get("afternoon",""), m.get("night",""),
+             m.get("days",""), m.get("instructions","")]
+            for i, m in enumerate(rx_medicines)
+        ]
+        med_data = med_header + med_rows
+        med_table = Table(med_data, colWidths=[1*cm, 5*cm, 2*cm, 2*cm, 2*cm, 1.5*cm, 4*cm])
+        med_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1E3A5F')),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
+            ('FONTSIZE', (0,0), (-1,-1), 9),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#F2F4F7')]),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#D1D5DB')),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ]))
+        story.append(med_table)
+        story.append(Spacer(1, 0.4*cm))
+
+    # ── Advice ──
+    if rx_header.get("advice_notes"):
+        story.append(Paragraph("ADVICE / NOTES", ParagraphStyle('AdviceHead', fontSize=11, fontName='Helvetica-Bold', textColor=colors.HexColor('#1E3A5F'), spaceAfter=4)))
+        story.append(Paragraph(rx_header["advice_notes"], styles['Normal']))
+        story.append(Spacer(1, 0.4*cm))
+
+    # ── Footer ──
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#2563EB')))
+    story.append(Spacer(1, 0.2*cm))
+    story.append(Paragraph("Doctor's Signature: _______________________", styles['Normal']))
+    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph("Thank you for visiting HealthDesk Clinic.", ParagraphStyle('Footer', fontSize=9, fontName='Helvetica', textColor=colors.grey)))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
 
 def _write_all_bill_records_unlocked(bills):
     lines = [serialize_bill_record(bill) for bill in bills]
@@ -1546,10 +2017,18 @@ def update_waiting_queue_status(patient_id, doctor_id=None, status="Completed"):
     return bool(result and result.returncode == 0)
 
 
+
+
 def reconcile_waiting_queue_entries():
+    """
+    Reconciles all Waiting queue entries against the appointment file.
+    Uses the fixed queue.exe reconcile which correctly keeps Waiting entries
+    when a Booked appointment exists, only applying terminal status if no
+    Booked appointment is found for that patient+doctor pair.
+    """
     result = run_queue_command("reconcile")
     if not result or result.returncode != 0:
-        raise RuntimeError("queue command failed: reconcile")
+        return read_queue()  # Fallback to raw read if reconcile fails
     rows = []
     for line in result.stdout.splitlines():
         data = line.strip().split("|")
@@ -1758,41 +2237,7 @@ def process_queue(queue):
     return queue, next_patient, len(waiting), len(completed)
 
 
-def build_reception_queue_groups(queue):
-    patients = {patient["id"]: patient for patient in read_patients()}
-    doctors = {doctor["id"]: doctor for doctor in get_doctors()}
-    groups = {}
 
-    for item in queue:
-        if item["status"] != "Waiting":
-            continue
-
-        doctor = doctors.get(item["doctor_id"])
-        group_key = item["doctor_id"]
-        if group_key not in groups:
-            groups[group_key] = {
-                "doctor_id": item["doctor_id"],
-                "doctor_name": doctor["name"] if doctor else "Unassigned",
-                "department": doctor["department"] if doctor else "",
-                "patients": []
-            }
-
-        patient = patients.get(item["patient_id"], {})
-        groups[group_key]["patients"].append({
-            "token": item["token"],
-            "patient_id": item["patient_id"],
-            "priority": item["priority"],
-            "name": patient.get("name", ""),
-            "symptoms": patient.get("symptoms", ""),
-            "outstanding_amount": float(item.get("outstanding_amount", 0) or 0),
-        })
-
-    grouped = list(groups.values())
-    for group in grouped:
-        group["patients"].sort(key=lambda row: (row["priority"] != "Urgent", row["token"]))
-
-    grouped.sort(key=lambda group: (group["doctor_id"] == -1, group["doctor_name"]))
-    return grouped
 
 
 def build_appointment_action_groups(appointments, doctors):
@@ -2006,19 +2451,36 @@ def is_future_appointment(appointment):
 
 
 def expire_stale_consultations():
+    """
+    Marks past-due Booked appointments as No-show and syncs their queue entries.
+    Also reconciles any Waiting queue entries that no longer have a valid Booked appointment.
+    Does NOT auto-add patients to the queue (use auto_queue_todays_appointments for that).
+    """
     appointments = read_appointments()
     queue_rows = read_queue()
     appointments_changed = False
     queue_changed = False
-    latest_by_patient_doctor = {}
+
+    # Build a map of today-eligible Booked appointments per (patient, doctor) pair.
+    # A queue entry is valid if there is ANY Booked appointment for that patient+doctor
+    # where the consultation day has been reached (date <= today).
+    # We do NOT use the absolute latest appointment because a future Booked appointment
+    # would cause is_consultation_day_reached to return False, incorrectly cancelling
+    # today's queue entry.
+    today_booked_by_pd = {}   # (patient_id, doctor_id) → appointment (today-eligible Booked)
+    latest_by_pd = {}         # (patient_id, doctor_id) → appointment (absolute latest, for status sync)
 
     for appointment in appointments:
         key = (appointment["patient_id"], appointment["doctor_id"])
-        current = latest_by_patient_doctor.get(key)
-        if current is None or parse_appointment_datetime(appointment) > parse_appointment_datetime(current):
-            latest_by_patient_doctor[key] = appointment
+
+        # Track absolute latest for status sync (used for non-Booked status propagation)
+        cur_latest = latest_by_pd.get(key)
+        if cur_latest is None or parse_appointment_datetime(appointment) > parse_appointment_datetime(cur_latest):
+            latest_by_pd[key] = appointment
 
         appointment_day = parse_iso_date(appointment.get("date"))
+
+        # Mark past-day Booked appointments as No-show
         if (
             appointment_day
             and appointment_day < date.today()
@@ -2039,27 +2501,72 @@ def expire_stale_consultations():
                         row["status"] = "No-show"
                         queue_changed = True
 
+        # Track today-eligible Booked appointments for queue validation
+        if (
+            appointment_day
+            and appointment["status"] == "Booked"
+            and is_consultation_day_reached(appointment)
+        ):
+            today_booked_by_pd[key] = appointment
+
+    # Reconcile Waiting queue entries
     for row in queue_rows:
         if row["status"] != "Waiting":
             continue
-        latest = latest_by_patient_doctor.get((row["patient_id"], row["doctor_id"]))
-        if not latest:
+
+        key = (row["patient_id"], row["doctor_id"])
+        today_appt = today_booked_by_pd.get(key)
+        latest_appt = latest_by_pd.get(key)
+
+        if today_appt:
+            # There IS a today-eligible Booked appointment — keep Waiting, this is valid
+            continue
+        elif not latest_appt:
+            # No appointment at all for this patient+doctor — cancel
             if update_waiting_queue_status(row["patient_id"], row["doctor_id"], "Cancelled"):
                 row["status"] = "Cancelled"
                 queue_changed = True
-        elif latest["status"] != "Booked":
-            if update_waiting_queue_status(row["patient_id"], row["doctor_id"], latest["status"]):
-                row["status"] = latest["status"]
+        elif latest_appt["status"] != "Booked":
+            # Latest appointment has a terminal status — sync to that
+            if update_waiting_queue_status(row["patient_id"], row["doctor_id"], latest_appt["status"]):
+                row["status"] = latest_appt["status"]
                 queue_changed = True
-        elif not is_consultation_day_reached(latest):
-            if update_waiting_queue_status(row["patient_id"], row["doctor_id"], "Cancelled"):
-                row["status"] = "Cancelled"
-                queue_changed = True
+        else:
+            # Latest is Booked but in the future (not today-eligible) — keep Waiting
+            # The patient was explicitly added to the queue, don't cancel
+            continue
 
     return {
         "appointments_changed": appointments_changed,
         "queue_changed": queue_changed
     }
+
+
+def auto_queue_todays_appointments():
+    """
+    Idempotent: adds today's Booked appointments to the queue if not already Waiting.
+    Uses a frozenset snapshot of current Waiting pairs — never mutates during iteration.
+    Called once per dashboard/queue page load, not on every request.
+    """
+    queue_rows = read_queue()
+    # Build an immutable set of (patient_id, doctor_id) already Waiting
+    already_waiting = frozenset(
+        (row["patient_id"], row["doctor_id"])
+        for row in queue_rows
+        if row["status"] == "Waiting"
+    )
+    appointments = read_appointments()
+    today = date.today()
+    for appointment in appointments:
+        if appointment["status"] != "Booked":
+            continue
+        appt_day = parse_iso_date(appointment.get("date"))
+        if appt_day != today:
+            continue
+        key = (appointment["patient_id"], appointment["doctor_id"])
+        if key in already_waiting:
+            continue
+        add_patient_to_queue(appointment["patient_id"], doctor_id=appointment["doctor_id"])
 
 
 def get_latest_patient_appointment(patient_id):
@@ -2272,31 +2779,32 @@ def read_diagnosis_for_patient(patient_id):
     doctor_map = {doctor["id"]: doctor for doctor in get_doctors()}
     records = []
     try:
-        with open(DIAGNOSIS_FILE, "r", encoding="utf-8") as f:
-            for line in f:
-                data = line.strip().split("|")
-                if len(data) < 6:
-                    continue
-                try:
-                    record_patient_id = int(data[1])
-                    doctor_id = int(data[2])
-                except ValueError:
-                    continue
-                if record_patient_id != patient_id:
-                    continue
-                doctor = doctor_map.get(doctor_id, {})
-                records.append({
-                    "record_id": safe_int(data[0]),
-                    "patient_id": record_patient_id,
-                    "doctor_id": doctor_id,
-                    "date": data[3],
-                    "human_date": format_human_date(data[3]),
-                    "doctor_name": doctor.get("name", "Doctor"),
-                    "department": doctor.get("department", ""),
-                    "diagnosis": data[4],
-                    "diagnosis_preview": preview_text(data[4]),
-                    "prescription": data[5]
-                })
+        with _diagnosis_lock:
+            with open(DIAGNOSIS_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    data = line.strip().split("|")
+                    if len(data) < 6:
+                        continue
+                    try:
+                        record_patient_id = int(data[1])
+                        doctor_id = int(data[2])
+                    except ValueError:
+                        continue
+                    if record_patient_id != patient_id:
+                        continue
+                    doctor = doctor_map.get(doctor_id, {})
+                    records.append({
+                        "record_id": safe_int(data[0]),
+                        "patient_id": record_patient_id,
+                        "doctor_id": doctor_id,
+                        "date": data[3],
+                        "human_date": format_human_date(data[3]),
+                        "doctor_name": doctor.get("name", "Doctor"),
+                        "department": doctor.get("department", ""),
+                        "diagnosis": data[4],
+                        "diagnosis_preview": preview_text(data[4]),
+                        "prescription": data[5]
+                    })
     except FileNotFoundError:
         pass
     records.sort(key=lambda item: parse_iso_date(item["date"]) or date.min, reverse=True)
@@ -3266,6 +3774,11 @@ def find_patient_by_id(patient_id):
     return None
 
 def read_assigned_queue_patients(doctor_id):
+    """
+    Returns all patients currently Waiting in this doctor's queue.
+    Shows every Waiting patient — appointment lookup is best-effort for extra context.
+    The queue itself is the source of truth for who is waiting.
+    """
     assigned = []
     patients = {patient["id"]: patient for patient in read_patients()}
 
@@ -3274,12 +3787,15 @@ def read_assigned_queue_patients(doctor_id):
             continue
 
         patient = patients.get(item["patient_id"], {})
+        # Best-effort: find a Booked or No-show appointment for this patient+doctor today
         active_appointment = get_latest_active_patient_appointment(item["patient_id"], doctor_id=doctor_id)
-        appointment_for_queue = active_appointment if active_appointment and active_appointment["doctor_id"] == doctor_id else None
-        appointment_date = appointment_for_queue["date"] if appointment_for_queue else ""
-        is_today_queue = bool(appointment_for_queue) and is_consultation_day_reached(appointment_for_queue)
-        if not is_today_queue:
-            continue
+        appointment_for_queue = (
+            active_appointment
+            if active_appointment
+            and active_appointment["doctor_id"] == doctor_id
+            and is_consultation_day_reached(active_appointment)
+            else None
+        )
 
         assigned.append({
             "token": item["token"],
@@ -3290,9 +3806,9 @@ def read_assigned_queue_patients(doctor_id):
             "department": patient.get("department", ""),
             "symptoms": patient.get("symptoms", ""),
             "appointment_id": appointment_for_queue["appointment_id"] if appointment_for_queue else 0,
-            "appointment_date": appointment_date,
-            "is_today_queue": is_today_queue,
-            "can_consult": bool(appointment_for_queue) and is_today_queue
+            "appointment_date": appointment_for_queue["date"] if appointment_for_queue else "",
+            "is_today_queue": True,  # By definition: they are Waiting in the queue right now
+            "can_consult": True,
         })
 
     assigned.sort(key=lambda x: (x["priority"] != "Urgent", x["token"]))
@@ -3511,6 +4027,24 @@ def patient_dashboard():
         for b in bills
         if str(b.get("status", "")).upper() in {"PENDING", "INITIATED"}
     )
+    # NEW: load prescriptions for patient
+    patient_prescriptions = []
+    for appt in read_appointments():
+        if appt.get("patient_id") != int(patient_id):
+            continue
+        if appt.get("status") != "Completed":
+            continue
+        rx_header, rx_meds = find_prescription_by_appointment(appt["appointment_id"])
+        if rx_header:
+            patient_prescriptions.append({
+                "prescription_id": rx_header["prescription_id"],
+                "date": rx_header["date"],
+                "human_date": format_human_date(rx_header["date"]),
+                "doctor_name": next((d["name"] for d in get_doctors() if d["id"] == rx_header["doctor_id"]), "Doctor"),
+                "diagnosis_summary": rx_header.get("diagnosis_summary", ""),
+                "medicine_count": len(rx_meds),
+            })
+    patient_prescriptions.sort(key=lambda x: parse_iso_date(x["date"]) or date.min, reverse=True)
     return render_template(
         "patient_dashboard.html",
         patient=patient,
@@ -3524,6 +4058,7 @@ def patient_dashboard():
         masked_phone=mask_phone(session.get("patient_phone", patient.get("phone", "") if patient else "")),
         has_blocking_bill=has_blocking_bill,
         outstanding_total=outstanding_total,
+        patient_prescriptions=patient_prescriptions,
     )
 
 @app.route("/patient/bills/<int:bill_id>/pdf")
@@ -4278,13 +4813,40 @@ def doctor_dashboard():
 
 def build_doctor_dashboard_context(doctor_id):
     expire_stale_consultations()
+    auto_queue_todays_appointments()
     reconcile_waiting_queue_entries()
     appointments = [
         a for a in read_appointments()
         if a["doctor_id"] == doctor_id and a["status"] == "Booked" and is_future_appointment(a)
     ]
     appointments.sort(key=lambda x: (x["date"], x["time_slot"]))
+    
+    # NEW: Fetch ALL vitals for this doctor in one go
+    vitals_map = get_doctor_vitals_dict(doctor_id)
+
     queue_patients = read_assigned_queue_patients(doctor_id)
+    # Attach vitals to each queue patient — remap field names to short aliases
+    # that the doctor_dashboard_panels.html template uses
+    for qp in queue_patients:
+        raw = vitals_map.get(qp["patient_id"])
+        if raw:
+            qp["vitals"] = {
+                "temp":       raw.get("temperature", ""),
+                "bp_sys":     raw.get("bp_systolic", ""),
+                "bp_dia":     raw.get("bp_diastolic", ""),
+                "pulse":      raw.get("pulse_rate", ""),
+                "weight":     raw.get("weight", ""),
+                "spo2":       raw.get("oxygen_level", ""),
+                "sugar":      raw.get("sugar_level", ""),
+                "allergies":  raw.get("allergy_conditions", ""),
+                "conditions": raw.get("health_conditions", ""),
+                "notes":      raw.get("notes", ""),
+                "smoking":    raw.get("smoking_habit", ""),
+                "drinking":   raw.get("drinking_habit", ""),
+                "recorded_at":raw.get("recorded_at", ""),
+            }
+        else:
+            qp["vitals"] = None
     live_queue_patients = queue_patients
 
     doctor_info = next((d for d in get_doctors() if d["id"] == doctor_id), None)
@@ -4301,7 +4863,7 @@ def build_doctor_dashboard_context(doctor_id):
 def doctor_dashboard_panels():
     doctor_id = int(session.get("doctor_id", "0") or 0)
     return render_template(
-        "_doctor_dashboard_panels.html",
+        "doctor_dashboard_panels.html",
         **build_doctor_dashboard_context(doctor_id)
     )
 
@@ -4316,11 +4878,71 @@ def queue_page():
     )
 
 
+def build_reception_queue_groups(queue_items, patients_list):
+    """
+    Groups queue items by doctor and hydrates with patient info.
+    Includes an "Add Vitals" URL and status for each patient.
+    """
+    doctors = {doctor["id"]: doctor for doctor in get_doctors()}
+    patients = {p["id"]: p for p in patients_list}
+
+    groups = {}
+    for item in queue_items:
+        if item.get("status") != "Waiting":
+            continue
+
+        did = item["doctor_id"]
+        pid = item["patient_id"]
+        
+        doctor = doctors.get(did)
+        if did not in groups:
+            groups[did] = {
+                "doctor_id": did,
+                "doctor_name": doctor["name"] if doctor else f"Unknown (ID: {did})",
+                "department": doctor["department"] if doctor else "",
+                "patients": []
+            }
+        
+        patient = patients.get(pid, {})
+        entry = {
+            "token": item["token"],
+            "patient_id": pid,
+            "priority": item["priority"],
+            "name": patient.get("name", f"Patient {pid}"),
+            "symptoms": patient.get("symptoms", ""),
+            "outstanding_amount": float(item.get("outstanding_amount", 0) or 0),
+            "vitals_recorded": item.get("vitals_recorded", False),
+            "vitals_url": item.get("vitals_url", "")
+        }
+
+        groups[did]["patients"].append(entry)
+
+    grouped = list(groups.values())
+    for group in grouped:
+        group["patients"].sort(key=lambda row: (row["priority"] != "Urgent", row["token"]))
+
+    grouped.sort(key=lambda group: (group["doctor_id"] == -1, group["doctor_name"]))
+    return grouped
+
 def build_queue_page_context():
     expire_stale_consultations()
+    auto_queue_todays_appointments()
     queue = reconcile_waiting_queue_entries()
     queue, next_patient, waiting_count, completed_count = process_queue(queue)
+    
+    # NEW: Fetch all vitals once instead of N times
+    all_vitals = get_all_vitals_dict()
+    
+    # NEW: Fetch patients once for the queue groups
+    patients_list = read_patients()
+    
     for entry in queue:
+        if entry.get("status") != "Waiting":
+            entry["outstanding_amount"] = 0.0
+            entry["vitals_url"] = ""
+            entry["vitals_recorded"] = False
+            continue
+
         pid = entry.get("patient_id")
         if pid:
             pending = [bill for bill in read_bills_for_patient(pid)
@@ -4328,7 +4950,26 @@ def build_queue_page_context():
             entry["outstanding_amount"] = sum(float(bill.get("total", 0)) for bill in pending)
         else:
             entry["outstanding_amount"] = 0.0
-    queue_groups = build_reception_queue_groups(queue)
+        
+        # Add vitals URL and recording status.
+        # Vitals are patient-level history: check by patient_id only.
+        # If a patient has had vitals recorded in any prior visit (any doctor),
+        # the receptionist should see "Update Vitals" not "Add Vitals".
+        did = entry.get("doctor_id")
+        if pid and did:
+            existing = all_vitals.get(pid)
+            entry["vitals_url"] = url_for(
+                "vitals_add_page",
+                patient_id=pid,
+                token=entry.get("token", 0),
+                doctor_id=did
+            )
+            entry["vitals_recorded"] = existing is not None
+        else:
+            entry["vitals_url"] = ""
+            entry["vitals_recorded"] = False
+    
+    queue_groups = build_reception_queue_groups(queue, patients_list)
     return {
         "queue": queue,
         "queue_groups": queue_groups,
@@ -4342,7 +4983,7 @@ def build_queue_page_context():
 @require_role("Receptionist")
 def queue_panels():
     return render_template(
-        "_queue_panels.html",
+        "queue_panels.html",
         **build_queue_page_context()
     )
 
@@ -4469,7 +5110,7 @@ def appointments_page():
 
     if request.args.get("history_only") == "1":
         return render_template(
-            "_appointments_history_section.html",
+            "appointments_history_section.html",
             previous_appointments=previous_appointments,
             previous_dates=previous_dates,
             selected_history_date=selected_history_date,
@@ -4845,6 +5486,28 @@ def add_doctor():
     return redirect("/doctors")
 
 
+@app.route("/doctor/edit", methods=["POST"])
+@require_role("Receptionist")
+def edit_doctor():
+    doctor_id = safe_int(request.form.get("doctor_id", "0"))
+    name = clean_record_field(request.form.get("name", "").strip())
+    department = clean_record_field(request.form.get("department", "").strip())
+    experience = safe_int(request.form.get("experience", "0"))
+
+    if not doctor_id or not name or not department or experience < 0:
+        return redirect(url_for("doctors_page", status_note="Invalid doctor details."))
+
+    exe_path = os.path.join(BACKEND_DIR, "c_modules", f"doctor{_EXE_SUFFIX}")
+    result = subprocess.run(
+        [exe_path, "edit", str(doctor_id), clean_record_field(name), clean_record_field(department), str(experience)],
+        capture_output=True, text=True, cwd=BASE_DIR
+    )
+    if result.returncode != 0:
+        return redirect(url_for("doctors_page", status_note="Could not update doctor. Please try again."))
+
+    return redirect(url_for("doctors_page", status_note=f"Doctor #{doctor_id} updated successfully."))
+
+
 @app.route("/staff/reset-password", methods=["POST"])
 @require_role("Receptionist")
 def reset_staff_password_route():
@@ -4955,6 +5618,12 @@ def diagnosis_page():
             return redirect("/doctor?status_note=Patient is not assigned to your consultation list")
         consultation_appointment = resolve_consultation_appointment(patient_id, doctor_id, appointment_id)
         patient, diagnosis, error_message = get_diagnosis_context(patient_id)
+        # NEW: load vitals for doctor
+        vitals = find_vitals_for_patient_doctor(patient_id, doctor_id) if patient_id else None
+        # NEW: load latest prescription for display
+        rx_header, rx_medicines = find_prescription_by_appointment(
+            consultation_appointment["appointment_id"]
+        ) if consultation_appointment else (None, [])
         return render_template(
             "diagnosis.html",
             patient=patient,
@@ -4963,14 +5632,20 @@ def diagnosis_page():
             appointment_id=consultation_appointment["appointment_id"] if consultation_appointment else 0,
             doctor_patients=doctor_patients,
             current_doctor_id=session.get("doctor_id", ""),
-            today=date.today().isoformat()
+            today=date.today().isoformat(),
+            vitals=vitals,
+            rx_header=rx_header,
+            rx_medicines=rx_medicines,
         )
     return render_template(
         "diagnosis.html",
         appointment_id=0,
         doctor_patients=doctor_patients,
         current_doctor_id=session.get("doctor_id", ""),
-        today=date.today().isoformat()
+        today=date.today().isoformat(),
+        vitals=None,
+        rx_header=None,
+        rx_medicines=[],
     )
 
 
@@ -4985,6 +5660,11 @@ def diagnosis_history():
         return redirect("/doctor?status_note=Patient is not assigned to your consultation list")
     consultation_appointment = resolve_consultation_appointment(patient_id, doctor_id)
     patient, diagnosis, error_message = get_diagnosis_context(patient_id)
+    # NEW: load vitals and prescription for history view
+    vitals = find_vitals_for_patient_doctor(patient_id, doctor_id) if patient_id else None
+    rx_header, rx_medicines = find_prescription_by_appointment(
+        consultation_appointment["appointment_id"]
+    ) if consultation_appointment else (None, [])
 
     return render_template(
         "diagnosis.html",
@@ -4994,7 +5674,10 @@ def diagnosis_history():
         appointment_id=consultation_appointment["appointment_id"] if consultation_appointment else 0,
         doctor_patients=doctor_patients,
         current_doctor_id=session.get("doctor_id", ""),
-        today=date.today().isoformat()
+        today=date.today().isoformat(),
+        vitals=vitals,
+        rx_header=rx_header,
+        rx_medicines=rx_medicines,
     )
 
 
@@ -5035,12 +5718,35 @@ def add_diagnosis():
 
     exe_path = os.path.join(BACKEND_DIR, "c_modules", "diagnosis.exe")
 
-    subprocess.run(
-        [exe_path, data_string],
-        capture_output=True,
-        text=True,
-        cwd=BASE_DIR
-    )
+    with _diagnosis_lock:
+        subprocess.run(
+            [exe_path, data_string],
+            capture_output=True,
+            text=True,
+            cwd=BASE_DIR
+        )
+
+    # NEW CODE — save structured prescription if submitted (backward compatible)
+    medicines_json = request.form.get("medicines_json", "").strip()
+    advice_notes   = clean_record_field(request.form.get("advice_notes", ""), 400)
+    diagnosis_summary_for_rx = clean_record_field(diagnosis_text, 400)
+
+    if medicines_json:
+        try:
+            medicines_list = json.loads(medicines_json)
+            if isinstance(medicines_list, list) and len(medicines_list) > 0:
+                save_prescription(
+                    appointment_id=appointment["appointment_id"],
+                    patient_id=int(patient_id),
+                    doctor_id=int(doctor_id),
+                    date=consult_date,
+                    diagnosis_summary=diagnosis_summary_for_rx,
+                    advice_notes=advice_notes,
+                    medicines=medicines_list
+                )
+        except (ValueError, KeyError, TypeError):
+            pass  # Prescription save failure must NOT block diagnosis save
+    # END NEW CODE
 
     update_waiting_queue_status(patient_id, doctor_id, "Completed")
 
@@ -5057,6 +5763,93 @@ def add_diagnosis():
         )
 
     return redirect(f"/doctor?billing_patient_id={patient_id}&doctor_id={doctor_id}")
+
+# ── VITALS ROUTES ──
+
+@app.route("/reception/vitals/add")
+@require_role("Receptionist")
+def vitals_add_page():
+    """Show the Add Vitals form for a specific queue entry."""
+    patient_id = safe_int(request.args.get("patient_id", "0"))
+    token      = safe_int(request.args.get("token", "0"))
+    doctor_id  = safe_int(request.args.get("doctor_id", "0"))
+
+    patient = find_patient_by_id(patient_id)
+    doctor  = get_doctor_by_id(doctor_id)
+
+    if not patient or not doctor:
+        return redirect(url_for("queue_page", status_note="Patient or doctor not found."))
+
+    existing_vitals = find_vitals_for_patient_doctor(patient_id, doctor_id)
+
+    return render_template(
+        "vitals_form.html",
+        patient=patient,
+        doctor=doctor,
+        token=token,
+        existing_vitals=existing_vitals,
+        status_note=request.args.get("status_note", "")
+    )
+
+
+@app.route("/reception/vitals/save", methods=["POST"])
+@require_role("Receptionist")
+def vitals_save():
+    """Save vitals submitted by receptionist."""
+    patient_id = safe_int(request.form.get("patient_id", "0"))
+    doctor_id  = safe_int(request.form.get("doctor_id", "0"))
+    token      = safe_int(request.form.get("token", "0"))
+
+    patient = find_patient_by_id(patient_id)
+    if not patient:
+        return redirect(url_for("queue_page", status_note="Patient not found."))
+
+    vitals = {
+        "vitals_id":          next_vitals_id(),
+        "patient_id":         patient_id,
+        "doctor_id":          doctor_id,
+        "token":              token,
+        "recorded_at":        iso_now(),
+        "temperature":        clean_record_field(request.form.get("temperature", ""), 20),
+        "bp_systolic":        clean_record_field(request.form.get("bp_systolic", ""), 20),
+        "bp_diastolic":       clean_record_field(request.form.get("bp_diastolic", ""), 20),
+        "pulse_rate":         clean_record_field(request.form.get("pulse_rate", ""), 20),
+        "weight":             clean_record_field(request.form.get("weight", ""), 20),
+        "oxygen_level":       clean_record_field(request.form.get("oxygen_level", ""), 20),
+        "sugar_level":        clean_record_field(request.form.get("sugar_level", ""), 20),
+        "allergy_conditions": clean_record_field(request.form.get("allergy_conditions", ""), 200),
+        "health_conditions":  clean_record_field(request.form.get("health_conditions", ""), 200),
+        "notes":              clean_record_field(request.form.get("notes", ""), 200),
+    }
+
+    if not save_vitals_record(vitals):
+        return redirect(url_for(
+            "vitals_add_page",
+            patient_id=patient_id, token=token, doctor_id=doctor_id,
+            status_note="Could not save vitals. Please try again."
+        ))
+
+    return redirect(url_for("queue_page", status_note=f"Vitals saved for {patient['name']}."))
+
+
+@app.route("/doctor/patient/vitals")
+@require_role("Doctor")
+def doctor_view_vitals():
+    """Doctor views vitals for a specific patient. AJAX-friendly — returns partial HTML."""
+    patient_id = safe_int(request.args.get("patient_id", "0"))
+    doctor_id  = int(session.get("doctor_id", "0") or 0)
+
+    if not doctor_can_access_patient(patient_id, doctor_id):
+        return "Not authorised", 403
+
+    vitals = find_vitals_for_patient_doctor(patient_id, doctor_id)
+    patient = find_patient_by_id(patient_id)
+
+    return render_template(
+        "vitals_display.html",
+        vitals=vitals,
+        patient=patient
+    )
 
 @app.route("/billing")
 @require_role("Receptionist")
@@ -5249,6 +6042,55 @@ def download_bill(bill_id):
     response.headers["Content-Type"] = "application/pdf"
     response.headers["Content-Disposition"] = f"attachment; filename=bill-{bill_id}.pdf"
     return response
+
+# ── PRESCRIPTION PDF ROUTES ──
+
+@app.route("/doctor/prescription/pdf/<int:prescription_id>")
+@require_role("Doctor")
+def download_prescription_pdf(prescription_id):
+    """Doctor downloads prescription PDF."""
+    doctor_id = int(session.get("doctor_id", "0") or 0)
+    rx_header, rx_medicines = _find_prescription_by_id(prescription_id)
+
+    if not rx_header:
+        return "Prescription not found", 404
+    if rx_header.get("doctor_id") != doctor_id:
+        return "Not authorised", 403
+
+    patient = find_patient_by_id(rx_header["patient_id"])
+    doctor  = get_doctor_by_id(doctor_id)
+    vitals  = find_vitals_for_patient_doctor(rx_header["patient_id"], doctor_id)
+
+    if not patient or not doctor:
+        return "Patient or doctor record not found", 404
+
+    pdf_bytes = build_prescription_pdf(rx_header, rx_medicines, patient, doctor, vitals)
+    response = make_response(pdf_bytes)
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = f"attachment; filename=prescription-{prescription_id}.pdf"
+    return response
+
+
+@app.route("/patient/prescription/pdf/<int:prescription_id>")
+@require_role("Patient")
+def patient_download_prescription_pdf(prescription_id):
+    """Patient downloads their own prescription PDF."""
+    patient_id = int(session.get("patient_id", "0") or 0)
+    rx_header, rx_medicines = _find_prescription_by_id(prescription_id)
+
+    if not rx_header or rx_header.get("patient_id") != patient_id:
+        return "Prescription not found", 404
+
+    patient = find_patient_by_id(patient_id)
+    doctor  = get_doctor_by_id(rx_header["doctor_id"])
+    vitals  = find_vitals_for_patient_doctor(patient_id, rx_header["doctor_id"])
+
+    pdf_bytes = build_prescription_pdf(rx_header, rx_medicines, patient, doctor, vitals)
+    response = make_response(pdf_bytes)
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = f"attachment; filename=prescription-{prescription_id}.pdf"
+    return response
+
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

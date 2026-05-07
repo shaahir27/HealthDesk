@@ -1,0 +1,22 @@
+1|6|1|5|2026-05-02T15:30:00|99.1|130|85|78|62|97|110|Penicillin allergy|Mild asthma|Patient reports seasonal allergies|Non-smoker|Non-drinker
+2|7|6|6|2026-05-02T17:45:00|98.6|120|80|72|55|98||None|Dust allergy noted|Normal checkup vitals|Non-smoker|Non-drinker
+3|1|8|12|2026-05-06T10:00:00|100.2|140|90|88|72|96|145|Sulfa drug allergy|Diabetes Type 2, Hypertension|Fasting sugar elevated|Non-smoker|Occasional
+4|20|6|11|2026-05-02T08:15:00|98.4|118|76|70|50|99||None reported|Previous dermatitis treatment|Mild symptoms|Non-smoker|Non-drinker
+5|9|1|17|2026-05-06T23:20:30|99.3|144|79|94|84|92|||Diabetes Type 2|Routine check|Non-smoker|Occasional
+6|15|7|32|2026-05-06T23:20:30|102.0|150|70|103|58|100||Peanuts||Slight cough|Non-smoker|Regular
+7|10|5|29|2026-05-06T23:20:30|99.3|141|89|75|66|100|||Diabetes Type 2|Patient feels dizzy|Non-smoker|Non-drinker
+8|12|4|25|2026-05-06T23:20:30|101.2|112|88|86|89|98||Peanuts|Diabetes Type 2|Slight cough|Non-smoker|Non-drinker
+9|20|2|19|2026-05-06T23:20:30|98.0|138|80|69|99|92|134|Peanuts|Asthma|Routine check|Occasional|Occasional
+10|21|5|28|2026-05-06T23:20:30|100.2|127|86|69|54|92|||Slight cough|Occasional|Regular
+11|16|6|31|2026-05-06T23:20:30|100.2|119|91|71|62|93|143|Dust, Pollen|Asthma|Patient feels dizzy|Non-smoker|Occasional
+12|18|3|21|2026-05-06T23:20:30|97.5|135|74|72|77|99|141||Asthma|Routine check|Non-smoker|Regular
+13|15|7|32|2026-05-06T23:22:30|99.4|133|80|103|97|93||Dust, Pollen|||Non-smoker|Non-drinker
+14|21|5|28|2026-05-06T23:22:30|100.3|115|84|65|83|94||Penicillin||Routine check|Regular|Non-drinker
+15|1|8|12|2026-05-06T23:22:30|97.9|139|75|100|99|93|115|Penicillin||Patient feels dizzy|Regular|Occasional
+16|11|1|16|2026-05-06T23:22:30|99.5|136|79|73|78|99|150|Penicillin|Asthma|Routine check|Regular|Occasional
+17|6|8|13|2026-05-06T23:22:30|100.5|111|89|98|77|97|170|||Normal vitals|Non-smoker|Non-drinker
+18|3|7|33|2026-05-06T23:22:30|99.4|110|78|80|97|96|125|Peanuts|Diabetes Type 2|Routine check|Occasional|Occasional
+19|12|4|25|2026-05-06T23:22:30|98.3|150|82|71|71|96||Peanuts|Asthma|Routine check|Regular|Regular
+20|19|2|20|2026-05-06T23:22:30|101.7|128|84|93|56|97||||Patient feels dizzy|Non-smoker|Occasional
+21|18|3|39|2026-05-07T09:20:00|98.6|128|82|76|68|98|112||Asthma|Routine check - pre-consultation|Non-smoker|Regular
+22|16|1|38|2026-05-07T09:30:00|99.2|124|82|78|58|97||Dust, Pollen|Mild hypertension|Fever with body aches|Non-smoker|Non-drinker

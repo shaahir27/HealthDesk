@@ -1,0 +1,215 @@
+<div class="dd-stats">
+    <div class="dd-stat">
+        <span class="dd-stat-label">Live Queue</span>
+        <span class="dd-stat-value" style="color:var(--hd-primary);">{{ live_queue_patients|length }}</span>
+    </div>
+    <div class="dd-stat">
+        <span class="dd-stat-label">Upcoming Appts</span>
+        <span class="dd-stat-value">{{ appointments|length }}</span>
+    </div>
+    <div class="dd-stat">
+        <span class="dd-stat-label">Duty Today</span>
+        <div style="margin-top:4px;">
+            {% if doctor_info %}
+            <span class="hd-badge {{ doctor_info.daily_status|lower }}">{{ doctor_info.daily_status }}</span>
+            {% if doctor_info.daily_status in ["Unavailable", "Off"] and doctor_info.status_until %}
+            <small class="text-muted d-block mt-1">Until {{ doctor_info.status_until_label }}</small>
+            {% endif %}
+            {% else %}
+            <span class="hd-badge normal">-</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="dd-stat">
+        <span class="dd-stat-label">Live Status</span>
+        <div style="margin-top:4px;">
+            {% if doctor_info %}
+            {% if doctor_info.show_live_status %}
+            <span class="hd-badge {{ doctor_info.current_status_badge }}">{{ doctor_info.current_status_label }}</span>
+            {% else %}
+            <small class="text-muted">Only used while on duty</small>
+            {% endif %}
+            {% else %}
+            <span class="hd-badge normal">-</span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="dd-card">
+    <div class="dd-card-body">
+        <div class="dd-card-head">
+            <div>
+                <h5 class="dd-card-title"><i class="bi bi-people-fill me-1"></i> Live Queue</h5>
+                <p class="dd-card-sub">Patients waiting right now. Starts consultation and clears from queue automatically on save.</p>
+            </div>
+            <div class="dd-refresh-label">
+                <span class="dd-refresh-dot"></span> Auto-refresh 30s
+            </div>
+        </div>
+        {% if live_queue_patients %}
+        <div class="dd-queue">
+            {% for q in live_queue_patients %}
+            <div class="dd-queue-card" style="display:block; padding:0; overflow:hidden;">
+                <!-- Collapsed header row -->
+                <div class="dd-queue-card-header"
+                     onclick="toggleVitals('vp-{{ q.patient_id }}-{{ q.token }}')"
+                     style="display:grid; grid-template-columns:44px 1fr auto; align-items:center; gap:14px; padding:14px 16px; cursor:pointer;">
+                    <div class="dd-queue-token">{{ q.token }}</div>
+                    <div>
+                        <p class="dd-queue-name">#{{ q.patient_id }} - {{ q.name or "-" }}</p>
+                        <p class="dd-queue-meta">
+                            <span class="hd-badge {% if q.priority == 'Urgent' %}urgent{% else %}normal{% endif %}" style="font-size:.65rem;">{{ q.priority }}</span>
+                            {% if q.appointment_id %}&nbsp;&middot;&nbsp;Appt #{{ q.appointment_id }} ({{ q.appointment_date }}){% endif %}
+                        </p>
+                        <!-- Inline vitals preview badges -->
+                        {% if q.vitals %}
+                        <div style="margin-top:6px; display:flex; gap:5px; flex-wrap:wrap; align-items:center;">
+                            {% if q.vitals.temp %}<span class="hd-badge" style="background:#f1f5f9;color:#475569;font-size:.63rem;"><i class="bi bi-thermometer-half"></i> {{ q.vitals.temp }}°F</span>{% endif %}
+                            {% if q.vitals.bp_sys %}<span class="hd-badge" style="background:#f1f5f9;color:#475569;font-size:.63rem;"><i class="bi bi-heart-pulse"></i> {{ q.vitals.bp_sys }}/{{ q.vitals.bp_dia }}</span>{% endif %}
+                            {% if q.vitals.spo2 %}<span class="hd-badge" style="background:#f1f5f9;color:#475569;font-size:.63rem;"><i class="bi bi-lungs"></i> {{ q.vitals.spo2 }}%</span>{% endif %}
+                            {% if q.vitals.pulse %}<span class="hd-badge" style="background:#f1f5f9;color:#475569;font-size:.63rem;"><i class="bi bi-activity"></i> {{ q.vitals.pulse }} bpm</span>{% endif %}
+                            {% if q.vitals.allergies %}<span class="hd-badge" style="background:rgba(231,76,60,.12);color:#c0392b;font-size:.63rem;"><i class="bi bi-exclamation-triangle-fill"></i> Allergies</span>{% endif %}
+                            <span style="font-size:.62rem; color:var(--hd-text-muted); margin-left:2px;"><i class="bi bi-chevron-down" id="vp-chevron-{{ q.patient_id }}-{{ q.token }}"></i> Details</span>
+                        </div>
+                        {% else %}
+                        <div style="margin-top:6px;">
+                            <span class="hd-badge warning" style="font-size:.63rem;"><i class="bi bi-hourglass-split"></i> Awaiting Vitals</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <a class="hd-btn hd-btn-primary hd-btn-sm"
+                       href="/diagnosis?patient_id={{ q.patient_id }}&appointment_id={{ q.appointment_id }}"
+                       onclick="event.stopPropagation()">
+                        <i class="bi bi-clipboard2-pulse"></i> Start Consultation
+                    </a>
+                </div>
+
+                <!-- Expandable vitals detail panel -->
+                {% if q.vitals %}
+                <div id="vp-{{ q.patient_id }}-{{ q.token }}" style="display:none; border-top:1px solid var(--hd-border); background:var(--hd-surface); padding:14px 16px;">
+                    <div style="font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:var(--hd-text-muted); margin-bottom:10px;">
+                        <i class="bi bi-clipboard2-heart-fill me-1"></i> Vitals Recorded
+                        {% if q.vitals.recorded_at %}<span style="font-weight:400; margin-left:6px;">{{ q.vitals.recorded_at }}</span>{% endif %}
+                    </div>
+
+                    {% if q.vitals.allergies %}
+                    <div style="background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:8px 12px; margin-bottom:10px; color:#b91c1c; font-size:.8rem; font-weight:600;">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Allergy Alert: {{ q.vitals.allergies }}
+                    </div>
+                    {% endif %}
+
+                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px,1fr)); gap:8px;">
+                        {% if q.vitals.temp %}
+                        <div style="background:var(--hd-bg); border-radius:8px; padding:8px 10px;">
+                            <div style="font-size:.65rem; color:var(--hd-text-muted); font-weight:600;">TEMPERATURE</div>
+                            <div style="font-size:.95rem; font-weight:700; color:var(--hd-text);">{{ q.vitals.temp }} °F</div>
+                        </div>
+                        {% endif %}
+                        {% if q.vitals.bp_sys %}
+                        <div style="background:var(--hd-bg); border-radius:8px; padding:8px 10px;">
+                            <div style="font-size:.65rem; color:var(--hd-text-muted); font-weight:600;">BLOOD PRESSURE</div>
+                            <div style="font-size:.95rem; font-weight:700; color:var(--hd-text);">{{ q.vitals.bp_sys }}/{{ q.vitals.bp_dia }} mmHg</div>
+                        </div>
+                        {% endif %}
+                        {% if q.vitals.pulse %}
+                        <div style="background:var(--hd-bg); border-radius:8px; padding:8px 10px;">
+                            <div style="font-size:.65rem; color:var(--hd-text-muted); font-weight:600;">PULSE RATE</div>
+                            <div style="font-size:.95rem; font-weight:700; color:var(--hd-text);">{{ q.vitals.pulse }} bpm</div>
+                        </div>
+                        {% endif %}
+                        {% if q.vitals.spo2 %}
+                        <div style="background:var(--hd-bg); border-radius:8px; padding:8px 10px;">
+                            <div style="font-size:.65rem; color:var(--hd-text-muted); font-weight:600;">SpO2</div>
+                            <div style="font-size:.95rem; font-weight:700; color:var(--hd-text);">{{ q.vitals.spo2 }} %</div>
+                        </div>
+                        {% endif %}
+                        {% if q.vitals.weight %}
+                        <div style="background:var(--hd-bg); border-radius:8px; padding:8px 10px;">
+                            <div style="font-size:.65rem; color:var(--hd-text-muted); font-weight:600;">WEIGHT</div>
+                            <div style="font-size:.95rem; font-weight:700; color:var(--hd-text);">{{ q.vitals.weight }} kg</div>
+                        </div>
+                        {% endif %}
+                        {% if q.vitals.sugar %}
+                        <div style="background:var(--hd-bg); border-radius:8px; padding:8px 10px;">
+                            <div style="font-size:.65rem; color:var(--hd-text-muted); font-weight:600;">BLOOD SUGAR</div>
+                            <div style="font-size:.95rem; font-weight:700; color:var(--hd-text);">{{ q.vitals.sugar }} mg/dL</div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {% if q.vitals.conditions %}
+                    <div style="margin-top:8px; font-size:.8rem; color:var(--hd-text);">
+                        <span style="font-weight:600; color:var(--hd-text-muted);">Known Conditions:</span> {{ q.vitals.conditions }}
+                    </div>
+                    {% endif %}
+                    {% if q.vitals.notes %}
+                    <div style="margin-top:6px; font-size:.8rem; color:var(--hd-text);">
+                        <span style="font-weight:600; color:var(--hd-text-muted);">Notes:</span> {{ q.vitals.notes }}
+                    </div>
+                    {% endif %}
+                    {% if q.vitals.smoking or q.vitals.drinking %}
+                    <div style="margin-top:6px; font-size:.78rem; color:var(--hd-text-muted);">
+                        {% if q.vitals.smoking %}<span><i class="bi bi-slash-circle me-1"></i>Smoking: {{ q.vitals.smoking }}</span>{% endif %}
+                        {% if q.vitals.drinking %}<span style="margin-left:10px;"><i class="bi bi-cup me-1"></i>Drinking: {{ q.vitals.drinking }}</span>{% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        {% else %}
+        <div class="dd-empty">
+            <i class="bi bi-people"></i>
+            <p>Your queue is clear right now. Patients appear here when assigned to you.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="dd-card">
+    <div class="dd-card-body">
+        <div class="dd-card-head">
+            <div>
+                <h5 class="dd-card-title"><i class="bi bi-calendar2-check-fill me-1"></i> Upcoming Appointments</h5>
+                <p class="dd-card-sub">Future scheduled visits - these move to your live queue on the consultation day.</p>
+            </div>
+            {% if appointments %}
+            <span class="hd-badge booked">{{ appointments|length }} scheduled</span>
+            {% endif %}
+        </div>
+        {% if appointments %}
+        <div class="dd-table-wrap">
+            <table class="hd-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Patient</th>
+                        <th>Date</th>
+                        <th>Slot</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in appointments %}
+                    <tr>
+                        <td><strong>#{{ a.appointment_id }}</strong></td>
+                        <td>#{{ a.patient_id }}</td>
+                        <td>{{ a.date }}</td>
+                        <td>{{ a.time_slot }}</td>
+                        <td><span class="hd-badge {{ a.status|lower|replace('-','') }}">{{ a.status }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="dd-empty">
+            <i class="bi bi-calendar-x"></i>
+            <p>No upcoming appointments scheduled right now.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
