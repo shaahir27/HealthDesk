@@ -54,12 +54,17 @@ _diagnosis_lock = threading.Lock()
 _vitals_lock = threading.Lock()
 _prescription_lock = threading.Lock()
 _otp_store = {}
+_login_lockout_store = {}   # username -> {"attempts": int, "locked_until": datetime|None}
+_login_lockout_lock = threading.Lock()
 ALLOWED_PAYMENT_STATUSES = {"PENDING", "INITIATED", "PAID", "WAIVED", "REFUNDED"}
 ADVANCE_DATA_PATH = os.path.join(DATA_DIR, "advances.txt")
 BOOKING_INTENT_PATH = os.path.join(DATA_DIR, "pending_booking_intents.txt")
 ADVANCE_PERCENT = float(os.environ.get("ADVANCE_PERCENT", "20"))
 OTP_EXPIRY_SECONDS = 5 * 60
+OTP_RESEND_COOLDOWN_SECONDS = 60
 OTP_MAX_ATTEMPTS = 3
+LOGIN_MAX_ATTEMPTS = 3
+LOGIN_LOCKOUT_SECONDS = 3 * 60
 PENDING_REQUEST_EXPIRY_HOURS = 2
 DEFAULT_CLINIC_PHONE = "+91 XXXXX XXXXX"
 
@@ -314,21 +319,30 @@ def notify_receptionists(message):
     return send_sms_notice(receptionist_phone, message)
 
 
-def generate_otp(phone):
+def generate_otp(phone, force=False):
     normalized = normalize_phone(phone)
+    with _otp_lock:
+        existing = _otp_store.get(normalized)
+        # Enforce resend cooldown unless forced
+        if not force and existing:
+            last_sent = existing.get("sent_at")
+            if last_sent and (datetime.now() - last_sent).total_seconds() < OTP_RESEND_COOLDOWN_SECONDS:
+                seconds_left = int(OTP_RESEND_COOLDOWN_SECONDS - (datetime.now() - last_sent).total_seconds())
+                return False, seconds_left
     otp = f"{secrets.randbelow(900000) + 100000:06d}"
     expires_at = datetime.now() + timedelta(seconds=OTP_EXPIRY_SECONDS)
     with _otp_lock:
         _otp_store[normalized] = {
             "hash": hash_otp(otp),
             "expires_at": expires_at,
-            "attempts": 0
+            "attempts": 0,
+            "sent_at": datetime.now()
         }
     if not send_patient_otp(normalized, otp):
         with _otp_lock:
             _otp_store.pop(normalized, None)
-        return False
-    return True
+        return False, 0
+    return True, 0
 
 
 def verify_otp(phone, entered):
@@ -3932,9 +3946,9 @@ def patient_request_otp():
     phone = normalize_phone(request.form.get("phone", ""))
     wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
-    def respond_error(error):
+    def respond_error(error, cooldown=0):
         if wants_json:
-            return jsonify({"ok": False, "error": error}), 400
+            return jsonify({"ok": False, "error": error, "cooldown": cooldown}), 400
         return render_template(
             "patient_login.html",
             step="phone",
@@ -3951,7 +3965,10 @@ def patient_request_otp():
     if not patient:
         return respond_error("This phone number is not registered with us. Please visit the clinic to register.")
 
-    if not generate_otp(phone):
+    ok, cooldown_left = generate_otp(phone)
+    if not ok:
+        if cooldown_left > 0:
+            return respond_error(f"Please wait {cooldown_left} second(s) before requesting a new OTP.", cooldown=cooldown_left)
         detail = get_last_sms_error()
         if detail:
             print(f"[HealthDesk OTP] SMS provider detail: {detail}")
@@ -3959,7 +3976,7 @@ def patient_request_otp():
     masked = mask_phone(phone)
     message = "OTP sent to your registered phone number."
     if wants_json:
-        return jsonify({"ok": True, "phone": phone, "masked_phone": masked, "message": message})
+        return jsonify({"ok": True, "phone": phone, "masked_phone": masked, "message": message, "cooldown": OTP_RESEND_COOLDOWN_SECONDS})
     return render_template(
         "patient_login.html",
         step="otp",
@@ -3969,13 +3986,69 @@ def patient_request_otp():
         message=message
     )
 
+
+@app.route("/patient/resend-otp", methods=["POST"])
+def patient_resend_otp():
+    """Resend OTP for a phone already in the OTP step. Enforces 60-second cooldown."""
+    phone = normalize_phone(request.form.get("phone", ""))
+    wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+    def respond_error(error, cooldown=0, status=400):
+        if wants_json:
+            return jsonify({"ok": False, "error": error, "cooldown": cooldown}), status
+        return render_template(
+            "patient_login.html",
+            step="otp",
+            phone=phone,
+            masked_phone=mask_phone(phone),
+            error=error,
+            message=None
+        ), status
+
+    if not is_valid_patient_phone(phone):
+        return respond_error("Invalid phone number.")
+    patient = find_registered_patient_by_phone(phone)
+    if not patient:
+        return respond_error("Phone not registered.", status=404)
+
+    ok, cooldown_left = generate_otp(phone)
+    if not ok:
+        if cooldown_left > 0:
+            return respond_error(
+                f"Please wait {cooldown_left} second(s) before requesting another OTP.",
+                cooldown=cooldown_left
+            )
+        return respond_error("OTP could not be sent. Please try again.")
+
+    masked = mask_phone(phone)
+    if wants_json:
+        return jsonify({"ok": True, "phone": phone, "masked_phone": masked,
+                        "message": "A new OTP has been sent to your phone.",
+                        "cooldown": OTP_RESEND_COOLDOWN_SECONDS})
+    return render_template(
+        "patient_login.html",
+        step="otp",
+        phone=phone,
+        masked_phone=masked,
+        error=None,
+        message="A new OTP has been sent to your phone."
+    )
+
 @app.route("/patient/verify-otp", methods=["POST"])
 def patient_verify_otp():
     phone = normalize_phone(request.form.get("phone", ""))
     entered_otp = request.form.get("otp", "")
-    verified, message, _attempts_left = verify_otp(phone, entered_otp)
+    wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    verified, message, attempts_left = verify_otp(phone, entered_otp)
     if not verified:
         restart = "No OTP was requested" in message or "expired" in message.lower() or "Too many" in message
+        if wants_json:
+            return jsonify({
+                "ok": False,
+                "error": message,
+                "restart": restart,
+                "attempts_left": attempts_left
+            }), 400
         return render_template(
             "patient_login.html",
             step="phone" if restart else "otp",
@@ -3987,6 +4060,8 @@ def patient_verify_otp():
 
     patient = find_registered_patient_by_phone(phone)
     if not patient:
+        if wants_json:
+            return jsonify({"ok": False, "error": "Patient record could not be found. Please contact the clinic.", "restart": True}), 400
         return render_template(
             "patient_login.html",
             step="phone",
@@ -4003,6 +4078,8 @@ def patient_verify_otp():
     session["patient_id"] = patient["id"]
     session["patient_name"] = patient["name"]
     session["patient_phone"] = phone
+    if wants_json:
+        return jsonify({"ok": True, "redirect": url_for("patient_dashboard")})
     return redirect(url_for("patient_dashboard"))
 
 @app.route("/patient/logout", methods=["POST"])
@@ -4517,21 +4594,45 @@ def patient_cancel_appointment():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     error = None
+    lockout_seconds = 0
+    username_prefill = ""
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
+        username_prefill = username
+
+        # Check lockout
+        with _login_lockout_lock:
+            record = _login_lockout_store.get(username, {})
+            locked_until = record.get("locked_until")
+            if locked_until and datetime.now() < locked_until:
+                remaining = int((locked_until - datetime.now()).total_seconds())
+                return render_template(
+                    "login.html",
+                    error=f"Account locked after {LOGIN_MAX_ATTEMPTS} failed attempts. Try again in {remaining} second(s).",
+                    lockout_seconds=remaining,
+                    username=username_prefill
+                )
+            # If lockout expired, reset
+            if locked_until and datetime.now() >= locked_until:
+                _login_lockout_store.pop(username, None)
+
         user = authenticate_user(username, password)
 
         if user:
             if user["role"] not in {"Receptionist", "Doctor"}:
                 error = "Unauthorized role."
-                return render_template("login.html", error=error)
+                return render_template("login.html", error=error, username=username_prefill)
             if user["role"] == "Doctor" and int(user["doctor_id"] or 0) <= 0:
                 error = "Invalid doctor account mapping."
-                return render_template("login.html", error=error)
+                return render_template("login.html", error=error, username=username_prefill)
             if user["role"] == "Doctor" and not any(d["id"] == int(user["doctor_id"]) for d in get_doctors()):
                 error = "Doctor account is not linked to an active doctor profile."
-                return render_template("login.html", error=error)
+                return render_template("login.html", error=error, username=username_prefill)
+
+            # Successful login — clear lockout record
+            with _login_lockout_lock:
+                _login_lockout_store.pop(username, None)
 
             session["logged_in"] = True
             session["username"] = user["username"]
@@ -4543,9 +4644,24 @@ def login():
                 return redirect("/doctor")
             return redirect("/")
 
-        error = "Invalid username or password."
+        # Failed login — increment attempt counter
+        with _login_lockout_lock:
+            record = _login_lockout_store.setdefault(username, {"attempts": 0, "locked_until": None})
+            record["attempts"] += 1
+            if record["attempts"] >= LOGIN_MAX_ATTEMPTS:
+                record["locked_until"] = datetime.now() + timedelta(seconds=LOGIN_LOCKOUT_SECONDS)
+                lockout_seconds = LOGIN_LOCKOUT_SECONDS
+                error = (f"Too many failed attempts. Account locked for {LOGIN_LOCKOUT_SECONDS // 60} minute(s).")
+            else:
+                attempts_left = LOGIN_MAX_ATTEMPTS - record["attempts"]
+                error = f"Invalid username or password. {attempts_left} attempt(s) remaining before lockout."
 
-    return render_template("login.html", error=error)
+    return render_template(
+        "login.html",
+        error=error,
+        lockout_seconds=lockout_seconds,
+        username=username_prefill
+    )
 
 @app.route("/logout", methods=["POST"])
 def logout():

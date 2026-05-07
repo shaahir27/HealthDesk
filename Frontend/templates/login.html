@@ -3,11 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HealthDesk - Login</title>
+    <title>HealthDesk - Staff Login</title>
     <link href="https://fonts.googleapis.com/css2?family=Satisfy&family=MonteCarlo&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
+        :root {
+            --ink: #2C3E50;
+            --muted: #52677a;
+            --primary: #2E86C1;
+            --primary-dark: #1B4F72;
+            --accent: #27ae60;
+            --danger: #e74c3c;
+            --danger-bg: #fdedec;
+            --warning: #f39c12;
+            --warning-bg: #fef9ec;
+            --line: #e2e8f0;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             min-height: 100vh;
             display: flex;
@@ -17,108 +29,114 @@
             font-family: 'Poppins', sans-serif;
             padding: 16px;
         }
-        .login-wrapper {
-            width: 100%;
-            max-width: 420px;
-        }
+        .login-wrapper { width: 100%; max-width: 420px; }
         .login-card {
             background: rgba(255,255,255,0.97);
             border-radius: 18px;
-            box-shadow: 0 16px 48px rgba(0,0,0,0.2);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
             padding: 40px 36px 36px;
+            position: relative;
+            overflow: hidden;
         }
-        .login-brand {
-            text-align: center;
-            margin-bottom: 8px;
-        }
-        .login-brand .brand-health {
-            font-family: 'Satisfy', cursive;
-            font-size: 30px;
-            color: #2E86C1;
-        }
-        .login-brand .brand-desk {
-            font-family: 'MonteCarlo', cursive;
-            font-size: 34px;
-            background: linear-gradient(45deg, #2E86C1, #1B4F72);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-left: 3px;
-        }
-        .login-subtitle {
-            text-align: center;
-            color: #6c757d;
-            font-size: 0.85rem;
-            margin-bottom: 28px;
+        .login-card::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 6px;
+            background: linear-gradient(90deg, var(--primary), var(--primary-dark));
         }
         .login-icon {
-            width: 56px;
-            height: 56px;
+            width: 60px; height: 60px;
             border-radius: 50%;
             background: linear-gradient(135deg, #2E86C1, #1B4F72);
-            margin: 0 auto 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.4rem;
+            margin: 0 auto 14px;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 1.5rem;
+            box-shadow: 0 8px 24px rgba(27,79,114,0.3);
+            transition: transform 0.3s;
         }
-        .form-control {
-            border-radius: 10px;
-            padding: 11px 16px;
-            border-color: #e2e8f0;
-            font-size: 0.9rem;
+        .login-icon.locked { background: linear-gradient(135deg, #e74c3c, #c0392b); animation: shake 0.5s ease; }
+        @keyframes shake {
+            0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)}
         }
-        .form-control:focus {
-            border-color: #2E86C1;
-            box-shadow: 0 0 0 3px rgba(46,134,193,0.12);
+        .login-brand { text-align: center; margin-bottom: 6px; }
+        .login-brand .brand-health { font-family: 'Satisfy', cursive; font-size: 30px; color: #2E86C1; }
+        .login-brand .brand-desk {
+            font-family: 'MonteCarlo', cursive; font-size: 34px;
+            background: linear-gradient(45deg, #2E86C1, #1B4F72);
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent; margin-left: 3px;
         }
-        .form-label {
-            font-size: 0.8rem;
-            font-weight: 500;
-            color: #6c757d;
+        .login-subtitle { text-align: center; color: var(--muted); font-size: 0.85rem; margin-bottom: 24px; }
+        .field { margin-bottom: 18px; }
+        label { display: block; margin-bottom: 7px; color: #375463; font-size: 0.82rem; font-weight: 600; }
+        .input-wrap { position: relative; }
+        input[type="text"], input[type="password"] {
+            width: 100%; min-height: 50px;
+            border: 1.5px solid var(--line); border-radius: 10px;
+            padding: 12px 44px 12px 15px;
+            font: inherit; font-size: 0.95rem; color: var(--ink);
+            outline: none; background: white;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
+        input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(46,134,193,0.12); }
+        input:disabled { background: #f8fafc; cursor: not-allowed; opacity: 0.7; }
+        .toggle-pw {
+            position: absolute; right: 13px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; cursor: pointer;
+            color: var(--muted); font-size: 1.05rem; padding: 4px;
+            transition: color 0.2s;
+        }
+        .toggle-pw:hover { color: var(--primary); }
+        .remember-row {
+            display: flex; align-items: center; gap: 8px;
+            margin-bottom: 18px; font-size: 0.85rem; color: var(--muted);
+            cursor: pointer; user-select: none;
+        }
+        .remember-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
         .btn-login {
+            width: 100%; min-height: 50px;
             background: linear-gradient(135deg, #2E86C1, #1B4F72);
-            border: none;
-            border-radius: 10px;
-            padding: 11px;
-            font-weight: 600;
-            font-size: 0.9rem;
-            color: white;
-            width: 100%;
-            transition: all 0.25s;
+            border: none; border-radius: 10px; padding: 12px;
+            font: inherit; font-weight: 700; font-size: 0.95rem; color: white;
+            cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+            box-shadow: 0 6px 20px rgba(27,79,114,0.24);
         }
-        .btn-login:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(27,79,114,0.3);
-            color: white;
-        }
+        .btn-login:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(27,79,114,0.32); }
+        .btn-login:disabled { cursor: not-allowed; opacity: 0.6; transform: none; }
         .alert {
-            border-radius: 10px;
-            font-size: 0.85rem;
+            display: flex; gap: 10px; align-items: flex-start;
+            border-radius: 10px; padding: 12px 14px;
+            font-size: 0.88rem; line-height: 1.45; margin-bottom: 18px;
         }
+        .alert-error { color: var(--danger); background: var(--danger-bg); border: 1px solid rgba(231,76,60,.16); }
+        .alert-warning { color: #92610c; background: var(--warning-bg); border: 1px solid rgba(243,156,18,.2); }
+        .lockout-timer {
+            text-align: center; font-size: 2.2rem; font-weight: 700;
+            color: var(--danger); letter-spacing: 0.04em; margin: 8px 0 4px;
+        }
+        .lockout-label { text-align: center; font-size: 0.82rem; color: var(--muted); margin-bottom: 14px; }
+        .attempt-pills {
+            display: flex; gap: 6px; justify-content: center; margin-bottom: 14px;
+        }
+        .pill {
+            width: 28px; height: 8px; border-radius: 4px;
+            background: var(--line); transition: background 0.3s;
+        }
+        .pill.used { background: var(--danger); }
         .patient-portal-link {
-            display: block;
-            margin-top: 18px;
-            color: #6c757d;
-            text-align: center;
-            text-decoration: none;
-            font-size: 0.88rem;
+            display: block; margin-top: 16px; color: var(--muted);
+            text-align: center; text-decoration: none; font-size: 0.88rem;
         }
-        .patient-portal-link strong {
-            color: #2E86C1;
-        }
-        @media (max-width: 480px) {
-            .login-card { padding: 28px 24px 24px; }
-        }
+        .patient-portal-link strong { color: var(--primary); }
+        @media (max-width: 480px) { .login-card { padding: 28px 22px 24px; } }
     </style>
 </head>
 <body>
     <div class="login-wrapper">
         <div class="login-card">
-            <div class="login-icon">
-                <i class="bi bi-hospital"></i>
+            <div class="login-icon" id="loginIcon">
+                <i class="bi bi-hospital" id="loginIconGlyph"></i>
             </div>
             <div class="login-brand">
                 <span class="brand-health">Health</span><span class="brand-desk">Desk</span>
@@ -126,27 +144,135 @@
             <p class="login-subtitle">Clinical Staff Login</p>
 
             {% if error %}
-            <div class="alert alert-danger py-2">{{ error }}</div>
+            <div class="alert alert-error" id="errorBox">
+                <i class="bi bi-exclamation-circle-fill" style="flex-shrink:0; margin-top:1px;"></i>
+                <span>{{ error }}</span>
+            </div>
             {% endif %}
 
-            <form method="POST" action="/login">
+            {% if lockout_seconds and lockout_seconds > 0 %}
+            <div class="lockout-timer" id="lockoutTimer">{{ lockout_seconds }}</div>
+            <div class="lockout-label">seconds remaining</div>
+            {% endif %}
+
+            <div class="attempt-pills" id="attemptPills" style="display:none">
+                <div class="pill" id="pill0"></div>
+                <div class="pill" id="pill1"></div>
+                <div class="pill" id="pill2"></div>
+            </div>
+
+            <form method="POST" action="/login" id="loginForm" autocomplete="on">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                <div class="mb-3">
-                    <label class="form-label">Username</label>
-                    <input type="text" name="username" class="form-control" placeholder="Enter your username" required>
+                <div class="field">
+                    <label for="username">Username</label>
+                    <div class="input-wrap">
+                        <input type="text" id="username" name="username"
+                               value="{{ username or '' }}"
+                               placeholder="Enter your username"
+                               autocomplete="username"
+                               required>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Password</label>
-                    <input type="password" name="password" class="form-control" placeholder="Enter your password" required>
+                <div class="field">
+                    <label for="password">Password</label>
+                    <div class="input-wrap">
+                        <input type="password" id="password" name="password"
+                               placeholder="Enter your password"
+                               autocomplete="current-password"
+                               required>
+                        <button type="button" class="toggle-pw" id="togglePw" aria-label="Show/hide password">
+                            <i class="bi bi-eye" id="eyeIcon"></i>
+                        </button>
+                    </div>
                 </div>
-                <button class="btn btn-login mt-1">
-                    <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
+                <label class="remember-row">
+                    <input type="checkbox" id="rememberMe"> Remember my username
+                </label>
+                <button class="btn-login" id="loginBtn" type="submit">
+                    <i class="bi bi-box-arrow-in-right" style="margin-right:6px;"></i> Sign In
                 </button>
             </form>
+
             <a class="patient-portal-link" href="/patient/login">Patient? <strong>Use OTP login</strong></a>
             <a class="patient-portal-link" href="/patient/new">New patient? <strong>Request appointment</strong></a>
-            <a class="patient-portal-link" href="/" style="margin-top:6px;"><i class="bi bi-arrow-left me-1"></i>Back to home</a>
+            <a class="patient-portal-link" href="/" style="margin-top:6px;"><i class="bi bi-arrow-left" style="margin-right:6px;"></i>Back to home</a>
         </div>
     </div>
+
+    <script>
+        const LOCKOUT_SECONDS = {{ lockout_seconds | default(0) }};
+        const usernameInput = document.getElementById("username");
+        const passwordInput = document.getElementById("password");
+        const loginBtn = document.getElementById("loginBtn");
+        const togglePw = document.getElementById("togglePw");
+        const eyeIcon = document.getElementById("eyeIcon");
+        const loginIcon = document.getElementById("loginIcon");
+        const loginIconGlyph = document.getElementById("loginIconGlyph");
+        const rememberMe = document.getElementById("rememberMe");
+        const attemptPills = document.getElementById("attemptPills");
+
+        // ── Remember username ──
+        const savedUser = localStorage.getItem("hd_staff_username");
+        if (savedUser && !usernameInput.value) {
+            usernameInput.value = savedUser;
+            rememberMe.checked = true;
+        }
+        document.getElementById("loginForm").addEventListener("submit", () => {
+            if (rememberMe.checked) {
+                localStorage.setItem("hd_staff_username", usernameInput.value.trim());
+            } else {
+                localStorage.removeItem("hd_staff_username");
+            }
+        });
+
+        // ── Password toggle ──
+        togglePw.addEventListener("click", () => {
+            const isHidden = passwordInput.type === "password";
+            passwordInput.type = isHidden ? "text" : "password";
+            eyeIcon.className = isHidden ? "bi bi-eye-slash" : "bi bi-eye";
+        });
+
+        // ── Lockout state ──
+        if (LOCKOUT_SECONDS > 0) {
+            loginIcon.classList.add("locked");
+            loginIconGlyph.className = "bi bi-lock-fill";
+            loginBtn.disabled = true;
+            usernameInput.disabled = true;
+            passwordInput.disabled = true;
+
+            const timerEl = document.getElementById("lockoutTimer");
+            let remaining = LOCKOUT_SECONDS;
+
+            const interval = setInterval(() => {
+                remaining--;
+                if (timerEl) timerEl.textContent = remaining;
+                if (remaining <= 0) {
+                    clearInterval(interval);
+                    loginBtn.disabled = false;
+                    usernameInput.disabled = false;
+                    passwordInput.disabled = false;
+                    loginIcon.classList.remove("locked");
+                    loginIconGlyph.className = "bi bi-hospital";
+                    if (timerEl) timerEl.style.display = "none";
+                    document.querySelector(".lockout-label") && (document.querySelector(".lockout-label").style.display = "none");
+                }
+            }, 1000);
+        }
+
+        // ── Show attempt pills if error but not lockout ──
+        const errorBox = document.getElementById("errorBox");
+        if (errorBox && LOCKOUT_SECONDS === 0) {
+            const text = errorBox.textContent;
+            const match = text.match(/(\d+) attempt/);
+            if (match) {
+                const left = parseInt(match[1]);
+                const used = 3 - left;
+                attemptPills.style.display = "flex";
+                for (let i = 0; i < 3; i++) {
+                    if (i < used) document.getElementById(`pill${i}`).classList.add("used");
+                }
+            }
+        }
+    </script>
 </body>
 </html>
