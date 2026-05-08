@@ -3,11 +3,258 @@
 
 #define MAX_APPOINTMENTS 50000
 #define SLOT_COUNT 8
+#define APPOINTMENT_STACK_FILE "Backend/data/appointment_action_stack.txt"
+
+struct AppointmentAction {
+    char timestamp[40];
+    char action[32];
+    int old_appointment_id;
+    int old_patient_id;
+    int old_doctor_id;
+    char old_date[20];
+    char old_time_slot[20];
+    char old_status[MAX_SMALL];
+    int new_appointment_id;
+    char new_date[20];
+    char new_time_slot[20];
+    char new_status[MAX_SMALL];
+};
+
+struct AppointmentActionNode {
+    struct AppointmentAction data;
+    struct AppointmentActionNode *next;
+};
 
 const char *DEFAULT_SLOTS[SLOT_COUNT] = {
     "08:30 AM", "09:30 AM", "10:30 AM", "11:40 AM",
     "02:00 PM", "04:00 PM", "06:00 PM", "08:05 PM"
 };
+
+void safeCopyAppointment(char *dest, const char *src, size_t dest_size) {
+    if (dest_size == 0) return;
+    strncpy(dest, src ? src : "", dest_size - 1);
+    dest[dest_size - 1] = '\0';
+}
+
+void printAppointmentAction(struct AppointmentAction action) {
+    printf("%s|%s|%d|%d|%d|%s|%s|%s|%d|%s|%s|%s\n",
+        action.timestamp,
+        action.action,
+        action.old_appointment_id,
+        action.old_patient_id,
+        action.old_doctor_id,
+        action.old_date,
+        action.old_time_slot,
+        action.old_status,
+        action.new_appointment_id,
+        action.new_date,
+        action.new_time_slot,
+        action.new_status
+    );
+}
+
+int extractAppointmentActionField(const char *line, int target_index, char *out, size_t out_size) {
+    int field_index = 0;
+    size_t out_pos = 0;
+
+    if (line == NULL || out_size == 0) return 0;
+    out[0] = '\0';
+
+    while (1) {
+        char ch = *line;
+
+        if (field_index == target_index && ch != '\0' && ch != '\n' && ch != '|') {
+            if (out_pos + 1 < out_size) {
+                out[out_pos++] = ch;
+            }
+        }
+
+        if (ch == '|' || ch == '\n' || ch == '\0') {
+            if (field_index == target_index) {
+                out[out_pos] = '\0';
+                return 1;
+            }
+
+            if (ch == '|') {
+                field_index++;
+                line++;
+                continue;
+            }
+
+            break;
+        }
+
+        line++;
+    }
+
+    return 0;
+}
+
+int parseAppointmentActionLine(char *line, struct AppointmentAction *action) {
+    char field[MAX_LINE];
+
+    if (line == NULL || action == NULL) return 0;
+    memset(action, 0, sizeof(*action));
+
+    if (!extractAppointmentActionField(line, 0, action->timestamp, sizeof(action->timestamp))) return 0;
+    if (!extractAppointmentActionField(line, 1, action->action, sizeof(action->action))) return 0;
+    if (!extractAppointmentActionField(line, 2, field, sizeof(field))) return 0;
+    action->old_appointment_id = atoi(field);
+    if (!extractAppointmentActionField(line, 3, field, sizeof(field))) return 0;
+    action->old_patient_id = atoi(field);
+    if (!extractAppointmentActionField(line, 4, field, sizeof(field))) return 0;
+    action->old_doctor_id = atoi(field);
+    if (!extractAppointmentActionField(line, 5, action->old_date, sizeof(action->old_date))) return 0;
+    if (!extractAppointmentActionField(line, 6, action->old_time_slot, sizeof(action->old_time_slot))) return 0;
+    if (!extractAppointmentActionField(line, 7, action->old_status, sizeof(action->old_status))) return 0;
+    if (!extractAppointmentActionField(line, 8, field, sizeof(field))) return 0;
+    action->new_appointment_id = atoi(field);
+    if (!extractAppointmentActionField(line, 9, action->new_date, sizeof(action->new_date))) return 0;
+    if (!extractAppointmentActionField(line, 10, action->new_time_slot, sizeof(action->new_time_slot))) return 0;
+    if (!extractAppointmentActionField(line, 11, action->new_status, sizeof(action->new_status))) return 0;
+
+    return 1;
+}
+
+int stackPushNode(struct AppointmentActionNode **top, struct AppointmentAction action) {
+    struct AppointmentActionNode *node = malloc(sizeof(struct AppointmentActionNode));
+    if (node == NULL) return 0;
+
+    node->data = action;
+    node->next = *top;
+    *top = node;
+    return 1;
+}
+
+void freeAppointmentActionStack(struct AppointmentActionNode *top) {
+    while (top != NULL) {
+        struct AppointmentActionNode *next = top->next;
+        free(top);
+        top = next;
+    }
+}
+
+struct AppointmentActionNode* reverseAppointmentActionStack(struct AppointmentActionNode *top) {
+    struct AppointmentActionNode *prev = NULL;
+    struct AppointmentActionNode *current = top;
+
+    while (current != NULL) {
+        struct AppointmentActionNode *next = current->next;
+        current->next = prev;
+        prev = current;
+        current = next;
+    }
+
+    return prev;
+}
+
+struct AppointmentActionNode* loadAppointmentActionStack(void) {
+    FILE *fp = fopen(APPOINTMENT_STACK_FILE, "r");
+    char line[MAX_LINE];
+    struct AppointmentActionNode *top = NULL;
+
+    if (fp == NULL) return NULL;
+
+    while (fgets(line, sizeof(line), fp)) {
+        struct AppointmentAction action;
+        if (parseAppointmentActionLine(line, &action)) {
+            stackPushNode(&top, action);
+        }
+    }
+
+    fclose(fp);
+    return top;
+}
+
+void saveAppointmentActionStack(struct AppointmentActionNode *top) {
+    FILE *fp;
+    struct AppointmentActionNode *oldest_first = reverseAppointmentActionStack(top);
+    struct AppointmentActionNode *current = oldest_first;
+
+    fp = fopen(APPOINTMENT_STACK_FILE, "w");
+    if (fp == NULL) {
+        reverseAppointmentActionStack(oldest_first);
+        return;
+    }
+
+    while (current != NULL) {
+        fprintf(fp, "%s|%s|%d|%d|%d|%s|%s|%s|%d|%s|%s|%s\n",
+            current->data.timestamp,
+            current->data.action,
+            current->data.old_appointment_id,
+            current->data.old_patient_id,
+            current->data.old_doctor_id,
+            current->data.old_date,
+            current->data.old_time_slot,
+            current->data.old_status,
+            current->data.new_appointment_id,
+            current->data.new_date,
+            current->data.new_time_slot,
+            current->data.new_status
+        );
+        current = current->next;
+    }
+
+    fclose(fp);
+    reverseAppointmentActionStack(oldest_first);
+}
+
+void pushAppointmentAction(const char *action_name, struct Appointment old_appt,
+                           int new_appointment_id, const char *new_date,
+                           const char *new_time, const char *new_status) {
+    struct AppointmentActionNode *top = loadAppointmentActionStack();
+    struct AppointmentAction action;
+    time_t now;
+    struct tm *tm_now;
+
+    memset(&action, 0, sizeof(action));
+    now = time(NULL);
+    tm_now = localtime(&now);
+    if (tm_now != NULL) {
+        strftime(action.timestamp, sizeof(action.timestamp), "%Y-%m-%dT%H:%M:%S", tm_now);
+    }
+
+    safeCopyAppointment(action.action, action_name, sizeof(action.action));
+    action.old_appointment_id = old_appt.appointment_id;
+    action.old_patient_id = old_appt.patient_id;
+    action.old_doctor_id = old_appt.doctor_id;
+    safeCopyAppointment(action.old_date, old_appt.date, sizeof(action.old_date));
+    safeCopyAppointment(action.old_time_slot, old_appt.time_slot, sizeof(action.old_time_slot));
+    safeCopyAppointment(action.old_status, old_appt.status, sizeof(action.old_status));
+    action.new_appointment_id = new_appointment_id;
+    safeCopyAppointment(action.new_date, new_date, sizeof(action.new_date));
+    safeCopyAppointment(action.new_time_slot, new_time, sizeof(action.new_time_slot));
+    safeCopyAppointment(action.new_status, new_status, sizeof(action.new_status));
+
+    if (stackPushNode(&top, action)) {
+        saveAppointmentActionStack(top);
+    }
+    freeAppointmentActionStack(top);
+}
+
+void printAppointmentActionStack(void) {
+    struct AppointmentActionNode *top = loadAppointmentActionStack();
+    struct AppointmentActionNode *oldest_first = reverseAppointmentActionStack(top);
+    struct AppointmentActionNode *current = oldest_first;
+
+    while (current != NULL) {
+        printAppointmentAction(current->data);
+        current = current->next;
+    }
+
+    reverseAppointmentActionStack(oldest_first);
+    freeAppointmentActionStack(top);
+}
+
+void peekAppointmentActionStack(void) {
+    struct AppointmentActionNode *top = loadAppointmentActionStack();
+
+    if (top != NULL) {
+        printAppointmentAction(top->data);
+    }
+
+    freeAppointmentActionStack(top);
+}
 
 int validSlot(const char *time_slot) {
     int i;
@@ -266,6 +513,17 @@ int bookSlot(int patient_id, int doctor_id, const char *date, const char *time_s
     fprintf(fp, "%d|%d|%d|%s|%s|Booked\n", id, patient_id, doctor_id, date, time_slot);
     fclose(fp);
 
+    {
+        struct Appointment old_appt;
+        old_appt.appointment_id = 0;
+        old_appt.patient_id = patient_id;
+        old_appt.doctor_id = doctor_id;
+        strcpy(old_appt.date, "");
+        strcpy(old_appt.time_slot, "");
+        strcpy(old_appt.status, "NEW");
+        pushAppointmentAction("book", old_appt, id, date, time_slot, "Booked");
+    }
+
     printf("BOOKED|%d|%d|%d|%s|%s|Booked", id, patient_id, doctor_id, date, time_slot);
     free(list);
     return 1;
@@ -286,20 +544,21 @@ int updateAppointmentStatus(int appointment_id, const char *new_status) {
 
     for (i = 0; i < count; i++) {
         if (list[i].appointment_id == appointment_id) {
+            struct Appointment old_appt = list[i];
             strcpy(list[i].status, new_status);
             found = 1;
+            if (!saveAppointments(list, count)) {
+                printf("Error|UpdateFailed");
+                free(list);
+                return 0;
+            }
+            pushAppointmentAction("status", old_appt, appointment_id, old_appt.date, old_appt.time_slot, new_status);
             break;
         }
     }
 
     if (!found) {
         printf("Error|AppointmentNotFound");
-        free(list);
-        return 0;
-    }
-
-    if (!saveAppointments(list, count)) {
-        printf("Error|UpdateFailed");
         free(list);
         return 0;
     }
@@ -364,19 +623,24 @@ int rescheduleAppointment(int appointment_id, const char *new_date, const char *
 
     new_id = generateAppointmentId();
 
-    strcpy(list[found_index].status, "Rescheduled");
-    list[count].appointment_id = new_id;
-    list[count].patient_id = list[found_index].patient_id;
-    list[count].doctor_id = list[found_index].doctor_id;
-    strcpy(list[count].date, new_date);
-    strcpy(list[count].time_slot, new_time);
-    strcpy(list[count].status, "Booked");
-    count++;
+    {
+        struct Appointment old_appt = list[found_index];
+        strcpy(list[found_index].status, "Rescheduled");
+        list[count].appointment_id = new_id;
+        list[count].patient_id = list[found_index].patient_id;
+        list[count].doctor_id = list[found_index].doctor_id;
+        strcpy(list[count].date, new_date);
+        strcpy(list[count].time_slot, new_time);
+        strcpy(list[count].status, "Booked");
+        count++;
 
-    if (!saveAppointments(list, count)) {
-        printf("Error|UpdateFailed");
-        free(list);
-        return 0;
+        if (!saveAppointments(list, count)) {
+            printf("Error|UpdateFailed");
+            free(list);
+            return 0;
+        }
+
+        pushAppointmentAction("reschedule", old_appt, new_id, new_date, new_time, "Booked");
     }
 
     printf("RESCHEDULED|%d|%d|%s|%s", appointment_id, new_id, new_date, new_time);
@@ -608,6 +872,12 @@ int main(int argc, char *argv[]) {
         ok = 1;
     } else if (strcmp(argv[1], "list-all") == 0) {
         listAllAppointments();
+        ok = 1;
+    } else if (strcmp(argv[1], "history-stack") == 0) {
+        printAppointmentActionStack();
+        ok = 1;
+    } else if (strcmp(argv[1], "peek-stack") == 0) {
+        peekAppointmentActionStack();
         ok = 1;
     } else if (strcmp(argv[1], "find-id") == 0 && argc == 3) {
         ok = findAppointmentById(atoi(argv[2]));

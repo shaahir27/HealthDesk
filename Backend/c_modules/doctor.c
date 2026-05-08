@@ -382,6 +382,14 @@ void searchByDepartment(struct DoctorNode* root, char *department, int available
     searchByDepartment(root->right, department, available_only, found);
 }
 
+void printDoctorTreeInOrder(struct DoctorNode* root) {
+    if (root == NULL) return;
+
+    printDoctorTreeInOrder(root->left);
+    printDoctor(root->data);
+    printDoctorTreeInOrder(root->right);
+}
+
 int findAvailableDoctorInTree(struct DoctorNode* root, char *department) {
     int result;
 
@@ -424,6 +432,12 @@ void printDepartmentSearch(char *department, int available_only) {
         printf("NoDoctorFound");
     }
 
+    freeDoctorTree(root);
+}
+
+void printDoctorsByDepartmentTree(void) {
+    struct DoctorNode* root = loadDoctorTree();
+    printDoctorTreeInOrder(root);
     freeDoctorTree(root);
 }
 
@@ -487,6 +501,12 @@ int main(int argc, char *argv[]) {
     }
     else if (strcmp(argv[1], "suggest") == 0 && argc == 3) {
         printDepartmentSearch(argv[2], 1);
+    }
+    else if (strcmp(argv[1], "suggest-tree") == 0 && argc == 3) {
+        printDepartmentSearch(argv[2], 1);
+    }
+    else if (strcmp(argv[1], "tree-by-department") == 0) {
+        printDoctorsByDepartmentTree();
     }
     else if (strcmp(argv[1], "find") == 0 && argc == 3) {
         printf("%d", findAvailableDoctor(argv[2]));

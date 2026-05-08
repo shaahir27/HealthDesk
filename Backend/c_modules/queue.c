@@ -9,6 +9,12 @@ static struct QueueStore queue_store = { NULL, NULL };
 static int queue_loaded = 0;
 static int queue_dirty = 0;
 
+struct QueuePriorityHeap {
+    struct QueueNode **items;
+    int size;
+    int capacity;
+};
+
 void safeCopy(char *dest, const char *src, size_t dest_size) {
     if (dest_size == 0) return;
     strncpy(dest, src ? src : "", dest_size - 1);
@@ -316,6 +322,126 @@ int enqueuePatient(struct QueueNode q) {
     return 1;
 }
 
+int queuePriorityRank(struct QueueNode *node) {
+    if (node != NULL && strcmp(node->priority, "Urgent") == 0) {
+        return 0;
+    }
+    return 1;
+}
+
+int queueNodeHigherPriority(struct QueueNode *a, struct QueueNode *b) {
+    int rank_a;
+    int rank_b;
+    if (a == NULL) return 0;
+    if (b == NULL) return 1;
+
+    rank_a = queuePriorityRank(a);
+    rank_b = queuePriorityRank(b);
+    if (rank_a != rank_b) {
+        return rank_a < rank_b;
+    }
+    return a->token < b->token;
+}
+
+void priorityHeapSwap(struct QueueNode **a, struct QueueNode **b) {
+    struct QueueNode *tmp = *a;
+    *a = *b;
+    *b = tmp;
+}
+
+int priorityHeapPush(struct QueuePriorityHeap *heap, struct QueueNode *node) {
+    int idx;
+    if (heap == NULL || node == NULL) return 0;
+    if (heap->size >= heap->capacity) return 0;
+
+    idx = heap->size;
+    heap->items[idx] = node;
+    heap->size++;
+
+    while (idx > 0) {
+        int parent = (idx - 1) / 2;
+        if (!queueNodeHigherPriority(heap->items[idx], heap->items[parent])) {
+            break;
+        }
+        priorityHeapSwap(&heap->items[idx], &heap->items[parent]);
+        idx = parent;
+    }
+
+    return 1;
+}
+
+struct QueueNode* priorityHeapPop(struct QueuePriorityHeap *heap) {
+    struct QueueNode *top;
+    int idx = 0;
+    if (heap == NULL || heap->size <= 0) return NULL;
+
+    top = heap->items[0];
+    heap->size--;
+    heap->items[0] = heap->items[heap->size];
+
+    while (1) {
+        int left = idx * 2 + 1;
+        int right = idx * 2 + 2;
+        int best = idx;
+
+        if (left < heap->size && queueNodeHigherPriority(heap->items[left], heap->items[best])) {
+            best = left;
+        }
+        if (right < heap->size && queueNodeHigherPriority(heap->items[right], heap->items[best])) {
+            best = right;
+        }
+        if (best == idx) break;
+
+        priorityHeapSwap(&heap->items[idx], &heap->items[best]);
+        idx = best;
+    }
+
+    return top;
+}
+
+void listQueueByPriority(void) {
+    struct QueueNode *current;
+    struct QueuePriorityHeap heap;
+    int count = 0;
+
+    loadQueue();
+    current = queue_store.front;
+    while (current != NULL) {
+        if (strcmp(current->status, "Waiting") == 0) {
+            count++;
+        }
+        current = current->next;
+    }
+
+    if (count == 0) return;
+
+    heap.items = malloc(sizeof(struct QueueNode*) * count);
+    if (heap.items == NULL) return;
+    heap.size = 0;
+    heap.capacity = count;
+
+    current = queue_store.front;
+    while (current != NULL) {
+        if (strcmp(current->status, "Waiting") == 0) {
+            priorityHeapPush(&heap, current);
+        }
+        current = current->next;
+    }
+
+    while (heap.size > 0) {
+        struct QueueNode *node = priorityHeapPop(&heap);
+        printf("%d|%d|%d|%s|%s\n",
+            node->token,
+            node->patient_id,
+            node->doctor_id,
+            node->priority,
+            node->status
+        );
+    }
+
+    free(heap.items);
+}
+
 void listQueue(void) {
     struct QueueNode *current;
 
@@ -450,6 +576,11 @@ int main(int argc, char *argv[]) {
 
     if (strcmp(argv[1], "list") == 0) {
         listQueue();
+        return 0;
+    }
+
+    if (strcmp(argv[1], "list-priority") == 0) {
+        listQueueByPriority();
         return 0;
     }
 

@@ -491,6 +491,12 @@
         height: 2px;
         background: linear-gradient(90deg, var(--ld-blue), var(--ld-green));
         z-index: 0;
+        transform-origin: left center;
+        transform: scaleX(0);
+        transition: transform 1.2s ease-in-out;
+    }
+    .ld-flow-grid.flow-visible::before {
+        transform: scaleX(1);
     }
     .ld-flow-step {
         display: flex;
@@ -500,7 +506,18 @@
         padding: 36px 20px 28px;
         position: relative;
         z-index: 1;
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 0.5s ease, transform 0.5s ease;
     }
+    .ld-flow-grid.flow-visible .ld-flow-step {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    .ld-flow-grid.flow-visible .ld-flow-step:nth-child(1) { transition-delay: 0.1s; }
+    .ld-flow-grid.flow-visible .ld-flow-step:nth-child(2) { transition-delay: 0.5s; }
+    .ld-flow-grid.flow-visible .ld-flow-step:nth-child(3) { transition-delay: 0.9s; }
+    .ld-flow-grid.flow-visible .ld-flow-step:nth-child(4) { transition-delay: 1.2s; }
     .ld-step-num {
         width: 52px; height: 52px;
         border-radius: 50%;
@@ -1075,8 +1092,24 @@
             });
         }, { threshold: 0.12 });
         els.forEach(el => io.observe(el));
+
+        // Flow timeline animation
+        const flowGrid = document.querySelector('.ld-flow-grid');
+        if (flowGrid) {
+            const flowIo = new IntersectionObserver((entries) => {
+                entries.forEach(e => {
+                    if (e.isIntersecting) {
+                        e.target.classList.add('flow-visible');
+                        flowIo.unobserve(e.target);
+                    }
+                });
+            }, { threshold: 0.3 });
+            flowIo.observe(flowGrid);
+        }
     } else {
         els.forEach(el => el.classList.add('visible'));
+        const flowGrid = document.querySelector('.ld-flow-grid');
+        if (flowGrid) flowGrid.classList.add('flow-visible');
     }
 </script>
 {% endblock %}

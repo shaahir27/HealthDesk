@@ -5,8 +5,16 @@ struct PatientNode {
     struct PatientNode *next;
 };
 
+#define PATIENT_HASH_BUCKETS 101
+
+struct PatientHashNode {
+    struct PatientNode *patient_node;
+    struct PatientHashNode *next;
+};
+
 static struct PatientNode *patients_head = NULL;
 static struct PatientNode *patients_tail = NULL;
+static struct PatientHashNode *phone_hash[PATIENT_HASH_BUCKETS] = { NULL };
 static int patients_loaded = 0;
 static int patients_dirty = 0;
 
@@ -83,6 +91,38 @@ int appendPatientNode(struct Patient p) {
     return 1;
 }
 
+unsigned int hashPhone(const char *phone) {
+    unsigned int hash = 5381;
+    int c;
+    while (phone != NULL && (c = *phone++)) {
+        hash = ((hash << 5) + hash) + (unsigned int)c;
+    }
+    return hash % PATIENT_HASH_BUCKETS;
+}
+
+void indexPatientByPhone(struct PatientNode *patient_node) {
+    unsigned int bucket;
+    struct PatientHashNode *hash_node;
+
+    if (patient_node == NULL) return;
+
+    bucket = hashPhone(patient_node->data.phone);
+    hash_node = malloc(sizeof(struct PatientHashNode));
+    if (hash_node == NULL) return;
+
+    hash_node->patient_node = patient_node;
+    hash_node->next = phone_hash[bucket];
+    phone_hash[bucket] = hash_node;
+}
+
+void rebuildPatientPhoneHash(void) {
+    struct PatientNode *current = patients_head;
+    while (current != NULL) {
+        indexPatientByPhone(current);
+        current = current->next;
+    }
+}
+
 void loadPatients() {
     FILE *fp;
     char line[MAX_LINE];
@@ -101,6 +141,7 @@ void loadPatients() {
     }
 
     fclose(fp);
+    rebuildPatientPhoneHash();
 }
 
 void savePatientsIfDirty() {
@@ -147,8 +188,22 @@ void freePatients() {
     patients_tail = NULL;
 }
 
+void freePatientPhoneHash() {
+    int i;
+    for (i = 0; i < PATIENT_HASH_BUCKETS; i++) {
+        struct PatientHashNode *current = phone_hash[i];
+        while (current != NULL) {
+            struct PatientHashNode *next = current->next;
+            free(current);
+            current = next;
+        }
+        phone_hash[i] = NULL;
+    }
+}
+
 void shutdownPatients() {
     savePatientsIfDirty();
+    freePatientPhoneHash();
     freePatients();
 }
 
@@ -184,14 +239,16 @@ void printPatient(struct Patient p) {
 }
 
 int searchByPhone(const char *phone, struct Patient *result) {
-    struct PatientNode *current;
+    struct PatientHashNode *current;
+    unsigned int bucket;
 
     loadPatients();
-    current = patients_head;
+    bucket = hashPhone(phone);
+    current = phone_hash[bucket];
 
     while (current != NULL) {
-        if (strcmp(current->data.phone, phone) == 0) {
-            *result = current->data;
+        if (strcmp(current->patient_node->data.phone, phone) == 0) {
+            *result = current->patient_node->data;
             return 1;
         }
         current = current->next;
@@ -323,6 +380,7 @@ void addPatient(const char *input) {
         printf("Error|MemoryAllocationFailed");
         return;
     }
+    indexPatientByPhone(patients_tail);
 
     patients_dirty = 1;
     printf("%d|%s|%s", p.id, p.visit_type, p.priority);

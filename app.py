@@ -981,6 +981,17 @@ def run_vitals_command(*args):
         return None
 
 
+def validate_vitals_record(v):
+    line = serialize_vitals_record(v)
+    result = run_vitals_command("validate", line)
+    if result and result.returncode == 0:
+        return True, ""
+    detail = (result.stdout if result else "").strip()
+    if detail.startswith("Error|"):
+        detail = detail.split("|", 1)[1]
+    return False, detail or "Invalid vitals details."
+
+
 def parse_vitals_line(line):
     """Parse a pipe-delimited vitals record into a dict. Returns None on failure."""
     data = line.strip().split("|")
@@ -2059,7 +2070,7 @@ def reconcile_waiting_queue_entries():
 
 @app.before_request
 def require_login():
-    public_endpoints = {"dashboard", "login", "patient_login", "patient_request_otp", "patient_verify_otp", "new_patient_request", "new_patient_slots", "new_patient_submit", "payment_webhook", "payment_webhook_advance", "static"}
+    public_endpoints = {"dashboard", "login", "patient_login", "patient_request_otp", "patient_resend_otp", "patient_verify_otp", "new_patient_request", "new_patient_slots", "new_patient_submit", "payment_webhook", "payment_webhook_advance", "static"}
     if request.endpoint in public_endpoints:
         return
     if not is_authenticated():
@@ -2083,7 +2094,7 @@ def sync_doctor_statuses_before_request():
     if request.endpoint == "static":
         return
     expire_doctor_status_overrides()
-    public_endpoints = {"login", "patient_login", "patient_request_otp", "patient_verify_otp", "new_patient_request", "new_patient_slots", "new_patient_submit", "payment_webhook"}
+    public_endpoints = {"login", "patient_login", "patient_request_otp", "patient_resend_otp", "patient_verify_otp", "new_patient_request", "new_patient_slots", "new_patient_submit", "payment_webhook"}
     if request.endpoint in public_endpoints or not is_authenticated():
         return
     sync_doctor_busy_statuses()
@@ -5936,7 +5947,17 @@ def vitals_save():
         "allergy_conditions": clean_record_field(request.form.get("allergy_conditions", ""), 200),
         "health_conditions":  clean_record_field(request.form.get("health_conditions", ""), 200),
         "notes":              clean_record_field(request.form.get("notes", ""), 200),
+        "smoking_habit":      clean_record_field(request.form.get("smoking_habit", ""), 50),
+        "drinking_habit":     clean_record_field(request.form.get("drinking_habit", ""), 50),
     }
+
+    ok_vitals, vitals_error = validate_vitals_record(vitals)
+    if not ok_vitals:
+        return redirect(url_for(
+            "vitals_add_page",
+            patient_id=patient_id, token=token, doctor_id=doctor_id,
+            status_note=vitals_error
+        ))
 
     if not save_vitals_record(vitals):
         return redirect(url_for(
