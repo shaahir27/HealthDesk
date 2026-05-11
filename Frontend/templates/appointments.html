@@ -19,19 +19,44 @@
 /* Metrics row */
 .apx-metrics {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0,1fr));
-    gap: 12px;
+    grid-template-columns: repeat(7, minmax(118px,1fr));
+    gap: 10px;
 }
 .apx-metric {
-    display: block; text-decoration: none;
-    padding: 14px 16px; border-radius: 12px;
-    background: var(--hd-bg); border: 1px solid var(--hd-border);
-    transition: border-color .18s, box-shadow .18s;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+        "date count"
+        "label label";
+    align-items: center;
+    gap: 2px 10px;
+    min-height: 76px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    text-decoration: none;
+    background: var(--hd-surface);
+    border: 1px solid var(--hd-border);
+    transition: border-color .18s, box-shadow .18s, transform .18s;
 }
-.apx-metric:hover { border-color: var(--hd-primary); box-shadow: var(--hd-shadow); }
-.apx-metric small  { display: block; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; color: var(--hd-text-muted); margin-bottom: 4px; }
-.apx-metric strong { display: block; font-size: 1.1rem; font-weight: 700; color: var(--hd-primary); }
-.apx-metric span   { font-size: .72rem; color: var(--hd-text-muted); }
+.apx-metric:hover { border-color: var(--hd-primary); box-shadow: var(--hd-shadow); transform: translateY(-1px); }
+.apx-metric.active { border-color: var(--hd-primary); background: var(--hd-primary-light); }
+.apx-metric small  { grid-area: date; display: block; font-size: .72rem; font-weight: 700; color: var(--hd-text); margin: 0; }
+.apx-metric strong { grid-area: count; display: block; font-size: 1.15rem; font-weight: 700; color: var(--hd-primary); line-height: 1; }
+.apx-metric span   { grid-area: label; font-size: .72rem; color: var(--hd-text-muted); }
+
+.apx-slot-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 14px;
+}
+.apx-slot-grid .hd-slot {
+    min-height: 72px;
+    border-radius: 9px;
+}
+.apx-slot-grid .hd-slot.blocked {
+    background: #f1f4f7;
+    border-color: #dce3ea;
+    color: #526172;
+}
 
 /* Slot section label */
 .apx-slot-label {
@@ -44,6 +69,16 @@
 /* Appointment action form */
 .apx-action-form {
     display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+}
+.apx-action-cell {
+    vertical-align: middle;
+}
+.apx-action-cell .apx-action-form {
+    display: grid;
+    grid-template-columns: minmax(130px, 1fr) 108px;
+    align-items: center;
+    justify-content: end;
+    width: 100%;
 }
 .apx-action-form .form-select,
 .apx-action-form .form-control { min-height: 36px; font-size: .82rem; border-radius: 8px; }
@@ -87,10 +122,25 @@
 }
 .apx-action-submit {
     min-width: 104px;
+    width: 100%;
+    justify-content: center;
 }
 
 /* Table wrap */
 .apx-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.apx-actions-table {
+    table-layout: fixed;
+    min-width: 1120px;
+    width: 100%;
+}
+.apx-actions-table th,
+.apx-actions-table td {
+    vertical-align: middle;
+}
+.apx-actions-table th:nth-child(5),
+.apx-actions-table td:nth-child(5) {
+    text-align: left;
+}
 
 /* Empty state */
 .apx-empty {
@@ -159,9 +209,13 @@
 .apx-modal-field.full { grid-column: 1 / -1; }
 
 /* Responsive */
+@media (max-width: 1200px) { .apx-metrics { grid-template-columns: repeat(4, minmax(0,1fr)); } }
 @media (max-width: 900px)  { .apx-metrics { grid-template-columns: repeat(2, minmax(0,1fr)); } }
 @media (max-width: 560px)  { .apx-metrics { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 768px)  { .apx-action-form { flex-direction: column; align-items: stretch; } }
+@media (max-width: 768px)  {
+    .apx-actions-table { min-width: 860px; }
+    .apx-action-cell .apx-action-form { grid-template-columns: 1fr; }
+}
 
 /* Modal classes */
 .hd-modal-overlay {
@@ -256,7 +310,7 @@
                             {% for d in doctors %}
                             {% if not selected_department or d.department == selected_department %}
                             <option value="{{ d.id }}" {% if selected_doctor|int == d.id %}selected{% endif %}>
-                                Dr {{ d.name }} ({{ d.department }})
+                                {{ d.name if d.name.startswith('Dr') else 'Dr ' ~ d.name }} ({{ d.department }})
                             </option>
                             {% endif %}
                             {% endfor %}
@@ -280,7 +334,7 @@
     {% if date_slot_overview %}
     <div class="apx-metrics">
         {% for day in date_slot_overview %}
-        <a class="apx-metric"
+        <a class="apx-metric {% if day.date == selected_date %}active{% endif %}"
            href="/appointments?department={{ selected_department }}&doctor_id={{ selected_doctor }}&date={{ day.date }}">
             <small>{{ day.date }}</small>
             <strong>{{ day.available_count }}</strong>
@@ -304,11 +358,16 @@
             </div>
 
             {% if slots %}
-            <div class="hd-slot-grid" id="apxSlotGrid">
+            <div class="hd-slot-grid apx-slot-grid" id="apxSlotGrid">
                 {% set ns = namespace(last_period='') %}
                 {% for slot in slots %}
-                    {% set h = slot.time[:2]|int %}
-                    {% set period = "Morning" if h < 12 else ("Afternoon" if h < 17 else "Evening") %}
+                    {% set slot_hour = namespace(value=slot.time[:2]|int) %}
+                    {% if "PM" in slot.time and slot_hour.value < 12 %}
+                        {% set slot_hour.value = slot_hour.value + 12 %}
+                    {% elif "AM" in slot.time and slot_hour.value == 12 %}
+                        {% set slot_hour.value = 0 %}
+                    {% endif %}
+                    {% set period = "Morning" if slot_hour.value < 12 else ("Afternoon" if slot_hour.value < 17 else "Evening") %}
                     {% if slot.state == "Available" %}
                     <form action="/book_appointment" method="POST" data-period="{{ period }}">
                         <input type="hidden" name="_csrf_token"       value="{{ csrf_token() }}">
@@ -362,7 +421,14 @@
                 <small>{{ group.department or "—" }} &middot; {{ group.appointments|length }} appointments</small>
             </div>
             <div class="apx-table-wrap" style="margin-bottom:20px;">
-                <table class="hd-table">
+                <table class="hd-table apx-actions-table">
+                    <colgroup>
+                        <col style="width:14%;">
+                        <col style="width:15%;">
+                        <col style="width:15%;">
+                        <col style="width:25%;">
+                        <col style="width:31%;">
+                    </colgroup>
                     <thead>
                         <tr><th>Appointment</th><th>Patient</th><th>Date / Slot</th><th>Status</th><th>Action</th></tr>
                     </thead>
@@ -401,7 +467,7 @@
                                 <small class="apx-status-note">{{ a.reassign_context_label }}</small>
                                 {% endif %}
                             </td>
-                            <td>
+                            <td class="apx-action-cell">
                                 {% if a.status in ['Booked', 'No-show'] %}
                                 <form action="/update_appointment" method="POST" class="apx-action-form" novalidate
                                       data-appointment-id="{{ a.appointment_id }}"
@@ -640,7 +706,9 @@
                 matchingDoctors.forEach(function(doctor) {
                     var option = document.createElement("option");
                     option.value = String(doctor.id);
-                    option.textContent = "Dr " + doctor.name + " (" + doctor.department + ")";
+                    var name = String(doctor.name || "");
+                    var displayName = name.indexOf("Dr") === 0 ? name : "Dr " + name;
+                    option.textContent = displayName + " (" + doctor.department + ")";
                     if (String(doctor.id) === selectedDoctorId) {
                         option.selected = true;
                     }

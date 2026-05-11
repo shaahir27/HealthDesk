@@ -38,7 +38,7 @@
 
   <div class="vitals-card">
     <div class="vitals-header">
-      <h1 class="vitals-title">Record Vitals</h1>
+      <h1 class="vitals-title">{% if existing_vitals %}Update Vitals{% else %}Record Vitals{% endif %}</h1>
       {% if status_note %}
       <div class="vitals-alert-danger">{{ status_note }}</div>
       {% endif %}
@@ -59,7 +59,7 @@
 
     {% if existing_vitals %}
     <div class="vitals-warning">
-      <strong>Vitals already recorded for this visit.</strong> Submitting again will create a new entry.
+      <strong>Vitals already recorded for this patient.</strong> Submit again to save an updated backend record for this visit.
     </div>
     {% endif %}
 
@@ -177,7 +177,7 @@
 
       <div class="vitals-actions">
         <a href="{{ url_for('queue_page') }}" class="hd-btn hd-btn-muted">Cancel</a>
-        <button type="submit" class="hd-btn hd-btn-primary">Save Vitals</button>
+        <button type="submit" class="hd-btn hd-btn-primary">{% if existing_vitals %}Update Vitals{% else %}Save Vitals{% endif %}</button>
       </div>
     </form>
   </div>

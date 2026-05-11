@@ -9,7 +9,7 @@
 999009|2026-05-08|3|Future Patient|30|Male|Doc 9|Cardiology|500|0|0|0|500|PENDING|41|||||||counter|2026-05-08T09:00:00||0|0.00|
 999010|2026-05-08|11|Future Patient|30|Male|Doc 2|Cardiology|500|0|0|0|500|PENDING|42|||||||counter|2026-05-08T09:00:00||0|0.00|
 999011|2026-05-09|19|Future Patient|30|Male|Doc 5|Neurology|700|0|0|0|700|PENDING|43|||||||counter|2026-05-09T09:00:00||0|0.00|
-999012|2026-05-09|21|Future Patient|30|Male|Doc 3|Orthopaedics|500|0|0|0|500|PENDING|44|||||||counter|2026-05-09T09:00:00||0|0.00|
+999012|2026-05-09|21|Future Patient|30|Male|Doc 3|Orthopaedics|500|0|0|0|500|PENDING|44||||0|||||0|0.00|
 999013|2026-05-09|10|Future Patient|30|Male|Doc 3|Orthopaedics|500|0|0|0|500|PENDING|45|||||||counter|2026-05-09T09:00:00||0|0.00|
 999014|2026-05-09|8|Future Patient|30|Male|Doc 5|Neurology|500|0|0|0|500|PENDING|46|||||||counter|2026-05-09T09:00:00||0|0.00|
 999015|2026-05-09|17|Future Patient|30|Male|Doc 2|Cardiology|500|0|0|0|500|PENDING|47|||||||counter|2026-05-09T09:00:00||0|0.00|

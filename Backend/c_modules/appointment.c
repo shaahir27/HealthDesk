@@ -1,7 +1,7 @@
 #include "common.h"
 #include <time.h>
 
-#define MAX_APPOINTMENTS 50000
+#define INITIAL_APPOINTMENT_CAPACITY 32
 #define SLOT_COUNT 8
 #define APPOINTMENT_STACK_FILE "Backend/data/appointment_action_stack.txt"
 
@@ -28,6 +28,11 @@ struct AppointmentActionNode {
 const char *DEFAULT_SLOTS[SLOT_COUNT] = {
     "08:30 AM", "09:30 AM", "10:30 AM", "11:40 AM",
     "02:00 PM", "04:00 PM", "06:00 PM", "08:05 PM"
+};
+
+struct SlotStateMap {
+    const char *states[SLOT_COUNT];
+    int blocked;
 };
 
 void safeCopyAppointment(char *dest, const char *src, size_t dest_size) {
@@ -285,67 +290,71 @@ int validDate(const char *date) {
     return 1;
 }
 
-int generateAppointmentId() {
-    FILE *fp = fopen(APPOINTMENT_FILE, "r");
-    int max_id = 0;
-    char line[MAX_LINE];
-
-    if (fp != NULL) {
-        while (fgets(line, sizeof(line), fp)) {
-            char buffer[MAX_LINE];
-            char *token;
-
-            strcpy(buffer, line);
-            token = strtok(buffer, "|");
-            if (token != NULL && atoi(token) > max_id) {
-                max_id = atoi(token);
-            }
-        }
-        fclose(fp);
-    }
-
-    return max_id + 1;
-}
-
-int loadAppointments(struct Appointment *list, int max_count) {
+int loadAppointments(struct Appointment **list_out, int *max_id_out) {
     FILE *fp = fopen(APPOINTMENT_FILE, "r");
     char line[MAX_LINE];
+    struct Appointment *list = NULL;
     int count = 0;
+    int capacity = 0;
+    int max_id = 0;
 
+    if (list_out == NULL) return 0;
+    *list_out = NULL;
+    if (max_id_out != NULL) *max_id_out = 0;
     if (!fp) return 0;
 
-    while (fgets(line, sizeof(line), fp) && count < max_count) {
+    while (fgets(line, sizeof(line), fp)) {
         char buffer[MAX_LINE];
+        struct Appointment parsed;
         strcpy(buffer, line);
 
         char *token = strtok(buffer, "|");
         if (!token) continue;
-        list[count].appointment_id = atoi(token);
+        parsed.appointment_id = atoi(token);
+        if (parsed.appointment_id > max_id) {
+            max_id = parsed.appointment_id;
+        }
 
         token = strtok(NULL, "|");
         if (!token) continue;
-        list[count].patient_id = atoi(token);
+        parsed.patient_id = atoi(token);
 
         token = strtok(NULL, "|");
         if (!token) continue;
-        list[count].doctor_id = atoi(token);
+        parsed.doctor_id = atoi(token);
 
         token = strtok(NULL, "|");
         if (!token) continue;
-        strcpy(list[count].date, token);
+        strcpy(parsed.date, token);
 
         token = strtok(NULL, "|");
         if (!token) continue;
-        strcpy(list[count].time_slot, token);
+        strcpy(parsed.time_slot, token);
 
         token = strtok(NULL, "\n");
         if (!token) continue;
-        strcpy(list[count].status, token);
+        strcpy(parsed.status, token);
+
+        if (count >= capacity) {
+            int new_capacity = capacity == 0 ? INITIAL_APPOINTMENT_CAPACITY : capacity * 2;
+            struct Appointment *grown = realloc(list, sizeof(struct Appointment) * new_capacity);
+            if (grown == NULL) {
+                free(list);
+                fclose(fp);
+                return 0;
+            }
+            list = grown;
+            capacity = new_capacity;
+        }
+
+        list[count] = parsed;
 
         count++;
     }
 
     fclose(fp);
+    *list_out = list;
+    if (max_id_out != NULL) *max_id_out = max_id;
     return count;
 }
 
@@ -457,43 +466,87 @@ const char* getSlotState(int doctor_id, const char *date, const char *time_slot,
     return state;
 }
 
+int slotIndex(const char *time_slot) {
+    int i;
+
+    for (i = 0; i < SLOT_COUNT; i++) {
+        if (strcmp(DEFAULT_SLOTS[i], time_slot) == 0) return i;
+    }
+
+    return -1;
+}
+
+const char* appointmentStatusToSlotState(const char *status) {
+    if (strcmp(status, "Cancelled") == 0 ||
+        strcmp(status, "Rescheduled") == 0) {
+        return "Available";
+    }
+    if (strcmp(status, "Completed") == 0) return "Completed";
+    if (strcmp(status, "No-show") == 0) return "No-show";
+    return "Booked";
+}
+
+void buildSlotStateMap(struct SlotStateMap *map, int doctor_id, const char *date,
+                       struct Appointment *list, int count) {
+    int i;
+
+    for (i = 0; i < SLOT_COUNT; i++) {
+        map->states[i] = "Available";
+    }
+
+    map->blocked = doctorIsBlocked(doctor_id, date);
+    if (map->blocked) {
+        for (i = 0; i < SLOT_COUNT; i++) {
+            map->states[i] = "Blocked";
+        }
+        return;
+    }
+
+    for (i = 0; i < count; i++) {
+        int index;
+
+        if (list[i].doctor_id != doctor_id || strcmp(list[i].date, date) != 0) {
+            continue;
+        }
+
+        index = slotIndex(list[i].time_slot);
+        if (index >= 0) {
+            map->states[index] = appointmentStatusToSlotState(list[i].status);
+        }
+    }
+}
+
 void printSlots(int doctor_id, const char *date) {
-    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    struct Appointment *list = NULL;
+    struct SlotStateMap map;
     int count;
     int i;
 
-    if (list == NULL) return;
-
-    count = loadAppointments(list, MAX_APPOINTMENTS);
+    count = loadAppointments(&list, NULL);
+    buildSlotStateMap(&map, doctor_id, date, list, count);
 
     for (i = 0; i < SLOT_COUNT; i++) {
-        const char *state = getSlotState(doctor_id, date, DEFAULT_SLOTS[i], list, count);
-        printf("SLOT|%s|%s\n", DEFAULT_SLOTS[i], state);
+        printf("SLOT|%s|%s\n", DEFAULT_SLOTS[i], map.states[i]);
     }
 
     free(list);
 }
 
 int bookSlot(int patient_id, int doctor_id, const char *date, const char *time_slot) {
-    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    struct Appointment *list = NULL;
     int count;
+    int max_id;
     const char *state;
     FILE *fp;
     int id;
 
-    if (list == NULL) {
-        printf("Error|MemoryAllocationFailed");
-        return 0;
-    }
-
-    count = loadAppointments(list, MAX_APPOINTMENTS);
-    state = getSlotState(doctor_id, date, time_slot, list, count);
-
     if (patient_id <= 0 || doctor_id <= 0 || !validDate(date) || !validSlot(time_slot)) {
         printf("Error|InvalidInput");
-        free(list);
         return 0;
     }
+
+    count = loadAppointments(&list, &max_id);
+    state = getSlotState(doctor_id, date, time_slot, list, count);
 
     if (strcmp(state, "Available") != 0) {
         printf("Error|SlotNotAvailable");
@@ -501,7 +554,7 @@ int bookSlot(int patient_id, int doctor_id, const char *date, const char *time_s
         return 0;
     }
 
-    id = generateAppointmentId();
+    id = max_id + 1;
 
     fp = fopen(APPOINTMENT_FILE, "a");
     if (!fp) {
@@ -530,17 +583,12 @@ int bookSlot(int patient_id, int doctor_id, const char *date, const char *time_s
 }
 
 int updateAppointmentStatus(int appointment_id, const char *new_status) {
-    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    struct Appointment *list = NULL;
     int count;
     int i;
     int found = 0;
 
-    if (list == NULL) {
-        printf("Error|MemoryAllocationFailed");
-        return 0;
-    }
-
-    count = loadAppointments(list, MAX_APPOINTMENTS);
+    count = loadAppointments(&list, NULL);
 
     for (i = 0; i < count; i++) {
         if (list[i].appointment_id == appointment_id) {
@@ -569,18 +617,14 @@ int updateAppointmentStatus(int appointment_id, const char *new_status) {
 }
 
 int rescheduleAppointment(int appointment_id, const char *new_date, const char *new_time) {
-    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    struct Appointment *list = NULL;
     int count;
+    int max_id;
     int i;
     int found_index = -1;
     int new_id;
 
-    if (list == NULL) {
-        printf("Error|MemoryAllocationFailed");
-        return 0;
-    }
-
-    count = loadAppointments(list, MAX_APPOINTMENTS);
+    count = loadAppointments(&list, &max_id);
 
     for (i = 0; i < count; i++) {
         if (list[i].appointment_id == appointment_id) {
@@ -609,19 +653,23 @@ int rescheduleAppointment(int appointment_id, const char *new_date, const char *
         return 0;
     }
 
-    if (count >= MAX_APPOINTMENTS) {
-        printf("Error|AppointmentLimitReached");
-        free(list);
-        return 0;
-    }
-
     if (strcmp(getSlotState(list[found_index].doctor_id, new_date, new_time, list, count), "Available") != 0) {
         printf("Error|NewSlotNotAvailable");
         free(list);
         return 0;
     }
 
-    new_id = generateAppointmentId();
+    {
+        struct Appointment *grown = realloc(list, sizeof(struct Appointment) * (count + 1));
+        if (grown == NULL) {
+            printf("Error|MemoryAllocationFailed");
+            free(list);
+            return 0;
+        }
+        list = grown;
+    }
+
+    new_id = max_id + 1;
 
     {
         struct Appointment old_appt = list[found_index];
@@ -649,28 +697,21 @@ int rescheduleAppointment(int appointment_id, const char *new_date, const char *
 }
 
 void checkDoctorAvailability(int doctor_id, const char *date, const char *time_slot) {
-    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    struct Appointment *list = NULL;
     int count;
 
-    if (list == NULL) {
-        printf("AVAILABILITY|Blocked");
-        return;
-    }
-
-    count = loadAppointments(list, MAX_APPOINTMENTS);
+    count = loadAppointments(&list, NULL);
 
     printf("AVAILABILITY|%s", getSlotState(doctor_id, date, time_slot, list, count));
     free(list);
 }
 
 void listAppointmentsForDoctorDate(int doctor_id, const char *date) {
-    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    struct Appointment *list = NULL;
     int count;
     int i;
 
-    if (list == NULL) return;
-
-    count = loadAppointments(list, MAX_APPOINTMENTS);
+    count = loadAppointments(&list, NULL);
 
     for (i = 0; i < count; i++) {
         if (list[i].doctor_id == doctor_id && strcmp(list[i].date, date) == 0) {
@@ -689,13 +730,11 @@ void listAppointmentsForDoctorDate(int doctor_id, const char *date) {
 }
 
 void listAllAppointments(void) {
-    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    struct Appointment *list = NULL;
     int count;
     int i;
 
-    if (list == NULL) return;
-
-    count = loadAppointments(list, MAX_APPOINTMENTS);
+    count = loadAppointments(&list, NULL);
     for (i = 0; i < count; i++) {
         printf("%d|%d|%d|%s|%s|%s\n",
             list[i].appointment_id,
@@ -711,16 +750,11 @@ void listAllAppointments(void) {
 }
 
 int findAppointmentById(int appointment_id) {
-    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    struct Appointment *list = NULL;
     int count;
     int i;
 
-    if (list == NULL) {
-        printf("Error|MemoryAllocationFailed");
-        return 0;
-    }
-
-    count = loadAppointments(list, MAX_APPOINTMENTS);
+    count = loadAppointments(&list, NULL);
     for (i = 0; i < count; i++) {
         if (list[i].appointment_id == appointment_id) {
             printf("%d|%d|%d|%s|%s|%s",
@@ -741,13 +775,11 @@ int findAppointmentById(int appointment_id) {
 }
 
 void listAppointmentsForPatient(int patient_id) {
-    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    struct Appointment *list = NULL;
     int count;
     int i;
 
-    if (list == NULL) return;
-
-    count = loadAppointments(list, MAX_APPOINTMENTS);
+    count = loadAppointments(&list, NULL);
     for (i = 0; i < count; i++) {
         if (list[i].patient_id == patient_id) {
             printf("%d|%d|%d|%s|%s|%s\n",
@@ -765,16 +797,11 @@ void listAppointmentsForPatient(int patient_id) {
 }
 
 int findBookedAppointmentForPatientDate(int patient_id, const char *date) {
-    struct Appointment *list = malloc(sizeof(struct Appointment) * MAX_APPOINTMENTS);
+    struct Appointment *list = NULL;
     int count;
     int i;
 
-    if (list == NULL) {
-        printf("Error|MemoryAllocationFailed");
-        return 0;
-    }
-
-    count = loadAppointments(list, MAX_APPOINTMENTS);
+    count = loadAppointments(&list, NULL);
     for (i = 0; i < count; i++) {
         if (list[i].patient_id == patient_id &&
             strcmp(list[i].date, date) == 0 &&

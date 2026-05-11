@@ -2192,6 +2192,16 @@ def doctor_status_end_date(doctor_id, meta=None):
 
 
 def doctor_is_blocked_for_date(doctor_id, selected_date, doctor=None, meta=None):
+    selected_day = parse_iso_date(selected_date)
+    meta = meta or load_doctor_status_meta()
+    info = meta.get(str(safe_int(doctor_id))) or {}
+    expires_on = parse_iso_date(str(info.get("expires_on", "")).strip())
+    if selected_day and expires_on and date.today() <= selected_day <= expires_on:
+        daily_status = str(info.get("daily_status", "")).strip()
+        current_status = str(info.get("current_status", "")).strip()
+        if daily_status in {"Unavailable", "Off"} or current_status == "Emergency":
+            return True
+
     result = run_doctor_command("is-blocked", int(doctor_id), str(selected_date or ""))
     if result and result.returncode == 0:
         return result.stdout.strip() == "1"
@@ -4782,6 +4792,14 @@ def reception():
         if not selected_department:
             selected_department = patient["department"]
 
+        if selected_doctor and selected_department:
+            selected_doctor_record = next(
+                (doctor for doctor in doctors if str(doctor["id"]) == str(selected_doctor)),
+                None
+            )
+            if not selected_doctor_record or selected_doctor_record.get("department") != selected_department:
+                selected_doctor = ""
+
         if selected_doctor:
             slots = load_appointment_slots(selected_doctor, selected_date)
             suggested_doctors = get_suggested_doctors(selected_department, selected_doctor, selected_date)
@@ -5129,6 +5147,14 @@ def appointments_page():
     suggested_doctors = []
 
     department_doctors = [d for d in doctors if d["department"] == selected_department] if selected_department else []
+
+    if selected_doctor and selected_department:
+        selected_doctor_record = next(
+            (doctor for doctor in doctors if str(doctor["id"]) == str(selected_doctor)),
+            None
+        )
+        if not selected_doctor_record or selected_doctor_record.get("department") != selected_department:
+            selected_doctor = ""
 
     if not selected_doctor and department_doctors:
         selected_doctor = str(department_doctors[0]["id"])

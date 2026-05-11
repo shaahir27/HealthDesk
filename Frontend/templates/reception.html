@@ -217,7 +217,7 @@
                 <div class="row g-3 align-items-end">
                     <div class="col-12 col-md-3">
                         <label class="form-label">Department</label>
-                        <select name="department" class="form-select">
+                        <select id="rcxDepartmentSelect" name="department" class="form-select">
                             {% for dep in doctors|map(attribute='department')|unique|list %}
                             <option value="{{ dep }}" {% if selected_department == dep %}selected{% endif %}>{{ dep }}</option>
                             {% endfor %}
@@ -225,12 +225,12 @@
                     </div>
                     <div class="col-12 col-md-4">
                         <label class="form-label">Doctor</label>
-                        <select name="doctor_id" class="form-select">
+                        <select id="rcxDoctorSelect" name="doctor_id" class="form-select" data-selected-doctor="{{ selected_doctor }}">
                             <option value="">Select doctor</option>
                             {% for d in doctors %}
                             {% if not selected_department or d.department == selected_department %}
                             <option value="{{ d.id }}" {% if selected_doctor|int == d.id %}selected{% endif %}>
-                                Dr {{ d.name }} ({{ d.department }})
+                                {{ d.name if d.name.startswith('Dr') else 'Dr ' ~ d.name }} ({{ d.department }})
                             </option>
                             {% endif %}
                             {% endfor %}
@@ -320,8 +320,13 @@
             {% set ns = namespace(last_period='') %}
             <div class="hd-slot-grid" id="rcxSlotGrid">
             {% for slot in slots %}
-                {% set h = slot.time[:2]|int %}
-                {% set period = "Morning" if h < 12 else ("Afternoon" if h < 17 else "Evening") %}
+                {% set slot_hour = namespace(value=slot.time[:2]|int) %}
+                {% if "PM" in slot.time and slot_hour.value < 12 %}
+                    {% set slot_hour.value = slot_hour.value + 12 %}
+                {% elif "AM" in slot.time and slot_hour.value == 12 %}
+                    {% set slot_hour.value = 0 %}
+                {% endif %}
+                {% set period = "Morning" if slot_hour.value < 12 else ("Afternoon" if slot_hour.value < 17 else "Evening") %}
                 {% if period != ns.last_period %}
                     {% set ns.last_period = period %}
                     {# Close and reopen grid for label — done via JS below for cleanliness #}
@@ -412,7 +417,61 @@
 
 </div>
 
+<script id="rcxDoctorsJson" type="application/json">{{ doctors|tojson }}</script>
 <script>
+/* Keep doctor choices in sync with the selected department. */
+(function() {
+    var departmentSelect = document.getElementById("rcxDepartmentSelect");
+    var doctorSelect = document.getElementById("rcxDoctorSelect");
+    var doctorSource = document.getElementById("rcxDoctorsJson");
+
+    if (!departmentSelect || !doctorSelect || !doctorSource) return;
+
+    try {
+        var doctors = JSON.parse(doctorSource.textContent || "[]");
+
+        function rebuildDoctorOptions(preferredDoctorId) {
+            var department = departmentSelect.value;
+            var selectedDoctorId = String(
+                preferredDoctorId !== undefined && preferredDoctorId !== null
+                    ? preferredDoctorId
+                    : doctorSelect.value
+            );
+            var matchingDoctors = doctors.filter(function(doctor) {
+                return !department || doctor.department === department;
+            });
+
+            doctorSelect.innerHTML = "";
+
+            var placeholder = document.createElement("option");
+            placeholder.value = "";
+            placeholder.textContent = "Select doctor";
+            doctorSelect.appendChild(placeholder);
+
+            matchingDoctors.forEach(function(doctor) {
+                var option = document.createElement("option");
+                option.value = String(doctor.id);
+                var name = String(doctor.name || "");
+                var displayName = name.indexOf("Dr") === 0 ? name : "Dr " + name;
+                option.textContent = displayName + " (" + doctor.department + ")";
+                doctorSelect.appendChild(option);
+            });
+
+            var hasSelectedDoctor = matchingDoctors.some(function(doctor) {
+                return String(doctor.id) === selectedDoctorId;
+            });
+            doctorSelect.value = hasSelectedDoctor ? selectedDoctorId : "";
+        }
+
+        rebuildDoctorOptions(doctorSelect.dataset.selectedDoctor || doctorSelect.value);
+        departmentSelect.addEventListener("change", function() {
+            rebuildDoctorOptions("");
+        });
+    } catch (error) {
+        console.warn("Could not load reception doctor filters.", error);
+    }
+})();
+
 /* Inject period labels into slot grid */
 (function() {
     var grid = document.getElementById("rcxSlotGrid");

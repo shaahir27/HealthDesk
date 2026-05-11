@@ -19,3 +19,4 @@
 19|Sanjay|58|Male|9000000019|Salem|Routine heart review|Follow-up|Normal|Cardiology
 20|Tanvi|22|Female|9000000020|Chennai|Acne treatment|Follow-up|Urgent|Dermatology
 21|Shaahir|22|Male|7904515049|Velachery, Chennai|Persistent acne with post-inflammatory marks|Follow-up|Urgent|Dermatology
+22|reena|21|Female|9443797486|Chennai|fever|New|Normal|General

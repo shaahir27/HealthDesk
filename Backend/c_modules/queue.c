@@ -9,10 +9,20 @@ static struct QueueStore queue_store = { NULL, NULL };
 static int queue_loaded = 0;
 static int queue_dirty = 0;
 
+#define APPOINTMENT_STATUS_BUCKETS 1021
+
 struct QueuePriorityHeap {
     struct QueueNode **items;
     int size;
     int capacity;
+};
+
+struct AppointmentStatusNode {
+    int patient_id;
+    int doctor_id;
+    int has_booked;
+    char last_terminal[MAX_SMALL];
+    struct AppointmentStatusNode *next;
 };
 
 void safeCopy(char *dest, const char *src, size_t dest_size) {
@@ -497,61 +507,160 @@ int writeAllQueueFromStdin(void) {
     return 1;
 }
 
+unsigned int appointmentStatusHash(int patient_id, int doctor_id) {
+    unsigned int hash = 2166136261u;
+    hash = (hash ^ (unsigned int)patient_id) * 16777619u;
+    hash = (hash ^ (unsigned int)doctor_id) * 16777619u;
+    return hash % APPOINTMENT_STATUS_BUCKETS;
+}
+
+int isTerminalAppointmentStatus(const char *status) {
+    return strcmp(status, "Completed") == 0 ||
+           strcmp(status, "Cancelled") == 0 ||
+           strcmp(status, "Rescheduled") == 0 ||
+           strcmp(status, "No-show") == 0;
+}
+
+struct AppointmentStatusNode* findAppointmentStatusNode(
+    struct AppointmentStatusNode **table,
+    int patient_id,
+    int doctor_id
+) {
+    unsigned int bucket = appointmentStatusHash(patient_id, doctor_id);
+    struct AppointmentStatusNode *current = table[bucket];
+
+    while (current != NULL) {
+        if (current->patient_id == patient_id && current->doctor_id == doctor_id) {
+            return current;
+        }
+        current = current->next;
+    }
+
+    return NULL;
+}
+
+struct AppointmentStatusNode* getOrCreateAppointmentStatusNode(
+    struct AppointmentStatusNode **table,
+    int patient_id,
+    int doctor_id
+) {
+    unsigned int bucket;
+    struct AppointmentStatusNode *node;
+
+    node = findAppointmentStatusNode(table, patient_id, doctor_id);
+    if (node != NULL) return node;
+
+    node = malloc(sizeof(struct AppointmentStatusNode));
+    if (node == NULL) return NULL;
+
+    node->patient_id = patient_id;
+    node->doctor_id = doctor_id;
+    node->has_booked = 0;
+    node->last_terminal[0] = '\0';
+
+    bucket = appointmentStatusHash(patient_id, doctor_id);
+    node->next = table[bucket];
+    table[bucket] = node;
+
+    return node;
+}
+
+void loadAppointmentStatusTable(struct AppointmentStatusNode **table) {
+    FILE *fp = fopen(APPOINTMENT_FILE, "r");
+    char line[MAX_LINE];
+
+    if (fp == NULL) return;
+
+    while (fgets(line, sizeof(line), fp)) {
+        char buffer[MAX_LINE];
+        char *token;
+        int patient_id = 0;
+        int doctor_id = 0;
+        char status[MAX_SMALL] = "";
+        struct AppointmentStatusNode *node;
+
+        safeCopy(buffer, line, sizeof(buffer));
+
+        token = strtok(buffer, "|");
+        if (!token) continue;
+
+        token = strtok(NULL, "|");
+        if (!token) continue;
+        patient_id = atoi(token);
+
+        token = strtok(NULL, "|");
+        if (!token) continue;
+        doctor_id = atoi(token);
+
+        token = strtok(NULL, "|");
+        if (!token) continue;
+
+        token = strtok(NULL, "|");
+        if (!token) continue;
+
+        token = strtok(NULL, "\n");
+        if (!token) continue;
+        safeCopy(status, token, sizeof(status));
+
+        node = getOrCreateAppointmentStatusNode(table, patient_id, doctor_id);
+        if (node == NULL) continue;
+
+        if (strcmp(status, "Booked") == 0) {
+            node->has_booked = 1;
+        }
+        if (isTerminalAppointmentStatus(status)) {
+            safeCopy(node->last_terminal, status, sizeof(node->last_terminal));
+        }
+    }
+
+    fclose(fp);
+}
+
+void freeAppointmentStatusTable(struct AppointmentStatusNode **table) {
+    int i;
+
+    for (i = 0; i < APPOINTMENT_STATUS_BUCKETS; i++) {
+        struct AppointmentStatusNode *current = table[i];
+        while (current != NULL) {
+            struct AppointmentStatusNode *next = current->next;
+            free(current);
+            current = next;
+        }
+        table[i] = NULL;
+    }
+}
+
 int queueReconcile(void) {
     struct QueueNode *current;
+    struct AppointmentStatusNode *appointment_status[APPOINTMENT_STATUS_BUCKETS] = { NULL };
     int updated = 0;
+
     loadQueue();
+    loadAppointmentStatusTable(appointment_status);
+
     current = queue_store.front;
     while (current != NULL) {
         if (strcmp(current->status, "Waiting") == 0) {
-            FILE *fp = fopen(APPOINTMENT_FILE, "r");
-            char line[MAX_LINE];
-            int has_booked = 0;
-            char last_terminal[MAX_SMALL] = "";
-            if (fp != NULL) {
-                while (fgets(line, sizeof(line), fp)) {
-                    char buffer[MAX_LINE];
-                    char *token;
-                    int patient_id = 0, doctor_id = 0;
-                    char status[MAX_SMALL] = "";
-                    safeCopy(buffer, line, sizeof(buffer));
-                    token = strtok(buffer, "|");
-                    if (!token) continue;
-                    strtok(NULL, "|");
-                    token = strtok(NULL, "|");
-                    if (!token) continue;
-                    doctor_id = atoi(token);
-                    token = strtok(NULL, "|");
-                    if (!token) continue;
-                    token = strtok(NULL, "|");
-                    if (!token) continue;
-                    token = strtok(NULL, "\n");
-                    if (!token) continue;
-                    safeCopy(status, token, sizeof(status));
-                    safeCopy(buffer, line, sizeof(buffer));
-                    strtok(buffer, "|");
-                    token = strtok(NULL, "|");
-                    if (!token) continue;
-                    patient_id = atoi(token);
-                    if (patient_id != current->patient_id || doctor_id != current->doctor_id)
-                        continue;
-                    if (strcmp(status, "Booked") == 0) {
-                        has_booked = 1;
-                    }
-                    if (strcmp(status, "Completed") == 0 || strcmp(status, "Cancelled") == 0 ||
-                        strcmp(status, "Rescheduled") == 0 || strcmp(status, "No-show") == 0) {
-                        safeCopy(last_terminal, status, sizeof(last_terminal));
-                    }
-                }
-                fclose(fp);
-                if (!has_booked && last_terminal[0] != '\0') {
-                    safeCopy(current->status, last_terminal, sizeof(current->status));
-                    updated = 1;
-                }
+            struct AppointmentStatusNode *status_node;
+
+            status_node = findAppointmentStatusNode(
+                appointment_status,
+                current->patient_id,
+                current->doctor_id
+            );
+
+            if (status_node != NULL &&
+                !status_node->has_booked &&
+                status_node->last_terminal[0] != '\0') {
+                safeCopy(current->status, status_node->last_terminal, sizeof(current->status));
+                updated = 1;
             }
         }
         current = current->next;
     }
+
+    freeAppointmentStatusTable(appointment_status);
+
     if (updated) {
         queue_dirty = 1;
         saveQueueIfDirty();
