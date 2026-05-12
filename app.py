@@ -12,7 +12,6 @@ import threading
 from datetime import date, datetime, timedelta
 from functools import wraps
 from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
 from payment_service import create_payment_order, get_razorpay_key_id, payments_configured, verify_webhook_signature
 from sms_service import get_last_sms_error, send_sms
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -1298,21 +1297,30 @@ def build_prescription_pdf(rx_header, rx_medicines, patient, doctor, vitals=None
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
-                             rightMargin=2*cm, leftMargin=2*cm,
-                             topMargin=2*cm, bottomMargin=2*cm)
+                             rightMargin=1.6*cm, leftMargin=1.6*cm,
+                             topMargin=1.45*cm, bottomMargin=1.35*cm)
 
     styles = getSampleStyleSheet()
+    navy = colors.HexColor('#12324A')
+    teal = colors.HexColor('#138A8A')
+    border = colors.HexColor('#CAD7E3')
+    styles['Normal'].fontName = 'Helvetica'
+    styles['Normal'].fontSize = 9.2
+    styles['Normal'].leading = 12.5
+    styles['Normal'].textColor = colors.HexColor('#243445')
+    rx_cell = ParagraphStyle('RxCell', parent=styles['Normal'], fontSize=8.4, leading=10.8, wordWrap='CJK')
+    rx_med = ParagraphStyle('RxMedCell', parent=rx_cell, fontName='Helvetica-Bold')
     story = []
 
     # ── Clinic header ──
     clinic_style = ParagraphStyle('ClinicHeader', fontSize=18, fontName='Helvetica-Bold',
-                                   textColor=colors.HexColor('#1E3A5F'), spaceAfter=4)
+                                   textColor=navy, spaceAfter=4)
     story.append(Paragraph("HEALTHDESK CLINIC", clinic_style))
-    story.append(Paragraph("Prescription", styles['Normal']))
+    story.append(Paragraph("Prescription and care plan", styles['Normal']))
     story.append(Spacer(1, 0.4*cm))
 
     # ── Horizontal rule ──
-    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#2563EB')))
+    story.append(HRFlowable(width="100%", thickness=1.2, color=teal))
     story.append(Spacer(1, 0.3*cm))
 
     # ── Date + Prescription ID ──
@@ -1405,24 +1413,33 @@ def build_prescription_pdf(rx_header, rx_medicines, patient, doctor, vitals=None
         story.append(Paragraph("MEDICINES", ParagraphStyle('MedsHead', fontSize=11, fontName='Helvetica-Bold', textColor=colors.HexColor('#1E3A5F'), spaceAfter=4)))
         med_header = [["#", "Medicine", "Morning", "Afternoon", "Night", "Days", "Instructions"]]
         med_rows = [
-            [str(i+1), m.get("medicine_name",""), m.get("morning",""),
-             m.get("afternoon",""), m.get("night",""),
-             m.get("days",""), m.get("instructions","")]
+            [
+                Paragraph(str(i + 1), rx_cell),
+                Paragraph(str(m.get("medicine_name", "")), rx_med),
+                Paragraph(str(m.get("morning", "")), rx_cell),
+                Paragraph(str(m.get("afternoon", "")), rx_cell),
+                Paragraph(str(m.get("night", "")), rx_cell),
+                Paragraph(str(m.get("days", "")), rx_cell),
+                Paragraph(str(m.get("instructions", "")), rx_cell),
+            ]
             for i, m in enumerate(rx_medicines)
         ]
         med_data = med_header + med_rows
-        med_table = Table(med_data, colWidths=[1*cm, 5*cm, 2*cm, 2*cm, 2*cm, 1.5*cm, 4*cm])
+        med_table = Table(med_data, colWidths=[0.8*cm, 4.1*cm, 1.8*cm, 2.1*cm, 1.5*cm, 1.3*cm, 4.8*cm], repeatRows=1)
         med_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1E3A5F')),
+            ('BACKGROUND', (0,0), (-1,0), navy),
             ('TEXTCOLOR', (0,0), (-1,0), colors.white),
             ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
-            ('FONTSIZE', (0,0), (-1,-1), 9),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#F2F4F7')]),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#D1D5DB')),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('TOPPADDING', (0,0), (-1,-1), 4),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ('FONTSIZE', (0,0), (-1,0), 8.2),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#F6FAFC')]),
+            ('GRID', (0,0), (-1,-1), 0.45, border),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('ALIGN', (0,0), (0,-1), 'CENTER'),
+            ('ALIGN', (2,0), (5,-1), 'CENTER'),
+            ('LEFTPADDING', (0,0), (-1,-1), 5),
+            ('RIGHTPADDING', (0,0), (-1,-1), 5),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
         ]))
         story.append(med_table)
         story.append(Spacer(1, 0.4*cm))
@@ -1434,7 +1451,7 @@ def build_prescription_pdf(rx_header, rx_medicines, patient, doctor, vitals=None
         story.append(Spacer(1, 0.4*cm))
 
     # ── Footer ──
-    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#2563EB')))
+    story.append(HRFlowable(width="100%", thickness=0.8, color=teal))
     story.append(Spacer(1, 0.2*cm))
     story.append(Paragraph("Doctor's Signature: _______________________", styles['Normal']))
     story.append(Spacer(1, 0.3*cm))
@@ -1494,91 +1511,196 @@ def build_bill_preview_text(bill):
 
 
 def build_bill_pdf(bill):
+    """Build a polished, itemized clinic bill PDF and return PDF bytes."""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
+
     buffer = BytesIO()
-    pdf = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
-    left = 40
-    right = width - 40
-    y = height - 48
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=1.6 * cm,
+        leftMargin=1.6 * cm,
+        topMargin=1.45 * cm,
+        bottomMargin=1.35 * cm,
+        title=f"HealthDesk Bill {bill['bill_id']}",
+    )
 
-    def ensure_space(lines_needed=1):
-        nonlocal y
-        if y < 70 + (lines_needed * 16):
-            pdf.showPage()
-            y = height - 48
+    navy = colors.HexColor("#12324A")
+    teal = colors.HexColor("#138A8A")
+    blue = colors.HexColor("#E8F1FB")
+    mint = colors.HexColor("#EAF7F5")
+    surface = colors.HexColor("#FBFDFE")
+    border = colors.HexColor("#CAD7E3")
+    muted = colors.HexColor("#607080")
+    green = colors.HexColor("#0F7A4F")
+    red = colors.HexColor("#B42318")
+    amber = colors.HexColor("#A15C07")
 
-    def text_line(value="", size=10, bold=False, gap=14):
-        nonlocal y
-        ensure_space()
-        pdf.setFont("Helvetica-Bold" if bold else "Helvetica", size)
-        pdf.drawString(left, y, str(value))
-        y -= gap
-
-    def rule():
-        nonlocal y
-        ensure_space()
-        pdf.setLineWidth(0.6)
-        pdf.line(left, y, right, y)
-        y -= 12
+    styles = getSampleStyleSheet()
+    styles["Normal"].fontName = "Helvetica"
+    styles["Normal"].fontSize = 9.2
+    styles["Normal"].leading = 12.5
+    styles["Normal"].textColor = colors.HexColor("#243445")
+    small = ParagraphStyle("BillSmall", parent=styles["Normal"], fontSize=8.4, leading=10.8, wordWrap="CJK")
+    label = ParagraphStyle("BillLabel", parent=small, fontName="Helvetica-Bold", textColor=navy)
+    section = ParagraphStyle("BillSection", fontSize=10.5, leading=13, fontName="Helvetica-Bold", textColor=navy, spaceAfter=6)
+    brand = ParagraphStyle("BillBrand", fontSize=17, leading=20, textColor=navy)
+    invoice_title = ParagraphStyle("BillTitle", fontSize=15, leading=18, fontName="Helvetica-Bold", alignment=2, textColor=navy)
+    right = ParagraphStyle("BillRight", parent=small, alignment=2)
+    amount_style = ParagraphStyle("BillAmount", parent=small, alignment=2, fontName="Helvetica-Bold")
+    total_style = ParagraphStyle("BillTotal", fontSize=15, leading=18, fontName="Helvetica-Bold", alignment=2, textColor=navy)
 
     printable_date = bill["date"]
     parsed_date = parse_iso_date(bill["date"])
     if parsed_date:
         printable_date = parsed_date.strftime("%d-%m-%Y")
 
-    line_items = [{"name": "Doctor Fee", "price": bill["doctor_fee"]}]
+    line_items = [{"name": "Doctor consultation fee", "price": bill["doctor_fee"]}]
     line_items.extend(bill["treatments"])
     line_items.extend(bill["lab_tests"])
     if bill["medicine_total"]:
         line_items.append({"name": "Medicines", "price": bill["medicine_total"]})
 
-    pdf.setTitle(f"HealthDesk Bill {bill['bill_id']}")
-    text_line("HEALTHDESK CLINIC", size=16, bold=True, gap=18)
-    text_line("Billing Summary", size=11, gap=18)
-    rule()
-    text_line(f"Bill ID: {bill['bill_id']}", bold=True)
-    text_line(f"Date: {printable_date}")
-    text_line(f"Patient ID: {bill['patient_id']}")
-    text_line(f"Patient Name: {bill['name']}")
-    text_line(f"Age / Gender: {bill['age']} / {bill['gender']}")
-    text_line(f"Doctor: {bill['doctor']}")
-    text_line(f"Department: {bill['department']}")
-    rule()
-    text_line("Bill Details", size=11, bold=True, gap=18)
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(left, y, "Description")
-    pdf.drawRightString(right, y, "Amount (Rs)")
-    y -= 14
-    pdf.setFont("Helvetica", 10)
-    for item in line_items:
-        ensure_space()
-        pdf.drawString(left, y, item["name"])
-        pdf.drawRightString(right, y, f"{item['price']:.0f}")
-        y -= 14
-    rule()
-    text_line(f"Total: Rs {bill['total']:.0f}", size=12, bold=True, gap=18)
-    text_line(f"Payment Status: {bill['status']}", bold=True)
     payment_status = str(bill.get("status", "")).upper()
+    status_color = green if payment_status == "PAID" else red if payment_status in {"PENDING", "INITIATED"} else amber
+    status_label = payment_status.title() if payment_status else "Pending"
+    story = []
+
+    header = Table([
+        [
+            Paragraph("<b>HEALTHDESK CLINIC</b><br/><font size='9' color='#607080'>Patient billing statement</font>", brand),
+            Paragraph(f"INVOICE<br/><font size='9'>Bill #{bill['bill_id']}<br/>Date: {printable_date}</font>", invoice_title),
+        ]
+    ], colWidths=[10.6 * cm, 5.8 * cm])
+    header.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), blue),
+        ("BOX", (0, 0), (-1, -1), 0.7, border),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+        ("TOPPADDING", (0, 0), (-1, -1), 11),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 11),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    story.extend([header, Spacer(1, 0.35 * cm)])
+
+    status_card = Table([
+        [
+            Paragraph("<b>Payment Status</b><br/><font size='11'>{}</font>".format(status_label), ParagraphStyle("Status", parent=styles["Normal"], textColor=status_color, leading=15)),
+            Paragraph("<b>Total Amount</b><br/>Rs {:.0f}".format(float(bill["total"])), total_style),
+        ]
+    ], colWidths=[8.2 * cm, 8.2 * cm])
+    status_card.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), mint),
+        ("BOX", (0, 0), (-1, -1), 0.7, border),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+        ("TOPPADDING", (0, 0), (-1, -1), 9),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    story.extend([status_card, Spacer(1, 0.35 * cm)])
+
+    def detail_table(rows):
+        table = Table(rows, colWidths=[2.7 * cm, 5.5 * cm, 2.7 * cm, 5.5 * cm])
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), surface),
+            ("BOX", (0, 0), (-1, -1), 0.5, border),
+            ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#E2EAF1")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        return table
+
+    story.append(Paragraph("PATIENT AND VISIT DETAILS", section))
+    story.append(detail_table([
+        [Paragraph("Patient", label), Paragraph(str(bill["name"]), small), Paragraph("Patient ID", label), Paragraph(f"#{bill['patient_id']}", small)],
+        [Paragraph("Age / Gender", label), Paragraph(f"{bill['age']} / {bill['gender']}", small), Paragraph("Department", label), Paragraph(str(bill["department"]), small)],
+        [Paragraph("Doctor", label), Paragraph(str(bill["doctor"]), small), Paragraph("Bill Date", label), Paragraph(printable_date, small)],
+    ]))
+    story.append(Spacer(1, 0.35 * cm))
+
+    story.append(Paragraph("ITEMIZED CHARGES", section))
+    item_rows = [["#", "Description", "Amount"]]
+    for index, item in enumerate(line_items, start=1):
+        item_rows.append([
+            Paragraph(str(index), small),
+            Paragraph(str(item.get("name", "")), small),
+            Paragraph("Rs {:.0f}".format(float(item.get("price", 0))), amount_style),
+        ])
+    item_table = Table(item_rows, colWidths=[1.0 * cm, 11.4 * cm, 4.0 * cm], repeatRows=1)
+    item_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), navy),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 9),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F6FAFC")]),
+        ("GRID", (0, 0), (-1, -1), 0.45, border),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (0, 0), (0, -1), "CENTER"),
+        ("ALIGN", (2, 0), (2, -1), "RIGHT"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 7),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
+    story.append(item_table)
+    story.append(Spacer(1, 0.25 * cm))
+
+    totals = Table([
+        [Paragraph("Subtotal", right), Paragraph("Rs {:.0f}".format(float(bill["total"])), amount_style)],
+        [Paragraph("<b>Grand Total</b>", right), Paragraph("Rs {:.0f}".format(float(bill["total"])), total_style)],
+    ], colWidths=[12.4 * cm, 4.0 * cm])
+    totals.setStyle(TableStyle([
+        ("LINEABOVE", (0, 1), (-1, 1), 0.7, teal),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    story.append(totals)
+    story.append(Spacer(1, 0.35 * cm))
+
+    payment_lines = []
     if payment_status in {"PAID", "REFUNDED"} and bill.get("payment_method"):
         method_label = "Payment Method" if payment_status == "PAID" else "Original Payment Method"
-        text_line(f"{method_label}: {payment_method_label(bill.get('payment_method'))}")
-        if bill.get("razorpay_payment_id"):
-            text_line(f"Payment Reference: {bill['razorpay_payment_id']}")
-        if bill.get("paid_at"):
-            text_line(f"Paid On: {payment_timestamp_label(bill.get('paid_at'))}")
+        payment_lines.append(f"<b>{method_label}:</b> {payment_method_label(bill.get('payment_method'))}")
+    if bill.get("razorpay_payment_id"):
+        payment_lines.append(f"<b>Payment Reference:</b> {bill['razorpay_payment_id']}")
+    if bill.get("paid_at"):
+        payment_lines.append(f"<b>Paid On:</b> {payment_timestamp_label(bill.get('paid_at'))}")
     if payment_status == "WAIVED":
-        text_line("This bill was waived by the clinic.")
+        payment_lines.append("This bill was waived by the clinic.")
     elif payment_status == "REFUNDED":
-        text_line("This bill was refunded by the clinic.")
-    if bill["medicine_notes"]:
-        text_line("Medicine Notes:", bold=True)
-        for note_line in re.findall(r".{1,85}(?:\s+|$)", bill["medicine_notes"]) or [bill["medicine_notes"]]:
-            cleaned = note_line.strip()
-            if cleaned:
-                text_line(cleaned)
-    rule()
-    text_line("Thank you for visiting HealthDesk.", size=10)
-    pdf.save()
+        payment_lines.append("This bill was refunded by the clinic.")
+
+    if payment_lines or bill["medicine_notes"]:
+        story.append(Paragraph("PAYMENT AND NOTES", section))
+        notes = "<br/>".join(payment_lines) if payment_lines else "Payment details will be updated once the bill is settled."
+        if bill["medicine_notes"]:
+            notes += "<br/><br/><b>Medicine Notes:</b> " + str(bill["medicine_notes"])
+        notes_table = Table([[Paragraph(notes, small)]], colWidths=[16.4 * cm])
+        notes_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F7FBFA")),
+            ("BOX", (0, 0), (-1, -1), 0.5, border),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ]))
+        story.append(notes_table)
+        story.append(Spacer(1, 0.35 * cm))
+
+    story.append(HRFlowable(width="100%", thickness=0.8, color=teal))
+    story.append(Spacer(1, 0.2 * cm))
+    story.append(Paragraph("Thank you for visiting HealthDesk Clinic. Please retain this invoice for your records.", ParagraphStyle("BillFooter", parent=small, alignment=1, textColor=muted)))
+
+    doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
 

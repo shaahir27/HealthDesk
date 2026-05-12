@@ -13,3 +13,7 @@ MED|2|Cetirizine 10mg|No|No|Yes|5|Take at bedtime
 MED|3|Benzoyl Peroxide 2.5% Gel|No|No|Yes|14|Apply only on active spots at night
 
 MED|3|Clindamycin 1% Gel|Yes|No|No|14|Apply in the morning after washing face
+
+4|22|21|6|2026-04-20|Severe acne|Oral antibiotics and topical cream
+
+MED|4|Oral antibiotics and topical cream|No|No|No|0|Follow the doctor's saved prescription instructions

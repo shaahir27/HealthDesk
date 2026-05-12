@@ -51,3 +51,10 @@
 51|9|8|Normal|No-show
 52|22|1|Normal|No-show
 53|17|2|Normal|No-show
+54|10|9|Normal|Waiting
+55|17|3|Normal|Waiting
+56|14|10|Normal|Waiting
+57|3|10|Urgent|Waiting
+58|11|7|Urgent|Waiting
+59|2|9|Normal|Waiting
+60|7|3|Normal|Waiting
