@@ -1,3 +1,4 @@
-1|21|10|2026-05-03|06:00 PM|Review for acne marks|Follow-up|Approved|2026-05-02 14:30:00|2026-05-03 23:59:00|Approved by reception|26
-2|21|7|2026-05-06|09:30 AM|Fever|New|Expired|2026-05-02T23:38:34|2026-05-03T01:38:34|Request expired before it was confirmed. Please book again.|0
-3|21|7|2026-05-05|09:30 AM|Fever, headache|New|Approved|2026-05-03T09:20:48|2026-05-03T11:20:48|Auto-approved by triage|25
+1|6|8|2026-05-14|04:00 PM|Migraine review with fatigue|Follow-up|Approved|2026-05-12T08:45:00|2026-05-17T20:00:00|Auto-approved after slot check|25
+2|15|8|2026-05-15|11:40 AM|Diabetes review and medication refill|Follow-up|Pending|2026-05-12T09:15:00|2026-05-17T20:00:00||0
+3|23|9|2026-05-14|11:40 AM|Breathlessness while climbing stairs|New|Approved|2026-05-12T09:20:00|2026-05-17T20:00:00|Urgent cardiology slot confirmed|23
+4|18|6|2026-05-15|04:00 PM|Acne scar review and pigmentation treatment|Follow-up|Pending|2026-05-12T10:05:00|2026-05-17T20:00:00||0

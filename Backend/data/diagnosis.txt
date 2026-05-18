@@ -1,8 +1,6 @@
-1|6|1|2026-04-28|Viral fever|Paracetamol and rest
-2|7|6|2026-04-29|Dermatitis|Antihistamine cream for five days
-3|12|10|2026-04-26|Allergic rash|Topical lotion twice daily
-4|15|6|2026-04-30|Dust allergy|Cetirizine once daily
-5|20|6|2026-04-30|Acne flare|Benzoyl gel at night
-6|2|2|2026-04-15|Cardiac follow-up|Repeat ECG in two weeks
-7|21|6|2026-04-20|Severe acne|Oral antibiotics and topical cream
-8|21|10|2026-04-18|Post-inflammatory acne with mild pigmentation|Topical retinoid, sunscreen, and gentle face wash
+1|21|6|2026-05-12|Acne vulgaris with post-inflammatory hyperpigmentation|Benzoyl peroxide gel, clindamycin gel, sunscreen, and gentle cleanser
+2|1|1|2026-05-12|Acute viral upper respiratory infection|Paracetamol, warm fluids, and rest
+3|2|9|2026-05-12|Exercise-induced chest discomfort, stable vitals|ECG review and cardiology follow-up
+4|3|10|2026-05-12|Inflammatory acne flare with facial redness|Topical retinoid and anti-inflammatory gel
+5|4|7|2026-05-12|Routine pediatric immunization review|Vaccination schedule updated
+6|5|3|2026-05-12|Early osteoarthritis of right knee|NSAID gel, quadriceps exercises, and review

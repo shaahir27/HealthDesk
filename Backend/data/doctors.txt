@@ -1,7 +1,7 @@
 1|Dr. Arun Kumar|General|10|Available|Free
-2|Dr. Meena Ravi|Cardiology|8|Unavailable|Unavailable
-3|Dr. Suresh Babu|Orthopaedics|12|Available|Emergency
-4|Dr. Kavya Nair|ENT|6|Unavailable|Free
+2|Dr. Meena Ravi|Cardiology|8|Available|Free
+3|Dr. Suresh Babu|Orthopaedics|12|Available|Free
+4|Dr. Kavya Nair|ENT|6|Available|Free
 5|Dr. Rajesh Iyer|Neurology|15|Available|Free
 6|Dr. Priya Sharma|Dermatology|7|Available|Free
 7|Dr. Anil Joseph|Pediatrics|9|Available|Free

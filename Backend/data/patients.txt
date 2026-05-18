@@ -1,22 +1,24 @@
-1|Aakash|34|Male|9000000001|Chennai|Chest tightness|New|Urgent|General
-2|Bhavna|52|Female|9000000002|Madurai|Palpitations|Follow-up|Normal|Cardiology
-3|Charan|29|Male|9000000003|Coimbatore|Knee injury|New|Urgent|Orthopaedics
-4|Divya|31|Female|9000000004|Trichy|Ear pain|New|Normal|ENT
-5|Eshan|47|Male|9000000005|Salem|Migraine|Follow-up|Normal|Neurology
-6|Farah|26|Female|9000000006|Erode|Fever and cough|New|Normal|General
-7|Gokul|18|Male|9000000007|Vellore|Skin rash|New|Normal|Dermatology
-8|Harini|9|Female|9000000008|Chennai|Cold and wheeze|New|Normal|Pediatrics
-9|Ishaan|40|Male|9000000009|Tirunelveli|General checkup|Follow-up|Normal|General
-10|Janani|37|Female|9000000010|Chennai|Recurring fever|Follow-up|Normal|General
-11|Karthik|61|Male|9000000011|Madurai|Chest pain review|Emergency|Urgent|Cardiology
-12|Lavanya|24|Female|9000000012|Salem|Severe rash|New|Normal|Dermatology
-13|Mohan|55|Male|9000000013|Erode|Breathlessness|New|Urgent|Cardiology
-14|Nisha|43|Female|9000000014|Chennai|Back pain review|Follow-up|Normal|General
-15|Omkar|33|Male|9000000015|Trichy|Dust allergy|New|Normal|Dermatology
-16|Pavithra|28|Female|9000000016|Coimbatore|Fever and body pain|New|Normal|General
-17|Qadir|12|Male|9000000017|Vellore|Vaccination visit|Follow-up|Normal|Pediatrics
-18|Ritu|45|Female|9000000018|Madurai|Cancelled skin review|Follow-up|Normal|Dermatology
-19|Sanjay|58|Male|9000000019|Salem|Routine heart review|Follow-up|Normal|Cardiology
-20|Tanvi|22|Female|9000000020|Chennai|Acne treatment|Follow-up|Urgent|Dermatology
+1|Aarav Menon|34|Male|9000000001|Adyar, Chennai|Fever with throat pain|New|Normal|General
+2|Meera Krishnan|29|Female|9000000002|T Nagar, Chennai|Chest tightness during exercise|Follow-up|Normal|Cardiology
+3|Kabir Sharma|41|Male|9000000003|Anna Nagar, Chennai|Persistent acne and facial redness|Follow-up|Urgent|Dermatology
+4|Lavanya Iyer|24|Female|9000000004|Mylapore, Chennai|Childhood vaccination review|New|Normal|Pediatrics
+5|Rohan Das|52|Male|9000000005|Velachery, Chennai|Knee pain after morning walk|Follow-up|Normal|Orthopaedics
+6|Nisha Patel|37|Female|9000000006|Nungambakkam, Chennai|Migraine with light sensitivity|Follow-up|Normal|Neurology
+7|Arjun Rao|18|Male|9000000007|Guindy, Chennai|Ear pain and reduced hearing|New|Urgent|ENT
+8|Divya Nair|45|Female|9000000008|Tambaram, Chennai|Diabetes follow-up and fatigue|Follow-up|Normal|General
+9|Vikram Singh|60|Male|9000000009|Porur, Chennai|Blood pressure review|Follow-up|Normal|Cardiology
+10|Priya Raman|33|Female|9000000010|Besant Nagar, Chennai|Skin rash with itching|New|Normal|Dermatology
+11|Sanjay Kumar|47|Male|9000000011|Chromepet, Chennai|Lower back stiffness|Follow-up|Urgent|Orthopaedics
+12|Ananya Gupta|8|Female|9000000012|OMR, Chennai|Cough and mild fever|New|Normal|Pediatrics
+13|Harish Balan|39|Male|9000000013|Perungudi, Chennai|Sinus congestion and headache|New|Normal|ENT
+14|Keerthi Suresh|31|Female|9000000014|Kodambakkam, Chennai|Anxiety and poor sleep|Follow-up|Normal|Neurology
+15|Mohan Raj|55|Male|9000000015|Triplicane, Chennai|Annual diabetes review|Follow-up|Normal|General
+16|Pavithra Selvam|27|Female|9000000016|Saidapet, Chennai|Irregular heartbeat sensation|New|Urgent|Cardiology
+17|Imran Khan|44|Male|9000000017|Royapettah, Chennai|Shoulder pain after lifting weight|New|Normal|Orthopaedics
+18|Sara Thomas|22|Female|9000000018|Kilpauk, Chennai|Acne scars and pigmentation|Follow-up|Normal|Dermatology
+19|Rahul Mathew|5|Male|9000000021|Pallavaram, Chennai|Fever and appetite loss|New|Urgent|Pediatrics
+20|Janani Subramanian|36|Female|9000000020|Ashok Nagar, Chennai|Recurring tonsil pain|New|Normal|ENT
 21|Shaahir|22|Male|7904515049|Velachery, Chennai|Persistent acne with post-inflammatory marks|Follow-up|Urgent|Dermatology
-22|reena|21|Female|9443797486|Chennai|fever|New|Normal|General
+22|Sneha Reddy|48|Female|9000000022|Thiruvanmiyur, Chennai|Follow-up after dizziness episode|Follow-up|Normal|Neurology
+23|Gokul Prasad|63|Male|9000000023|Alwarpet, Chennai|Breathlessness on climbing stairs|New|Urgent|Cardiology
+24|Yamini Bose|40|Female|9000000024|Kotturpuram, Chennai|Routine general health check|New|Normal|General

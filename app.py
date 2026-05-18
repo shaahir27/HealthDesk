@@ -1313,7 +1313,7 @@ def build_prescription_pdf(rx_header, rx_medicines, patient, doctor, vitals=None
     story = []
 
     # ── Clinic header ──
-    clinic_style = ParagraphStyle('ClinicHeader', fontSize=18, fontName='Helvetica-Bold',
+    clinic_style = ParagraphStyle('ClinicHeader', fontSize=18, leading=22, fontName='Helvetica-Bold',
                                    textColor=navy, spaceAfter=4)
     story.append(Paragraph("HEALTHDESK CLINIC", clinic_style))
     story.append(Paragraph("Prescription and care plan", styles['Normal']))

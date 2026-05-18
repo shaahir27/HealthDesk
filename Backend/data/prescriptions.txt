@@ -1,19 +1,14 @@
-1|5|1|6|2026-05-02|Viral fever improving|Drink warm water, rest for 2 days
-
-MED|1|Paracetamol 500mg|Yes|No|Yes|3|After food
-
-2|6|6|7|2026-05-02|Contact dermatitis|Apply cream locally, avoid soap
-
-MED|2|Hydrocortisone 1% Cream|Yes|No|Yes|5|Apply thin layer
-
-MED|2|Cetirizine 10mg|No|No|Yes|5|Take at bedtime
-
-3|11|6|20|2026-05-02|Acne vulgaris flare-up|Use salicylic face wash, avoid oily foods
-
-MED|3|Benzoyl Peroxide 2.5% Gel|No|No|Yes|14|Apply only on active spots at night
-
-MED|3|Clindamycin 1% Gel|Yes|No|No|14|Apply in the morning after washing face
-
-4|22|21|6|2026-04-20|Severe acne|Oral antibiotics and topical cream
-
-MED|4|Oral antibiotics and topical cream|No|No|No|0|Follow the doctor's saved prescription instructions
+1|1|21|6|2026-05-12|Acne vulgaris with post-inflammatory hyperpigmentation|Use a gentle cleanser twice daily, avoid picking lesions, and review in 3 weeks
+MED|1|Benzoyl Peroxide 2.5% Gel|No|No|Yes|21|Apply a thin layer only on active spots at night
+MED|1|Clindamycin 1% Gel|Yes|No|No|14|Apply after washing face in the morning
+MED|1|Broad Spectrum Sunscreen SPF 50|Yes|No|No|30|Apply every morning and repeat if outdoors
+2|2|1|1|2026-05-12|Acute viral upper respiratory infection|Hydration, steam inhalation, and rest for 48 hours
+MED|2|Paracetamol 500mg|Yes|No|Yes|3|Take after food if fever is above 100 F
+MED|2|Cetirizine 10mg|No|No|Yes|5|Take at bedtime for throat irritation
+3|3|2|9|2026-05-12|Exercise-induced chest discomfort, stable vitals|Avoid strenuous exercise until follow-up, return urgently if pain worsens
+MED|3|Pantoprazole 40mg|Yes|No|No|7|Take before breakfast
+4|4|3|10|2026-05-12|Inflammatory acne flare with facial redness|Patch test new topical medicines and avoid abrasive scrubs
+MED|4|Adapalene 0.1% Gel|No|No|Yes|21|Apply pea-sized amount on alternate nights
+MED|4|Calamine Lotion|No|Yes|No|7|Apply thin layer on irritated areas
+5|6|5|3|2026-05-12|Early osteoarthritis of right knee|Ice after activity and begin physiotherapy exercises
+MED|5|Diclofenac Gel|Yes|No|Yes|10|Apply over painful knee area after food

@@ -1,56 +1,6 @@
-999001|2026-05-05|1|Tmp|20|Male|Dr X|General|100|0|0|0|100|PENDING|0||||0||||||0|0.00|
-999002|2026-05-02|12|Lavanya|24|Female|Dr. Deepa Menon|Dermatology|700|0|0|0|700|PAID|10||||12|||counter|2026-05-06T10:55:56||0|0.00|
-999003|2026-05-07|17|Future Patient|30|Male|Doc 3|Orthopaedics|500|0|0|0|500|PENDING|35|||||||counter|2026-05-07T09:00:00||0|0.00|
-999004|2026-05-07|2|Future Patient|30|Male|Doc 4|ENT|1000|0|0|0|1000|PENDING|36|||||||counter|2026-05-07T09:00:00||0|0.00|
-999005|2026-05-07|1|Future Patient|30|Male|Doc 6|Dermatology|700|0|0|0|700|PENDING|37|||||||counter|2026-05-07T09:00:00||0|0.00|
-999006|2026-05-07|16|Future Patient|30|Male|Doc 1|General|500|0|0|0|500|PENDING|38|||||||counter|2026-05-07T09:00:00||0|0.00|
-999007|2026-05-08|1|Future Patient|30|Male|Doc 2|Cardiology|700|0|0|0|700|PENDING|39|||||||counter|2026-05-08T09:00:00||0|0.00|
-999008|2026-05-08|5|Future Patient|30|Male|Doc 2|Cardiology|700|0|0|0|700|PENDING|40|||||||counter|2026-05-08T09:00:00||0|0.00|
-999009|2026-05-08|3|Future Patient|30|Male|Doc 9|Cardiology|500|0|0|0|500|PENDING|41|||||||counter|2026-05-08T09:00:00||0|0.00|
-999010|2026-05-08|11|Future Patient|30|Male|Doc 2|Cardiology|500|0|0|0|500|PENDING|42|||||||counter|2026-05-08T09:00:00||0|0.00|
-999011|2026-05-09|19|Future Patient|30|Male|Doc 5|Neurology|700|0|0|0|700|PENDING|43|||||||counter|2026-05-09T09:00:00||0|0.00|
-999012|2026-05-09|21|Future Patient|30|Male|Doc 3|Orthopaedics|500|0|0|0|500|PENDING|44||||0|||||0|0.00|
-999013|2026-05-09|10|Future Patient|30|Male|Doc 3|Orthopaedics|500|0|0|0|500|PENDING|45|||||||counter|2026-05-09T09:00:00||0|0.00|
-999014|2026-05-09|8|Future Patient|30|Male|Doc 5|Neurology|500|0|0|0|500|PENDING|46|||||||counter|2026-05-09T09:00:00||0|0.00|
-999015|2026-05-09|17|Future Patient|30|Male|Doc 2|Cardiology|500|0|0|0|500|PENDING|47|||||||counter|2026-05-09T09:00:00||0|0.00|
-999016|2026-05-09|2|Future Patient|30|Male|Doc 4|ENT|500|0|0|0|500|PENDING|48|||||||counter|2026-05-09T09:00:00||0|0.00|
-999017|2026-05-09|9|Future Patient|30|Male|Doc 8|General|700|0|0|0|700|PENDING|49|||||||counter|2026-05-09T09:00:00||0|0.00|
-999018|2026-05-10|11|Future Patient|30|Male|Doc 5|Neurology|1000|0|0|0|1000|PENDING|50|||||||counter|2026-05-10T09:00:00||0|0.00|
-999019|2026-05-10|13|Future Patient|30|Male|Doc 2|Cardiology|500|0|0|0|500|PENDING|51|||||||counter|2026-05-10T09:00:00||0|0.00|
-999020|2026-05-10|5|Future Patient|30|Male|Doc 8|General|1000|0|0|0|1000|PENDING|52|||||||counter|2026-05-10T09:00:00||0|0.00|
-999021|2026-05-10|12|Future Patient|30|Male|Doc 1|General|700|0|0|0|700|PENDING|53|||||||counter|2026-05-10T09:00:00||0|0.00|
-999022|2026-05-10|19|Future Patient|30|Male|Doc 9|Cardiology|700|0|0|0|700|PENDING|54|||||||counter|2026-05-10T09:00:00||0|0.00|
-999023|2026-05-10|17|Future Patient|30|Male|Doc 2|Cardiology|500|0|0|0|500|PENDING|55|||||||counter|2026-05-10T09:00:00||0|0.00|
-999024|2026-05-11|19|Future Patient|30|Male|Doc 9|Cardiology|700|0|0|0|700|PENDING|56|||||||counter|2026-05-11T09:00:00||0|0.00|
-999025|2026-05-11|13|Future Patient|30|Male|Doc 5|Neurology|500|0|0|0|500|PENDING|57|||||||counter|2026-05-11T09:00:00||0|0.00|
-999026|2026-05-11|7|Future Patient|30|Male|Doc 10|Dermatology|500|0|0|0|500|PENDING|58|||||||counter|2026-05-11T09:00:00||0|0.00|
-999027|2026-05-11|10|Future Patient|30|Male|Doc 10|Dermatology|700|0|0|0|700|PENDING|59|||||||counter|2026-05-11T09:00:00||0|0.00|
-999028|2026-05-12|10|Future Patient|30|Male|Doc 9|Cardiology|500|0|0|0|500|PENDING|60|||||||counter|2026-05-12T09:00:00||0|0.00|
-999029|2026-05-12|17|Future Patient|30|Male|Doc 3|Orthopaedics|1000|0|0|0|1000|PENDING|61|||||||counter|2026-05-12T09:00:00||0|0.00|
-999030|2026-05-12|14|Future Patient|30|Male|Doc 10|Dermatology|1000|0|0|0|1000|PENDING|62|||||||counter|2026-05-12T09:00:00||0|0.00|
-999031|2026-05-12|3|Future Patient|30|Male|Doc 10|Dermatology|1000|0|0|0|1000|PENDING|63|||||||counter|2026-05-12T09:00:00||0|0.00|
-999032|2026-05-12|11|Future Patient|30|Male|Doc 7|Pediatrics|500|0|0|0|500|PENDING|64|||||||counter|2026-05-12T09:00:00||0|0.00|
-999033|2026-05-12|2|Future Patient|30|Male|Doc 9|Cardiology|700|0|0|0|700|PENDING|65|||||||counter|2026-05-12T09:00:00||0|0.00|
-999034|2026-05-12|7|Future Patient|30|Male|Doc 3|Orthopaedics|1000|0|0|0|1000|PENDING|66|||||||counter|2026-05-12T09:00:00||0|0.00|
-999035|2026-05-13|10|Future Patient|30|Male|Doc 3|Orthopaedics|700|0|0|0|700|PENDING|67|||||||counter|2026-05-13T09:00:00||0|0.00|
-999036|2026-05-13|2|Future Patient|30|Male|Doc 7|Pediatrics|1000|0|0|0|1000|PENDING|68|||||||counter|2026-05-13T09:00:00||0|0.00|
-999037|2026-05-13|17|Future Patient|30|Male|Doc 4|ENT|1000|0|0|0|1000|PENDING|69|||||||counter|2026-05-13T09:00:00||0|0.00|
-999038|2026-05-06|2|Future Patient|30|Male|Doc 1|General|700|0|0|0|700|PENDING|70|||||||counter|2026-05-06T09:00:00||0|0.00|
-999039|2026-05-06|11|Future Patient|30|Male|Doc 1|General|700|0|0|0|700|PENDING|71|||||||counter|2026-05-06T09:00:00||0|0.00|
-999040|2026-05-06|9|Future Patient|30|Male|Doc 1|General|500|0|0|0|500|PENDING|72|||||||counter|2026-05-06T09:00:00||0|0.00|
-999041|2026-05-06|14|Future Patient|30|Male|Doc 1|General|700|0|0|0|700|PENDING|73|||||||counter|2026-05-06T09:00:00||0|0.00|
-999042|2026-05-06|20|Future Patient|30|Male|Doc 2|Cardiology|1000|0|0|0|1000|PENDING|74|||||||counter|2026-05-06T09:00:00||0|0.00|
-999043|2026-05-06|19|Future Patient|30|Male|Doc 2|Cardiology|700|0|0|0|700|PENDING|75|||||||counter|2026-05-06T09:00:00||0|0.00|
-999044|2026-05-06|18|Future Patient|30|Male|Doc 3|Orthopaedics|700|0|0|0|700|PENDING|76|||||||counter|2026-05-06T09:00:00||0|0.00|
-999045|2026-05-06|7|Future Patient|30|Male|Doc 3|Orthopaedics|500|0|0|0|500|PENDING|77|||||||counter|2026-05-06T09:00:00||0|0.00|
-999046|2026-05-06|5|Future Patient|30|Male|Doc 3|Orthopaedics|1000|0|0|0|1000|PENDING|78|||||||counter|2026-05-06T09:00:00||0|0.00|
-999047|2026-05-06|17|Future Patient|30|Male|Doc 4|ENT|500|0|0|0|500|PENDING|79|||||||counter|2026-05-06T09:00:00||0|0.00|
-999048|2026-05-06|12|Future Patient|30|Male|Doc 4|ENT|1000|0|0|0|1000|PENDING|80|||||||counter|2026-05-06T09:00:00||0|0.00|
-999049|2026-05-06|4|Future Patient|30|Male|Doc 4|ENT|1000|0|0|0|1000|PENDING|81|||||||counter|2026-05-06T09:00:00||0|0.00|
-999050|2026-05-06|13|Future Patient|30|Male|Doc 5|Neurology|1000|0|0|0|1000|PENDING|82|||||||counter|2026-05-06T09:00:00||0|0.00|
-999051|2026-05-06|21|Future Patient|30|Male|Doc 5|Neurology|1000|0|0|0|1000|PENDING|83|||||||counter|2026-05-06T09:00:00||0|0.00|
-999052|2026-05-06|10|Future Patient|30|Male|Doc 5|Neurology|1000|0|0|0|1000|PENDING|84|||||||counter|2026-05-06T09:00:00||0|0.00|
-999053|2026-05-06|8|Future Patient|30|Male|Doc 6|Dermatology|1000|0|0|0|1000|PENDING|85|||||||counter|2026-05-06T09:00:00||0|0.00|
-999054|2026-05-06|16|Future Patient|30|Male|Doc 6|Dermatology|1000|0|0|0|1000|PENDING|86|||||||counter|2026-05-06T09:00:00||0|0.00|
-999055|2026-05-06|15|Future Patient|30|Male|Doc 7|Pediatrics|500|0|0|0|500|PENDING|87|||||||counter|2026-05-06T09:00:00||0|0.00|
-999056|2026-05-06|3|Future Patient|30|Male|Doc 7|Pediatrics|1000|0|0|0|1000|PENDING|88|||||||counter|2026-05-06T09:00:00||0|0.00|
+1001|2026-05-12|21|Shaahir|22|Male|Dr. Priya Sharma|Dermatology|700|500|0|650|1850|PAID|6|Acne comedone extraction~500||Benzoyl peroxide gel and sunscreen dispensed|1|||counter|2026-05-12T10:15:00||0|0.00|
+1002|2026-05-12|1|Aarav Menon|34|Male|Dr. Arun Kumar|General|500|0|250|180|930|PENDING|1||CBC~250|Paracetamol tablets dispensed|2|||||0|0.00|
+1003|2026-05-12|2|Meera Krishnan|29|Female|Dr. Vikram Singh|Cardiology|700|0|1200|0|1900|PENDING|9||ECG~500^Troponin I~700||3|||||0.00||
+1004|2026-05-12|3|Kabir Sharma|41|Male|Dr. Deepa Menon|Dermatology|700|350|0|420|1470|PAID|10|Dermatology procedure~350||Topical retinoid gel dispensed|4|||online|2026-05-12T14:25:00|2026-05-12T14:10:00|0|0.00|
+1005|2026-05-12|4|Lavanya Iyer|24|Female|Dr. Anil Joseph|Pediatrics|500|600|0|0|1100|WAIVED|7|Vaccination counselling~600|||5|||||0|0.00|
+1006|2026-05-12|5|Rohan Das|52|Male|Dr. Suresh Babu|Orthopaedics|700|450|800|250|2200|PENDING|3|Joint assessment~450|X-Ray Knee~800|Pain relief gel dispensed|6|||||0|0.00|
